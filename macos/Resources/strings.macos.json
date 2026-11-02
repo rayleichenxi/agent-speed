@@ -1,4 +1,16 @@
 {
+  "mac.orb.threads": {
+    "zh-Hant": "%d 線程 · 均 %@/s",
+    "zh-Hans": "%d 线程 · 均 %@/s",
+    "en": "%d agents · avg %@/s",
+    "ja": "%d スレッド · 平均 %@/s"
+  },
+  "mac.orb.threads.a11y": {
+    "zh-Hant": "%d 個正在生成的線程，每線程平均 %@ token 每秒",
+    "zh-Hans": "%d 个正在生成的线程，每线程平均 %@ token 每秒",
+    "en": "%d generating agents, average %@ tokens per second per agent",
+    "ja": "生成中のスレッド %d 件、1 スレッド平均毎秒 %@ トークン"
+  },
   "_comment": "macOS-only UI strings. Every key needs zh-Hant, zh-Hans, en and ja. Run macos/scripts/sync-strings.py after editing.",
   "mac.launchAtLogin.requiresApproval": {
     "zh-Hant": "請在「系統設定」›「一般」›「登入項目」中允許 Agent Speed。",

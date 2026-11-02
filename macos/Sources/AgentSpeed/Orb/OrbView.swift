@@ -126,7 +126,7 @@ struct OrbView: View {
 
     private func redrawKey(content: OrbContent) -> AnyHashable {
         let gauge = feed.gauge
-        let text = [content.unit, content.titleLabel, content.infoLine, content.language.rawValue]
+        let text = [content.unit, content.titleLabel, content.infoLine, content.threadStats, content.language.rawValue]
             + content.generating.map(\.rawValue) + ["\(content.diameter)", "\(content.increaseContrast)"]
         return AnyHashable(RedrawKey(
             content: text.joined(separator: "|"),
@@ -176,6 +176,8 @@ enum OrbContentBuilder {
             titleLabel: titles.label(gauge.title, in: theme, l10n: l10n),
             previousTitleLabel: titles.label(gauge.previousTitle, in: theme, l10n: l10n),
             infoLine: money?.hoverLine ?? l10n("today.summary", SpeedFormat.tokens(feed.todayTokens), feed.agentCount),
+            threadStats: feed.unavailableTitleKey == nil ? l10n("mac.orb.threads", feed.activeThreads,
+                feed.averagePerThread.map { SpeedFormat.speed($0) } ?? "—") : "",
             peakLabel: l10n("peak.new"),
             latinTracking: l10n.language.usesLatinCase,
             language: l10n.language,

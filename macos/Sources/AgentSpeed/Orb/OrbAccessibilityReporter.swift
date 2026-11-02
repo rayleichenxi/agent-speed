@@ -41,7 +41,7 @@ final class OrbAccessibilityReporter {
     private func observe() {
         let gauge = runtime.feed.gauge
         _ = (gauge.readoutValue, gauge.title, runtime.feed.unavailableTitleKey, model.l10n.language)
-        _ = (runtime.feed.money, runtime.feed.unit, runtime.feed.lines)
+        _ = (runtime.feed.money, runtime.feed.unit, runtime.feed.lines, runtime.feed.generating)
         _ = model.orbs.document
         _ = model.titles.document
         let elapsed = Clock.now - publishedAt
@@ -106,6 +106,12 @@ final class OrbAccessibilityReporter {
                 ? l10n("orbs.sources.all")
                 : runtime.config.sources.knownSources.map { l10n($0.titleKey) }.joined(separator: l10n("list.separator"))
             help = l10n("a11y.orb.sources", names)
+        }
+        if !runtime.isUnavailable {
+            let separator = l10n.language == .ja ? "、" : l10n.language.usesLatinCase ? ", " : "，"
+            let stats = l10n("mac.orb.threads.a11y", runtime.feed.activeThreads,
+                             runtime.feed.averagePerThread.map { SpeedFormat.speed($0) } ?? "—")
+            if single { value += separator + stats } else { label += separator + stats }
         }
         if let lines = lineSentence(l10n) {
             let separator = l10n.language == .ja ? "、" : l10n.language.usesLatinCase ? ", " : "，"

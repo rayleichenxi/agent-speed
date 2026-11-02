@@ -20,6 +20,9 @@ final class OrbFeed {
     /// Today's tokens of the selected metric and the number of agents (hover info line).
     var todayTokens = 0
     var agentCount = 0
+    /// One entry per generating session, including subagents, after this orb's source filter.
+    var activeThreads: Int { generating.count }
+    var averagePerThread: Double? { activeThreads > 0 ? gauge.readoutValue / Double(activeThreads) : nil }
     /// The colour rim of an orb tracking a subset; nil for all sources.
     var bezel: OrbBezel?
     /// Set while every source of the orb is unavailable: `source.disabled` or `source.notFound`.

@@ -36,6 +36,12 @@ public sealed class OrbFeed
 
     public double Value { get; private set; }
 
+    /// <summary>Generating sessions (including subagents) in this orb's selected sources.</summary>
+    public int ActiveThreads => Reading.GeneratingSources.Count;
+
+    /// <summary>Selected token rate per generating session; unavailable when none is generating.</summary>
+    public double? AveragePerThread => ActiveThreads > 0 ? Value / ActiveThreads : null;
+
     /// <summary>tok/s or the money unit (DESIGN 9); heat, tiers and titles always follow tokens.</summary>
     public OrbUnit Unit { get; set; } = OrbUnit.Tokens;
 

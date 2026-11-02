@@ -241,6 +241,11 @@ internal sealed class GpuOrbSurface : IOrbSurface, IOrbFrameClient, IDisposable
         _clock.Kick(this);
     }
 
+    public void SetThreadStats(string text)
+    {
+        if (_orb.SetThreadStats(text)) _clock.Kick(this);
+    }
+
     public void SetLines(Presentation.Orb.Lines.OrbLinesSample? sample, bool enabled)
     {
         if (_orb.SetLines(Now(), sample, enabled))

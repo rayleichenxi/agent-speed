@@ -780,6 +780,10 @@ internal sealed class OrbManager : IDisposable
         var money = unavailableTitle is null ? feed.Money : null;
         surface.Scene.SetMoney(money);
         var info = money?.HoverLine ?? _loc.Format("today.summary", SpeedFormat.Tokens(reading.Today.Output), reading.Agents.Count);
+        var threadStats = unavailableTitle is null
+            ? _loc.Format("win.orb.threads", feed.ActiveThreads, feed.AveragePerThread is { } average ? SpeedFormat.Speed(average) : "—")
+            : string.Empty;
+        surface.SetThreadStats(threadStats);
         surface.SetData(feed.Value, feed.Tier, feed.Title, reading.GeneratingSources, info, unavailableTitle);
         surface.SetIdentity(orb.TrackedSources?.ToArray(), UnavailableOf(entry));
         entry.Window.SetDimmed(unavailableTitle is not null);
@@ -803,6 +807,12 @@ internal sealed class OrbManager : IDisposable
         else
         {
             accessible = _loc.Format("a11y.orb.named", name, SpeedFormat.Speed(feed.Value), ThemeOf(orb).Text(feed.Title, _loc));
+        }
+
+        if (threadStats.Length > 0)
+        {
+            accessible += DisplayText.SpokenSeparator(_loc) + _loc.Format("win.orb.threads.a11y", feed.ActiveThreads,
+                feed.AveragePerThread is { } accessibleAverage ? SpeedFormat.Speed(accessibleAverage) : "—");
         }
 
         var lines = unavailableTitle is null && surface.LinesVisible ? surface.LinesReading : null;

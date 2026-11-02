@@ -1,5 +1,17 @@
 {
   "_comment": "Windows-only UI strings. Same format as spec/strings.json; every key needs zh-Hant, zh-Hans, en and ja.",
+  "win.orb.threads": {
+    "zh-Hant": "%d 線程 · 均 %@/s",
+    "zh-Hans": "%d 线程 · 均 %@/s",
+    "en": "%d agents · avg %@/s",
+    "ja": "%d スレッド · 平均 %@/s"
+  },
+  "win.orb.threads.a11y": {
+    "zh-Hant": "%d 個正在生成的線程，每線程平均 %@ token 每秒",
+    "zh-Hans": "%d 个正在生成的线程，每线程平均 %@ token 每秒",
+    "en": "%d generating agents, average %@ tokens per second per agent",
+    "ja": "生成中のスレッド %d 件、1 スレッド平均毎秒 %@ トークン"
+  },
   "win.chart.peak": {
     "zh-Hant": "峰值 %@",
     "zh-Hans": "峰值 %@",

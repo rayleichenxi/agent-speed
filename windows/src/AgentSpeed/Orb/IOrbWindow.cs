@@ -42,6 +42,9 @@ internal interface IOrbSurface
     /// <param name="unavailableTitle">Every source is unavailable: the value reads an en dash and this title.</param>
     void SetData(double value, SpeedTier tier, SpeedTitle title, IReadOnlyList<SourceKind> generating, string infoLine, string? unavailableTitle);
 
+    /// <summary>Compact generating-thread count and rate, or empty when the source is unavailable.</summary>
+    void SetThreadStats(string text);
+
     void SetHover(bool hovering);
 
     /// <summary>

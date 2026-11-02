@@ -268,8 +268,8 @@ public sealed record AppSettings
     public ImmutableDictionary<string, OrbAnchor> OrbAnchors { get; init; } =
         ImmutableDictionary<string, OrbAnchor>.Empty.WithComparers(StringComparer.OrdinalIgnoreCase);
 
-    /// <summary>Check GitHub for a new version at launch and every 6 hours (UPDATES section 3).</summary>
-    public bool AutoCheckUpdates { get; init; } = true;
+    /// <summary>Check GitHub for a new version at launch and every 6 hours; off by default for this maintained fork.</summary>
+    public bool AutoCheckUpdates { get; init; }
 
     /// <summary>Time of the last successful update check.</summary>
     public DateTimeOffset? LastUpdateCheck { get; init; }

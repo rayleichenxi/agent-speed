@@ -202,6 +202,13 @@ public sealed class OrbGpuOrb
         return true;
     }
 
+    public bool SetThreadStats(string text)
+    {
+        if (Readout.ThreadStats == text) return false;
+        Readout.ThreadStats = text;
+        return true;
+    }
+
     /// <summary>
     /// One sample for the two-line readout (DESIGN 10): <paramref name="enabled"/> is the orb's readout setting where it can
     /// show (it moves the needle's unit to the dial), <paramref name="sample"/> what to show or null (nothing: the readout
@@ -442,9 +449,11 @@ public sealed class OrbGpuOrb
             return;
         }
 
-        OrbSharedDraw.AgentDots(list, ctx, Scene, style.Readout, now, _unavailable);
         var standard = OrbReadoutColors.Standard;
         var shift = StackShift(ctx, style);
+        // The shifted title and thread summary use the dot row; the numeric count remains visible instead.
+        if (shift <= 1 || string.IsNullOrEmpty(Readout.ThreadStats))
+            OrbSharedDraw.AgentDots(list, ctx, Scene, style.Readout, now, _unavailable);
         Readout.Shift = shift;
         Readout.UnitOnDial = UnitOnDial && style.Style == OrbStyle.Needle;
         var liquid = style.BelowSurface is not null && list.HasLiquid;

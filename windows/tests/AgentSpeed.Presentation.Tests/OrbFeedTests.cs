@@ -43,6 +43,32 @@ public class OrbFeedTests
     }
 
     [Fact]
+    public void ThreadAverageUsesOnlyGeneratingAgentsInTheOrbsSourceSet()
+    {
+        var snapshot = Snapshot(100, 50, 10) with
+        {
+            Agents = [
+                new AgentStatus("a", SourceKind.Codex, "", null, AgentPhase.Generating, false, new Rate(60, 600), null, Day),
+                new AgentStatus("b", SourceKind.Codex, "", null, AgentPhase.Generating, true, new Rate(40, 400), null, Day),
+                new AgentStatus("c", SourceKind.ClaudeCode, "", null, AgentPhase.Generating, false, new Rate(50, 500), null, Day),
+                new AgentStatus("d", SourceKind.Codex, "", null, AgentPhase.Tools, false, Rate.Zero, null, Day),
+            ],
+        };
+        var feed = new OrbFeed("a");
+        feed.Configure(null, SpeedMetric.Output, 400, 0);
+        feed.Update(snapshot, 10);
+        Assert.Equal(3, feed.ActiveThreads);
+        Assert.Equal(50, feed.AveragePerThread);
+        feed.Configure(SourceSet.Of(SourceKind.Codex), SpeedMetric.Total, 200_000, 0);
+        feed.Update(snapshot, 11);
+        Assert.Equal(2, feed.ActiveThreads);
+        Assert.Equal(500, feed.AveragePerThread);
+        feed.Update(snapshot with { Agents = [] }, 12);
+        Assert.Equal(0, feed.ActiveThreads);
+        Assert.Null(feed.AveragePerThread);
+    }
+
+    [Fact]
     public void TiersAndTitlesUseTheOrbsOwnRedline()
     {
         var low = new OrbFeed("low");

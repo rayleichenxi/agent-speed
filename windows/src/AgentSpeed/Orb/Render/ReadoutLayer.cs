@@ -34,6 +34,7 @@ internal sealed class ReadoutLayer
     private readonly Leaf _title = new();
     private readonly Leaf _titleOut = new();
     private readonly Leaf _info = new();
+    private readonly Leaf _threadStats = new();
     private readonly ContainerVisual _dots = new();
     private readonly Leaf[] _dot = new Leaf[MaxDots];
     private readonly Leaf _overflow = new();
@@ -61,6 +62,7 @@ internal sealed class ReadoutLayer
         Root.Children.Add(_titleOut.Visual);
         Root.Children.Add(_title.Visual);
         Root.Children.Add(_info.Visual);
+        Root.Children.Add(_threadStats.Visual);
         for (var i = 0; i < MaxDots; i++)
         {
             _dot[i] = new Leaf();
@@ -81,6 +83,8 @@ internal sealed class ReadoutLayer
     /// <summary>The hover info line (<c>today.summary</c> over the orb's sources).</summary>
     public string InfoLine { get; set; } = string.Empty;
 
+    public string ThreadStats { get; set; } = string.Empty;
+
     public void Configure(OrbRenderContext context, OrbReadoutLayout layout, ReadoutPalette palette, ReadoutTexts texts)
     {
         _context = context;
@@ -95,6 +99,7 @@ internal sealed class ReadoutLayer
         _title.Reset();
         _titleOut.Reset();
         _info.Reset();
+        _threadStats.Reset();
         _overflow.Reset();
         _pill.Reset();
         foreach (var dot in _dot)
@@ -195,6 +200,7 @@ internal sealed class ReadoutLayer
             _title.Hide();
             _titleOut.Hide();
             _info.Hide();
+            _threadStats.Hide();
             HideDots();
             _pill.Hide();
             return;
@@ -213,8 +219,24 @@ internal sealed class ReadoutLayer
         }
 
         RenderTitle(scene, now, ctx, heat, unavailable);
+        RenderThreadStats(ctx, unavailable);
         RenderDots(scene, now, ctx);
         RenderPill(scene, ctx);
+    }
+
+    private void RenderThreadStats(OrbRenderContext ctx, (string Value, string Title)? unavailable)
+    {
+        if (unavailable is not null || string.IsNullOrEmpty(ThreadStats))
+        {
+            _threadStats.Hide();
+            return;
+        }
+        var size = Math.Max(8, 0.06 * ctx.Size);
+        var max = _layout.ThreadStatsMaxWidth() * ctx.Size;
+        var width = _text.Measure(ThreadStats, TextDrawings.InfoFace, size);
+        if (width > max && width > 0) size *= max / width;
+        var drawing = _text.Get(ThreadStats, TextDrawings.InfoFace, size, _palette.Secondary, _palette.Shadow, _palette.ShadowRadius * ctx.Size);
+        _threadStats.Show(drawing, ctx.Center.X - drawing.Width / 2, ctx.Center.Y + _layout.ThreadStatsBaseline() * ctx.Size, 1);
     }
 
     private void RenderTitle(OrbScene scene, double now, OrbRenderContext ctx, double heat, (string Value, string Title)? unavailable)

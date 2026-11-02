@@ -126,9 +126,30 @@ public class OrbGpuOrbTests
     [InlineData(OrbStyle.Liquid)]
     [InlineData(OrbStyle.Reactor)]
     [InlineData(OrbStyle.Minimal)]
+    public void ThreadSummaryIsDrawnAndChangesRequestANewFrame(OrbStyle style)
+    {
+        var (orb, glyphs) = Create(style);
+        Assert.True(orb.SetThreadStats("3 线程 · 均 50"));
+        Assert.False(orb.SetThreadStats("3 线程 · 均 50"));
+        Drive(orb, 100, 150, 0.1);
+        Assert.Contains("线", glyphs.Texts);
+        Assert.Contains("均", glyphs.Texts);
+        Assert.True(orb.SetThreadStats("0 线程 · 均 —"));
+        Drive(orb, 101, 0, 0.1);
+        Assert.Contains("—", glyphs.Texts);
+        AssertFinite(orb.List);
+    }
+
+    [Theory]
+    [InlineData(OrbStyle.Led)]
+    [InlineData(OrbStyle.Needle)]
+    [InlineData(OrbStyle.Liquid)]
+    [InlineData(OrbStyle.Reactor)]
+    [InlineData(OrbStyle.Minimal)]
     public void AWarmFrameAllocatesNothing(OrbStyle style)
     {
         var (orb, _) = Create(style, 240, level: EffectsIntensity.Max);
+        orb.SetThreadStats("3 线程 · 均 55/s");
         var time = Drive(orb, 100, 2900, 3);
         orb.Render(time += 1 / 60.0);
         var before = GC.GetAllocatedBytesForCurrentThread();

@@ -22,7 +22,7 @@ public class UpdateSettingsTests
     public void DefaultsMatchSpecification()
     {
         var d = AppSettings.Default;
-        Assert.True(d.AutoCheckUpdates);
+        Assert.False(d.AutoCheckUpdates);
         Assert.Null(d.LastUpdateCheck);
         Assert.Null(d.SkippedVersion);
         Assert.Null(d.NotifiedVersion);
@@ -47,7 +47,7 @@ public class UpdateSettingsTests
     public void DefaultsRoundTrip()
     {
         var back = SettingsSerializer.Deserialize(SettingsSerializer.Serialize(AppSettings.Default));
-        Assert.True(back.AutoCheckUpdates);
+        Assert.False(back.AutoCheckUpdates);
         Assert.Null(back.LastUpdateCheck);
         Assert.Null(back.SkippedVersion);
         Assert.Null(back.NotifiedVersion);
@@ -68,7 +68,7 @@ public class UpdateSettingsTests
 
         using var defaults = JsonDocument.Parse(SettingsSerializer.Serialize(AppSettings.Default));
         var empty = defaults.RootElement.GetProperty("updates");
-        Assert.Equal(JsonValueKind.True, empty.GetProperty("autoCheck").ValueKind);
+        Assert.Equal(JsonValueKind.False, empty.GetProperty("autoCheck").ValueKind);
         Assert.Equal(JsonValueKind.Null, empty.GetProperty("lastCheck").ValueKind);
         Assert.Equal(JsonValueKind.Null, empty.GetProperty("skippedVersion").ValueKind);
         Assert.Equal(JsonValueKind.Null, empty.GetProperty("notifiedVersion").ValueKind);
@@ -106,10 +106,11 @@ public class UpdateSettingsTests
     [InlineData("1")]
     [InlineData("null")]
     [InlineData("{}")]
-    public void AutoCheckOfWrongTypeFallsBackToOn(string value)
+    public void AutoCheckOfWrongTypeFallsBackToOff(string value)
     {
-        Assert.True(Deserialize($"{{ \"autoCheck\": {value} }}").AutoCheckUpdates);
+        Assert.False(Deserialize($"{{ \"autoCheck\": {value} }}").AutoCheckUpdates);
         Assert.False(Deserialize("{ \"autoCheck\": false }").AutoCheckUpdates);
+        Assert.True(Deserialize("{ \"autoCheck\": true }").AutoCheckUpdates);
     }
 
     [Theory]
@@ -145,7 +146,7 @@ public class UpdateSettingsTests
             }
             """);
 
-        Assert.True(settings.AutoCheckUpdates);
+        Assert.False(settings.AutoCheckUpdates);
         Assert.Null(settings.LastUpdateCheck);
         Assert.Null(settings.SkippedVersion);
         Assert.Equal("v1.4.0", settings.NotifiedVersion);
@@ -159,7 +160,7 @@ public class UpdateSettingsTests
     public void NonObjectUpdatesUsesDefaults(string value)
     {
         var settings = Deserialize(value);
-        Assert.True(settings.AutoCheckUpdates);
+        Assert.False(settings.AutoCheckUpdates);
         Assert.Null(settings.LastUpdateCheck);
         Assert.Null(settings.SkippedVersion);
         Assert.Null(settings.NotifiedVersion);
@@ -181,7 +182,7 @@ public class UpdateSettingsTests
 
         Assert.Equal(AppearanceMode.Dark, settings.Appearance);
         Assert.False(settings.ShowOnTaskbar);
-        Assert.True(settings.AutoCheckUpdates);
+        Assert.False(settings.AutoCheckUpdates);
         Assert.Null(settings.LastUpdateCheck);
         Assert.Null(settings.SkippedVersion);
         Assert.Null(settings.NotifiedVersion);

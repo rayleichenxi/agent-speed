@@ -76,6 +76,13 @@ public sealed record OrbReadoutLayout(
     /// <summary>Title baseline below the center (S).</summary>
     public double TitleBaseline => TitleFixed ?? (UnitBaseline ?? ValueBaseline) + TitleGap;
 
+    /// <summary>Keep the thread summary clear of each style's title, agent dots and optional traffic readout.</summary>
+    public double ThreadStatsBaseline(bool shifted = false) =>
+        TitleFixed is not null ? -0.36 : shifted ? 0.40 : DotsY == Reactor.DotsY ? 0.345 : 0.29;
+
+    public double ThreadStatsMaxWidth(bool shifted = false) =>
+        TitleFixed is not null ? 0.60 : shifted ? 0.55 : 0.68;
+
     /// <summary>Unit and title never go below 7 pt (S = diameter in DIP).</summary>
     public static double TextSize(double fraction, double s) => Math.Max(MinTextSize, fraction * s);
 }

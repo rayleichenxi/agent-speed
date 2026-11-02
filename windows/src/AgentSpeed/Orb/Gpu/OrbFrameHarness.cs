@@ -427,6 +427,10 @@ internal static class OrbFrameHarness
         SourceKind[] agents = value > 0 ? [SourceKind.Codex, SourceKind.ClaudeCode, SourceKind.ClaudeDesktop] : [];
         var time = 100.0;
         orb.SetData(time, value, tier, title, agents, info, null);
+        if (Environment.GetEnvironmentVariable("AGENT_SPEED_ORB_FRAMES_THREADS") is { Length: > 0 } threadStats)
+        {
+            orb.SetThreadStats(threadStats);
+        }
         if (lines is { } sample)
         {
             orb.SetLines(time, sample, enabled: true);

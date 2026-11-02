@@ -64,6 +64,8 @@ public sealed class OrbReadoutDraw
     private int _layerCount;
     private readonly LedDigitCell[] _cells = new LedDigitCell[LedLightning.MaxCells];
     private int _cellCount;
+    private string _threadStats = string.Empty;
+    private string[] _threadCharacters = [];
 
     public OrbReadoutDraw(IOrbGlyphs glyphs)
     {
@@ -79,6 +81,18 @@ public sealed class OrbReadoutDraw
 
     /// <summary>The hover info line (<c>today.summary</c> over the orb's sources).</summary>
     public string InfoLine { get; set; } = string.Empty;
+
+    /// <summary>Characters are cached separately so changing numbers do not fill the glyph atlas with whole strings.</summary>
+    public string ThreadStats
+    {
+        get => _threadStats;
+        set
+        {
+            if (_threadStats == value) return;
+            _threadStats = value;
+            _threadCharacters = value.Select(CharText).ToArray();
+        }
+    }
 
     /// <summary>Width (points) of the unit text drawn last, for the unit's hit area (<see cref="OrbUnitToggle.HitRect"/>).</summary>
     public double UnitWidth { get; private set; }
@@ -184,6 +198,7 @@ public sealed class OrbReadoutDraw
         }
 
         AddLabels(list, ctx, scene, layout, ctx.CenterY + Shift + layout.TitleBaseline * s, colors, clip);
+        AddThreadStats(list, ctx, layout, colors, clip);
         if (layout.DotsY is { } dots)
         {
             AddOverflow(list, ctx, scene, dots, colors, clip);
@@ -196,6 +211,43 @@ public sealed class OrbReadoutDraw
     }
 
     private Rgba Secondary(OrbGpuContext ctx) => ctx.HighContrast ? ctx.Contrast.WindowText : ctx.Tokens.SecondaryText;
+
+    private void AddThreadStats(OrbDrawList list, OrbGpuContext ctx, OrbReadoutLayout layout, in OrbReadoutColors colors, OrbTextClip clip)
+    {
+        if (_threadCharacters.Length == 0 || UnavailableTitle is not null) return;
+        var shifted = Shift > 1;
+        var size = Math.Max(8, 0.06 * ctx.Size);
+        var sigma = colors.Shadow is null ? 0 : colors.ShadowSigma;
+        double Width(double fontSize)
+        {
+            var width = 0.0;
+            foreach (var character in _threadCharacters)
+            {
+                if (character == " ") width += fontSize * 0.3;
+                else if (_glyphs.TryGet(OrbTextKey.Create(character, OrbFont.Info, fontSize, 0, sigma), out var glyph)) width += glyph.Advance;
+            }
+            return width;
+        }
+        var width = Width(size);
+        var max = layout.ThreadStatsMaxWidth(shifted) * ctx.Size;
+        if (width > max && width > 0)
+        {
+            size *= max / width;
+            width = Width(size);
+        }
+        var x = ctx.CenterX - width / 2;
+        var baseline = ctx.CenterY + layout.ThreadStatsBaseline(shifted) * ctx.Size;
+        var color = colors.Unit ?? (ctx.HighContrast ? ctx.Contrast.WindowText : ctx.Dark ? Rgba.White.WithAlpha(0.85) : Rgba.Black.WithAlpha(0.8));
+        foreach (var character in _threadCharacters)
+        {
+            if (character == " ") x += size * 0.3;
+            else if (_glyphs.TryGet(OrbTextKey.Create(character, OrbFont.Info, size, 0, sigma), out var glyph))
+            {
+                list.AddText(glyph, x, baseline, color, colors.Shadow, clip);
+                x += glyph.Advance;
+            }
+        }
+    }
 
     // ---- Value ----
 

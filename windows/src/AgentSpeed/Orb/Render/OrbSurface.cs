@@ -288,6 +288,14 @@ internal sealed class OrbSurface : FrameworkElement, IOrbFrameClient, IOrbSurfac
     {
     }
 
+    public void SetThreadStats(string text)
+    {
+        if (_readout.ThreadStats == text) return;
+        _readout.ThreadStats = text;
+        _readoutBelow.ThreadStats = text;
+        _clock.Kick(this);
+    }
+
     public bool LinesVisible => false;
 
     public Presentation.Orb.Lines.OrbLinesReading? LinesReading => null;

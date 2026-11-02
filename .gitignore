@@ -3,6 +3,9 @@
 /build/
 /.build/
 /artifacts/
+/.tools/
+/.logs/
+/security_best_practices_report.md
 /.claude/
 /request.md
 __pycache__/

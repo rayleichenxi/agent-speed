@@ -194,6 +194,12 @@ public sealed record AppSettings
     /// <summary>Null uses the default Claude projects folder.</summary>
     public string? ClaudeRoot { get; init; }
 
+    /// <summary>Additional WSL Codex sessions directory, without replacing the Windows directory.</summary>
+    public string? WslCodexRoot { get; init; }
+
+    /// <summary>Additional WSL Claude projects directory, without replacing the Windows directory.</summary>
+    public string? WslClaudeRoot { get; init; }
+
     /// <summary>Null uses the default DeepSeek Harness sessions folder.</summary>
     public string? DshRoot { get; init; }
 
@@ -351,7 +357,8 @@ public sealed record AppSettings
         return new MonitorConfiguration(enabled, CodexRoot, ClaudeRoot, DshRoot, OpenCodeRoot, GeminiRoot, OmpRoot, AntigravityRoot,
             WorkBuddyRoot: WorkBuddyRoot, WorkBuddyAiRoot: WorkBuddyAiRoot,
             ZCodeRoot: ZCodeRoot, KimiRoot: KimiRoot, GrokBuildRoot: GrokBuildRoot, PiRoot: PiRoot,
-            OpenClawRoot: OpenClawRoot, HermesRoot: HermesRoot, DroidRoot: DroidRoot);
+            OpenClawRoot: OpenClawRoot, HermesRoot: HermesRoot, DroidRoot: DroidRoot,
+            WslCodexRoot: WslCodexRoot, WslClaudeRoot: WslClaudeRoot);
     }
 
     /// <summary>The master switch; turning it on while every orb is individually hidden makes them all visible.</summary>
@@ -391,6 +398,8 @@ public sealed record AppSettings
         Effects = Enum.IsDefined(Effects) ? Effects : EffectsIntensity.Standard,
         CodexRoot = CleanPath(CodexRoot),
         ClaudeRoot = CleanPath(ClaudeRoot),
+        WslCodexRoot = CleanPath(WslCodexRoot),
+        WslClaudeRoot = CleanPath(WslClaudeRoot),
         DshRoot = CleanPath(DshRoot),
         OpenCodeRoot = CleanPath(OpenCodeRoot),
         GeminiRoot = CleanPath(GeminiRoot),

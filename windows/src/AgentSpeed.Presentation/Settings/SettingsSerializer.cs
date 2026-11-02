@@ -106,6 +106,8 @@ public static class SettingsSerializer
             w.WriteBoolean("droid", s.DroidEnabled);
             WriteNullableString(w, "codexRoot", s.CodexRoot);
             WriteNullableString(w, "claudeRoot", s.ClaudeRoot);
+            WriteNullableString(w, "wslCodexRoot", s.WslCodexRoot);
+            WriteNullableString(w, "wslClaudeRoot", s.WslClaudeRoot);
             WriteNullableString(w, "dshRoot", s.DshRoot);
             WriteNullableString(w, "opencodeRoot", s.OpenCodeRoot);
             WriteNullableString(w, "geminiRoot", s.GeminiRoot);
@@ -281,6 +283,8 @@ public static class SettingsSerializer
             DroidEnabled = ReadBool(sources, "droid", d.DroidEnabled),
             CodexRoot = ReadString(sources, "codexRoot"),
             ClaudeRoot = ReadString(sources, "claudeRoot"),
+            WslCodexRoot = ReadString(sources, "wslCodexRoot"),
+            WslClaudeRoot = ReadString(sources, "wslClaudeRoot"),
             DshRoot = ReadString(sources, "dshRoot"),
             OpenCodeRoot = ReadString(sources, "opencodeRoot"),
             GeminiRoot = ReadString(sources, "geminiRoot"),

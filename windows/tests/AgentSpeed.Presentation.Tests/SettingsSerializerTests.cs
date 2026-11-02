@@ -43,6 +43,8 @@ public class SettingsSerializerTests
             WorkBuddyAiEnabled = true,
             CodexRoot = Path.Combine(Path.GetTempPath(), "codex sessions"),
             ClaudeRoot = Path.Combine(Path.GetTempPath(), "claude", "projects"),
+            WslCodexRoot = Path.Combine(Path.GetTempPath(), "wsl", "codex", "sessions"),
+            WslClaudeRoot = Path.Combine(Path.GetTempPath(), "wsl", "claude", "projects"),
             DshRoot = Path.Combine(Path.GetTempPath(), "dsh", "sessions"),
             OpenCodeRoot = Path.Combine(Path.GetTempPath(), "opencode data"),
             GeminiRoot = Path.Combine(Path.GetTempPath(), ".gemini", "tmp"),

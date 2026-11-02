@@ -293,7 +293,9 @@ public sealed record MonitorConfiguration(
     string? PiRoot = null,
     string? OpenClawRoot = null,
     string? HermesRoot = null,
-    string? DroidRoot = null)
+    string? DroidRoot = null,
+    string? WslCodexRoot = null,
+    string? WslClaudeRoot = null)
 {
     public static MonitorConfiguration Default { get; } =
         new(new HashSet<SourceKind>(Enum.GetValues<SourceKind>()));
@@ -316,10 +318,12 @@ public sealed record MonitorConfiguration(
         && PiRoot == other.PiRoot
         && OpenClawRoot == other.OpenClawRoot
         && HermesRoot == other.HermesRoot
-        && DroidRoot == other.DroidRoot;
+        && DroidRoot == other.DroidRoot
+        && WslCodexRoot == other.WslCodexRoot
+        && WslClaudeRoot == other.WslClaudeRoot;
 
     public override int GetHashCode() => HashCode.Combine(
         HashCode.Combine(EnabledSources.Count, CodexRoot, ClaudeRoot, DshRoot, OpenCodeRoot, GeminiRoot, OmpRoot, AntigravityRoot),
         WorkBuddyRoot,
-        WorkBuddyAiRoot, ZCodeRoot, KimiRoot, GrokBuildRoot, PiRoot, HashCode.Combine(OpenClawRoot, HermesRoot, DroidRoot));
+        WorkBuddyAiRoot, ZCodeRoot, KimiRoot, GrokBuildRoot, PiRoot, HashCode.Combine(OpenClawRoot, HermesRoot, DroidRoot, WslCodexRoot, WslClaudeRoot));
 }

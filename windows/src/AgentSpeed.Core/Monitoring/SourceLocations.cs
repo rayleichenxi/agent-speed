@@ -38,7 +38,9 @@ internal sealed record SourceLocations(
     bool CodexAutomatic = true,
     string HermesRoot = "",
     bool HermesChosen = false,
-    string DroidRoot = "")
+    string DroidRoot = "",
+    string WslCodexRoot = "",
+    string WslClaudeRoot = "")
 {
     public static SourceLocations Resolve(MonitorConfiguration configuration) => new(
         Normalize(configuration.CodexRoot ?? LiveMonitor.DefaultCodexRoot),
@@ -61,7 +63,9 @@ internal sealed record SourceLocations(
         CodexAutomatic: configuration.CodexRoot is null,
         HermesRoot: Normalize(configuration.HermesRoot ?? LiveMonitor.DefaultHermesRoot),
         HermesChosen: configuration.HermesRoot is not null,
-        DroidRoot: DroidRootOf(configuration.DroidRoot));
+        DroidRoot: DroidRootOf(configuration.DroidRoot),
+        WslCodexRoot: Normalize(configuration.WslCodexRoot),
+        WslClaudeRoot: Normalize(configuration.WslClaudeRoot));
 
     /// <summary>The Factory Droid root for a setting: its <c>sessions</c> folder or the folder itself; null: the automatic root (METRICS 4.16).</summary>
     public static string DroidRootOf(string? setting) =>
@@ -101,12 +105,20 @@ internal sealed record SourceLocations(
     {
         var piRoots = Distinct(PiRoots ?? []).ToList();
         yield return (RootFamily.Codex, CodexRoot);
-        foreach (var home in CodexHomeRoots())
+        foreach (var home in Distinct(new[] { CodexRoot, WslCodexRoot }.Concat(CodexHomeRoots()))
+            .Where(path => !string.Equals(Path.TrimEndingDirectorySeparator(path), Path.TrimEndingDirectorySeparator(CodexRoot),
+                OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal)))
         {
             yield return (RootFamily.Codex, home);
         }
 
         yield return (RootFamily.Claude, ClaudeRoot);
+        foreach (var root in Distinct(new[] { ClaudeRoot, WslClaudeRoot })
+            .Where(path => !string.Equals(Path.TrimEndingDirectorySeparator(path), Path.TrimEndingDirectorySeparator(ClaudeRoot),
+                OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal)))
+        {
+            yield return (RootFamily.Claude, root);
+        }
         yield return (RootFamily.DeepSeek, DshRoot);
         foreach (var root in GeminiRoots)
         {

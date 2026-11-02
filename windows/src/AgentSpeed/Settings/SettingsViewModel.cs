@@ -143,6 +143,10 @@ internal sealed class SettingsViewModel : ObservableObject
         PreviewCommand = new RelayCommand(StartPreview, () => !_preview.IsRunning);
         ChangeCodexCommand = new RelayCommand(() => ChangeFolder(CodexPath, (s, path) => s with { CodexRoot = path }));
         ChangeClaudeCommand = new RelayCommand(() => ChangeFolder(ClaudePath, (s, path) => s with { ClaudeRoot = path }));
+        ChangeWslCodexCommand = new RelayCommand(() => ChangeFolder(S.WslCodexRoot ?? string.Empty, (s, path) => s with { WslCodexRoot = path }));
+        ChangeWslClaudeCommand = new RelayCommand(() => ChangeFolder(S.WslClaudeRoot ?? string.Empty, (s, path) => s with { WslClaudeRoot = path }));
+        ResetWslCodexCommand = new RelayCommand(() => _settings.Update(s => s with { WslCodexRoot = null }), () => S.WslCodexRoot is not null);
+        ResetWslClaudeCommand = new RelayCommand(() => _settings.Update(s => s with { WslClaudeRoot = null }), () => S.WslClaudeRoot is not null);
         ChangeDshCommand = new RelayCommand(() => ChangeFolder(DshPath, (s, path) => s with { DshRoot = path }));
         ResetCodexCommand = new RelayCommand(() => _settings.Update(s => s with { CodexRoot = null }), () => _settings.Current.CodexRoot is not null);
         ResetClaudeCommand = new RelayCommand(() => _settings.Update(s => s with { ClaudeRoot = null }), () => _settings.Current.ClaudeRoot is not null);
@@ -298,6 +302,14 @@ internal sealed class SettingsViewModel : ObservableObject
     public RelayCommand ChangeCodexCommand { get; }
 
     public RelayCommand ChangeClaudeCommand { get; }
+
+    public RelayCommand ChangeWslCodexCommand { get; }
+
+    public RelayCommand ChangeWslClaudeCommand { get; }
+
+    public RelayCommand ResetWslCodexCommand { get; }
+
+    public RelayCommand ResetWslClaudeCommand { get; }
 
     public RelayCommand ChangeDshCommand { get; }
 
@@ -527,6 +539,18 @@ internal sealed class SettingsViewModel : ObservableObject
     public string CodexPath => S.CodexRoot ?? LiveMonitor.DefaultCodexRoot;
 
     public string ClaudePath => S.ClaudeRoot ?? LiveMonitor.DefaultClaudeRoot;
+
+    public string WslCodexPath
+    {
+        get => S.WslCodexRoot ?? string.Empty;
+        set { if (string.IsNullOrWhiteSpace(value) || Path.IsPathFullyQualified(value.Trim())) Apply(s => s with { WslCodexRoot = value }); }
+    }
+
+    public string WslClaudePath
+    {
+        get => S.WslClaudeRoot ?? string.Empty;
+        set { if (string.IsNullOrWhiteSpace(value) || Path.IsPathFullyQualified(value.Trim())) Apply(s => s with { WslClaudeRoot = value }); }
+    }
 
     public string DshPath => S.DshRoot ?? LiveMonitor.DefaultDshRoot;
 

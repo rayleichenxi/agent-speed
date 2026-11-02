@@ -32,6 +32,20 @@
             </StackPanel>
         </controls:SettingsCard>
         <TextBlock Text="{loc:Loc settings.sources.sharedRoot}" Style="{StaticResource CaptionText}" Margin="2,6,0,0" />
+        <controls:SettingsCard Header="WSL Codex · sessions" Icon="&#xE8B7;" ContentBelow="True" Margin="0,12,0,4">
+            <StackPanel Orientation="Horizontal">
+                <TextBox Text="{Binding WslCodexPath, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" Width="360" Margin="0,0,8,0" />
+                <Button Content="{loc:Loc settings.sources.change}" Command="{Binding ChangeWslCodexCommand}" MinWidth="88" />
+                <Button Content="{loc:Loc settings.sources.reset}" Command="{Binding ResetWslCodexCommand}" Margin="8,0,0,0" MinWidth="72" />
+            </StackPanel>
+        </controls:SettingsCard>
+        <controls:SettingsCard Header="WSL Claude Code · projects" Icon="&#xE8B7;" ContentBelow="True">
+            <StackPanel Orientation="Horizontal">
+                <TextBox Text="{Binding WslClaudePath, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" Width="360" Margin="0,0,8,0" />
+                <Button Content="{loc:Loc settings.sources.change}" Command="{Binding ChangeWslClaudeCommand}" MinWidth="88" />
+                <Button Content="{loc:Loc settings.sources.reset}" Command="{Binding ResetWslClaudeCommand}" Margin="8,0,0,0" MinWidth="72" />
+            </StackPanel>
+        </controls:SettingsCard>
         <controls:SettingsCard Header="{loc:Loc source.deepseek}" Icon="&#xE8B7;" Description="{Binding DshPath}" Margin="0,12,0,4">
             <StackPanel Orientation="Horizontal">
                 <TextBlock Text="{Binding DshStatus}" Style="{StaticResource CaptionText}" VerticalAlignment="Center" Margin="0,0,12,0" TextWrapping="NoWrap" />

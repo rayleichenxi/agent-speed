@@ -454,6 +454,8 @@ enum StringTable {
         "mac.launchAtLogin.openSettings": Entry("打開系統設定", "打开系统设置", "Open System Settings", "システム設定を開く"),
         "mac.launchAtLogin.requiresApproval": Entry("請在「系統設定」›「一般」›「登入項目」中允許 Agent Speed。", "请在“系统设置”›“通用”›“登录项”中允许 Agent Speed。", "Allow Agent Speed in System Settings › General › Login Items.", "「システム設定」›「一般」›「ログイン項目」で Agent Speed を許可してください。"),
         "mac.launchAtLogin.unavailable": Entry("將 Agent Speed 移到「應用程式」資料夾後即可使用。", "将 Agent Speed 移到“应用程序”文件夹后即可使用。", "Available once Agent Speed is in the Applications folder.", "Agent Speed を「アプリケーション」フォルダに移動すると使用できます。"),
+        "mac.orb.threads": Entry("%d 線程 · 均 %@/s", "%d 线程 · 均 %@/s", "%d agents · avg %@/s", "%d スレッド · 平均 %@/s"),
+        "mac.orb.threads.a11y": Entry("%d 個正在生成的線程，每線程平均 %@ token 每秒", "%d 个正在生成的线程，每线程平均 %@ token 每秒", "%d generating agents, average %@ tokens per second per agent", "生成中のスレッド %d 件、1 スレッド平均毎秒 %@ トークン"),
         "mac.report.ws.milliseconds": Entry("%@ ms", "%@ ms", "%@ ms", "%@ ms"),
         "mac.settings.about.copyright": Entry("© 2026 zoefix", "© 2026 zoefix", "© 2026 zoefix", "© 2026 zoefix"),
         "mac.settings.about.license": Entry("以 MIT 授權開放原始碼", "以 MIT 许可证开源", "Open source under the MIT License", "MIT ライセンスのオープンソース"),

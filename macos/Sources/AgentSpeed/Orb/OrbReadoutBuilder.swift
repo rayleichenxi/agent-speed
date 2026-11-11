@@ -31,6 +31,17 @@ final class OrbReadoutBuilder {
 
     let textCache: OrbTextCache
     private(set) var odometer = OrbOdometer()
+    private struct ThreadGlyphCache {
+        var text: String
+        var size: CGFloat
+        var limit: CGFloat
+        var scale: CGFloat
+        var language: AppLanguage
+        var fittedSize: CGFloat
+        var total: CGFloat
+        var glyphs: [(Character, OrbTextTexture?)]
+    }
+    private var threadGlyphCache: ThreadGlyphCache?
     private var current: ContiguousArray<OrbTextTexture> = []
     private var previous: ContiguousArray<OrbTextTexture> = []
     private var currentX: ContiguousArray<CGFloat> = []
@@ -164,8 +175,54 @@ final class OrbReadoutBuilder {
         }
         guard !frame.content.valueOnly else { return }
         addLabels(&scene, frame, layout: layout, line: lines.title, palette: palette, clip: clip)
+        addThreadStats(&scene, frame, layout: layout, palette: palette, clip: clip)
         if layout.dots != nil { addOverflow(&scene, frame, layout: layout, clip: clip) }
         if pill { addPeakPill(&scene, frame, line: lines.pill) }
+    }
+
+    private func addThreadStats(_ scene: inout OrbScene, _ frame: OrbFrame, layout: OrbReadoutLayout,
+                                palette: OrbReadoutPalette, clip: OrbTextClip) {
+        let text = frame.content.threadStats
+        guard !frame.unavailable, !frame.content.isThumbnail, !text.isEmpty else { return }
+        let shifted = frame.readoutShift > 1
+        let requestedSize = max(8, 0.06 * frame.s)
+        let limit = layout.threadStatsMaxWidth(shifted: shifted) * frame.s
+        let scale = scene.backingScale
+        let language = frame.content.language
+        if threadGlyphCache?.text != text || threadGlyphCache?.size != requestedSize || threadGlyphCache?.limit != limit
+            || threadGlyphCache?.scale != scale || threadGlyphCache?.language != language {
+            func glyphs(at size: CGFloat) -> [(Character, OrbTextTexture?)] {
+                let style = OrbTextStyle(size: size, weight: .medium, monospacedDigits: true)
+                return text.map { character in
+                    (character, character.isWhitespace ? nil : textCache.texture(character, style: style,
+                        language: language, scale: scale))
+                }
+            }
+            func width(_ glyphs: [(Character, OrbTextTexture?)], size: CGFloat) -> CGFloat {
+                glyphs.reduce(0) { $0 + ($1.0.isWhitespace ? size * 0.3 : ($1.1?.advance ?? 0)) }
+            }
+            var size = requestedSize
+            var letters = glyphs(at: size)
+            var total = width(letters, size: size)
+            if total > limit {
+                size *= limit / total
+                letters = glyphs(at: size)
+                total = width(letters, size: size)
+            }
+            threadGlyphCache = ThreadGlyphCache(text: text, size: requestedSize, limit: limit, scale: scale,
+                                                language: language, fittedSize: size, total: total, glyphs: letters)
+        }
+        guard let cache = threadGlyphCache else { return }
+        let baseline = frame.center.y + layout.threadStatsBaseline(shifted: shifted) * frame.s
+        var x = frame.center.x - cache.total / 2
+        let color = palette.unit ?? secondary(frame)
+        for (character, glyph) in cache.glyphs {
+            if character.isWhitespace { x += cache.fittedSize * 0.3; continue }
+            guard let glyph else { continue }
+            scene.add(OrbTextDraw(glyph, x: x, baseline: baseline, color: color, glow: palette.shadow,
+                                  glowRadius: palette.shadowRadius, clip: clip))
+            x += glyph.advance
+        }
     }
 
     /// `clip` narrowed to `rect`.

@@ -186,7 +186,7 @@ final class AppSettings {
         }
         sourceLocations = defaults.data(forKey: Key.sourceLocations.rawValue).flatMap(SourceLocations.init(data:))
             ?? Self.legacyLocations(defaults)
-        autoCheckUpdates = defaults.object(forKey: Key.autoCheckUpdates.rawValue) as? Bool ?? true
+        autoCheckUpdates = defaults.object(forKey: Key.autoCheckUpdates.rawValue) as? Bool ?? false
         networkEnabled = defaults.object(forKey: Key.networkEnabled.rawValue) as? Bool ?? true
         syncPrices = defaults.object(forKey: Key.syncPrices.rawValue) as? Bool ?? true
         currency = CurrencyTable.bundled.currencyOrUSD(defaults.string(forKey: Key.currency.rawValue) ?? "").code

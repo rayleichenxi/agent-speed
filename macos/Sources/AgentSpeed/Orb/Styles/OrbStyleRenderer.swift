@@ -13,6 +13,7 @@ struct OrbContent {
     var titleLabel: String
     var previousTitleLabel: String
     var infoLine: String
+    var threadStats: String = ""
     var peakLabel: String
     var latinTracking: Bool
     var language: AppLanguage
@@ -203,6 +204,18 @@ struct OrbReadoutLayout {
         case .belowValue(let gap): valueBaseline + gap
         case .fixed(let offset): offset
         }
+    }
+
+    /// Match the Windows maintenance readout while avoiding the title, dots and traffic lines.
+    func threadStatsBaseline(shifted: Bool) -> CGFloat {
+        if case .fixed = title { return -0.36 }
+        if shifted { return 0.40 }
+        return dots == 0.252 ? 0.345 : 0.29
+    }
+
+    func threadStatsMaxWidth(shifted: Bool) -> CGFloat {
+        if case .fixed = title { return 0.60 }
+        return shifted ? 0.55 : 0.68
     }
 
     static let led = OrbReadoutLayout(

@@ -21,6 +21,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, AppCommands {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        CharacterLayers.factory = { CharacterRenderer() }
         if let directory = options.previewDirectory {
             PreviewRenderer.run(into: directory)
             NSApp.terminate(nil)
@@ -74,6 +75,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, AppCommands {
             ReportHarness.start(url: url)
             return
         }
+        if options.lanEndToEnd {
+            LanHarness.start()
+            return
+        }
         if let directory = options.screenshotsDirectory {
             ScreenshotHarness.run(into: directory, onlyHistory: options.screenshotsOnlyHistory)
             return
@@ -108,12 +113,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, AppCommands {
     }
 
     #if DEBUG
-    /// Development runs: `AGENT_SPEED_OPEN_DASHBOARD=SECONDS` opens the dashboard after a delay, `AGENT_SPEED_QUIT_AFTER=SECONDS`
-    /// quits through the normal path (so shutdown runs as on ⌘Q).
+    /// Development runs: `AGENT_SPEED_OPEN_DASHBOARD=SECONDS` opens the dashboard after a delay,
+    /// `AGENT_SPEED_OPEN_SETTINGS=PANE` opens Settings on that pane (`sources`, …) after two seconds,
+    /// `AGENT_SPEED_QUIT_AFTER=SECONDS` quits through the normal path (so shutdown runs as on ⌘Q),
+    /// `AGENT_SPEED_DASHBOARD_ANCHOR=SECONDS` opens the dashboard without the status item (`DashboardAnchorHarness`).
     private func scheduleDevelopmentActions() {
         let environment = ProcessInfo.processInfo.environment
         if let delay = environment["AGENT_SPEED_OPEN_DASHBOARD"].flatMap(Double.init) {
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in self?.showDashboard() }
+        }
+        if let pane = environment["AGENT_SPEED_OPEN_SETTINGS"].flatMap(SettingsPane.init(rawValue:)) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in self?.showSettings(pane) }
+        }
+        if let delay = environment["AGENT_SPEED_DASHBOARD_ANCHOR"].flatMap(Double.init) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                if let model = self?.model { DashboardAnchorHarness.show(model: model) }
+            }
         }
         if let delay = environment["AGENT_SPEED_QUIT_AFTER"].flatMap(Double.init) {
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) { NSApp.terminate(nil) }
@@ -237,6 +252,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, AppCommands {
         dashboard?.close()
         model?.startHistory()
         historyWindow?.show(source: source, metric: metric)
+    }
+
+    func showHistory(host: String) {
+        dashboard?.close()
+        model?.startHistory()
+        historyWindow?.show(source: nil, host: host)
     }
 
     func setOrbsVisible(_ visible: Bool) {

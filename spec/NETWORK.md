@@ -4,7 +4,10 @@ Agent Speed reads local logs and works fully offline. It makes exactly three kin
 optional, all HTTPS `GET`, none of them carrying anything about the user: the update check (`spec/UPDATES.md`), the
 daily price-table sync (section 3) and the daily exchange rates (section 4). A fourth kind exists only when the user
 turns it on: live reporting (section 6, `spec/REPORTING.md`), the one feature that sends data about the user's
-activity, to a service the user chose. Both platforms implement exactly this behaviour; anything not listed here is
+activity, to a service the user chose. Two more work only on the user's own machines and network, also only when
+turned on: remote hosts over SSH (section 7) and the local network feed (section 8, `spec/LAN.md`). Quotas (section 9,
+`spec/QUOTAS.md` 9) ask some agents' vendors for the user's own usage limits with that agent's own sign-in, a key the
+user entered, or, only when the user turns it on, the user's browser session; they never contact Anthropic. Both platforms implement exactly this behaviour; anything not listed here is
 never requested.
 
 ## 1. Common rules
@@ -32,10 +35,12 @@ never requested.
 
 | Feature | Hosts (in fallback order) | When | Cap |
 | --- | --- | --- | --- |
-| Update check (UPDATES) | `api.github.com`; downloads `github.com`, `objects.githubusercontent.com`, `release-assets.githubusercontent.com` | 30 s after launch, every 6 h, manual | 300 MiB (assets) |
+| Update check (UPDATES) | `api.github.com`; Windows public-release fallback `github.com`; asset headers and downloads `github.com`, `objects.githubusercontent.com`, `release-assets.githubusercontent.com` | 30 s after launch, every 6 h, manual | 2 MiB (feeds), 300 MiB (assets) |
 | Price table (3) | `raw.githubusercontent.com`, `cdn.jsdelivr.net` | 60 s after launch, then daily, manual | 1 MiB |
 | Exchange rates (4) | `open.er-api.com`, `cdn.jsdelivr.net`, `latest.currency-api.pages.dev`, `api.frankfurter.dev` | only while a non-USD currency is selected: 30 s after launch or on selection, then daily, manual | 256 KiB |
 | Live reporting (6) | the service URL and the API host the user confirmed | only while the user has it on: every 5 s while agents work, a heartbeat while idle, nothing when quiet | 64 KiB discovery, 16 KiB API |
+| Characters (CHARACTERS 2) | catalog and packs: `github.com`, `objects.githubusercontent.com`, `release-assets.githubusercontent.com` | catalog: when Settings shows the character list (at most every 10 min) and at most daily while a `character` orb exists; packs: when the user presses Download or Update, and the automatic download of every pack not set aside when an orb switches to the `character` style or the app starts with one (CHARACTERS 2), one at a time | 1 MiB catalog, 200 MiB pack (exact size and SHA-256 from the catalog) |
+| Local network (8) | none: local addresses only (LAN 2.3) | only while the user has the server or a target on: answers devices; sends to targets as the speed changes | 8 KiB request head, 16 KiB frame |
 
 ## 2. Update check
 
@@ -222,3 +227,63 @@ Avatar input stays local until upload: PNG/JPEG up to 10 MiB is re-encoded witho
 256×256 PNG up to 512 KiB. Profile JSON responses are bounded to 64 KiB; these separate limits do not raise
 the existing 16 KiB periodic report limit. Avatar URLs are website metadata; native clients download their
 own avatar through the signed API endpoint rather than following an arbitrary external image URL.
+
+## 7. Remote hosts (SSH)
+
+Only for hosts the user added in Settings → 遠端主機 (`spec/REMOTE.md`). The app runs the system OpenSSH client
+(`/usr/bin/ssh`) to each enabled host with the user's own SSH configuration; Agent Speed itself opens no socket and
+contacts no other machine for this feature.
+
+- **When**: while the host is enabled and the app runs: one long-lived SSH session per host, reconnecting with
+  back-off after failures (REMOTE 4.4). Nothing while the master switch `networkEnabled` is off (REMOTE 2.3).
+- **What is sent to the host**: the relay executable when the host does not have this version yet (REMOTE 4.2), the
+  enabled source keys, today's start time, the Mac's time zone (IANA id and TZif data) and the current public price
+  table (REMOTE 5.3). Nothing else about the Mac or its other hosts.
+- **What comes back**: token counts, times, model and provider ids, mode facts, project names, working directories,
+  transcript paths and tool names with input digests of that host's agents, and its daily aggregates (REMOTE 1, 5.4).
+  Never conversation content.
+- **Live reporting** (section 6) may include the hosts' agents in the speed, tokens and models it already sends; it
+  never sends a host name, destination, path or anything about the SSH connection.
+
+## 8. Local network
+
+Only while the user turns it on in Settings → API → 區域網路 (`spec/LAN.md`, DESIGN 14). Nothing while the master
+switch `networkEnabled` is off (LAN 2.2).
+
+- **Server**: one TCP port (default 7247) on every interface, answering only peers with a local address (LAN 2.3)
+  that present the access key; advertised as `_agentspeed._tcp` over Bonjour / DNS-SD / Avahi. It answers `GET`
+  requests and streams; nothing a peer sends changes the app.
+- **Targets**: UDP datagrams and HTTP `POST` requests to the addresses the user added, only when every address they
+  resolve to is local; no proxy, no redirects, no TLS.
+- **What is sent**: the frame of LAN 3: live output speed, its estimated share and agent counts overall and per
+  source, a one-minute speed history, the computer's name and two random ids. Never conversation content, models,
+  projects, paths, hosts, costs or anything that identifies the user beyond the computer's name.
+- **Plain text**: anyone who can watch the local network traffic can read frames and the access key; a broadcast
+  target reaches every device on the network. The UI says so (`lan.footnote`).
+- **Live reporting and remote hosts** are unaffected: the feed sends nothing to a service and nothing about hosts.
+
+## 9. Quotas
+
+The quota readers of QUOTAS 9 send the user's own credential for one agent to that agent's vendor and receive the
+account's usage limits. This is the one feature besides live reporting whose requests carry anything about the user:
+the credential itself.
+
+- **Scope**: only while `networkEnabled` and the source's quota switch are on (QUOTAS 9.1), only to the hosts below,
+  never to Anthropic, never with anything but the headers QUOTAS 9 lists. The section 1 rule against credentials and
+  identifiers applies to every other feature unchanged.
+- **Transport**: HTTPS, redirects never followed, the system proxy, timeout 10 s, cap 256 KiB. The Antigravity reader
+  talks to `127.0.0.1` only (2 s, no proxy, a self-signed certificate accepted there alone).
+- **When**: at most every 5 minutes per source while the source runs or the dashboard is open; 15 minutes after a
+  failure; stopped after `401`/`403` until the credential changes.
+- **Failures** are silent like every other request, logged with host and status only.
+
+| Source | Hosts |
+| --- | --- |
+| Grok Build (live, off by default) | `cli-chat-proxy.grok.com` |
+| Kimi Code | `api.kimi.com` |
+| Gemini CLI | `cloudcode-pa.googleapis.com` |
+| Factory Droid | `api.factory.ai` |
+| ZCode | `api.z.ai` or `open.bigmodel.cn` (the user's region) |
+| Qoder (browser session, off by default) | `qoder.com`, `qoder.com.cn` |
+| WorkBuddy (browser session, off by default) | `www.workbuddy.cn` |
+| Antigravity | `127.0.0.1` |

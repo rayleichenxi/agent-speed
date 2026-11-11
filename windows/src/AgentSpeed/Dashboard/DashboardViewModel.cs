@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Media;
 using AgentSpeed.Controls;
 using AgentSpeed.Core;
+using AgentSpeed.Dashboard.Quota;
 using AgentSpeed.Core.Intelligence;
 using AgentSpeed.Core.Perf;
 using AgentSpeed.Modes;
@@ -16,6 +17,7 @@ using AgentSpeed.Presentation.Localization;
 using AgentSpeed.Presentation.Modes;
 using AgentSpeed.Presentation.Settings;
 using AgentSpeed.Presentation.Perf;
+using AgentSpeed.Presentation.Quota;
 using AgentSpeed.Presentation.Titles;
 using AgentSpeed.Perf;
 using AgentSpeed.Theme;
@@ -34,6 +36,8 @@ internal sealed class SourceRow : ObservableObject
     private string _accessibleName = string.Empty;
     private LiveValueKind _liveKind = LiveValueKind.Dash;
     private string _liveAccessibleName = string.Empty;
+    private bool _hasQuota;
+    private bool _showsCliInvitation;
 
     public SourceRow(SourceKind kind)
     {
@@ -80,6 +84,24 @@ internal sealed class SourceRow : ObservableObject
 
     /// <summary>Only detected sources are listed on the dashboard.</summary>
     public bool IsListed { get => _isListed; set => Set(ref _isListed, value); }
+
+    /// <summary>One line per window of the source's quota (DESIGN 4, Quota lines), in QUOTAS 2 order.</summary>
+    public ObservableCollection<QuotaLineRow> QuotaLines { get; } = [];
+
+    public bool HasQuota { get => _hasQuota; set => Set(ref _hasQuota, value); }
+
+    /// <summary>The Claude Code invitation (DESIGN 4): the bridge is off and the invitation was not dismissed.</summary>
+    public bool ShowsCliInvitation { get => _showsCliInvitation; set => Set(ref _showsCliInvitation, value); }
+
+    /// <summary>Quota lines or the invitation sit under the row's line.</summary>
+    public bool HasBelow => _hasQuota || _showsCliInvitation;
+
+    public void SetBelow(bool quota, bool invitation)
+    {
+        HasQuota = quota;
+        ShowsCliInvitation = invitation;
+        OnPropertyChanged(nameof(HasBelow));
+    }
 }
 
 internal sealed class AgentRow : ObservableObject, IPerfCardRow
@@ -99,6 +121,21 @@ internal sealed class AgentRow : ObservableObject, IPerfCardRow
     public string Project { get => _project; set => Set(ref _project, value); }
 
     public string Detail { get => _detail; set => Set(ref _detail, value); }
+
+    /// <summary>A remote agent's host after its detail (DESIGN 13); empty for this computer's agents.</summary>
+    public string HostName
+    {
+        get => _hostName;
+        set
+        {
+            if (Set(ref _hostName, value))
+            {
+                OnPropertyChanged(nameof(HasHost));
+            }
+        }
+    }
+
+    public bool HasHost => _hostName.Length > 0;
 
     /// <summary>The agent's traffic today (<c> · ↓ 2.10 MB</c>, DESIGN 10): it stays whole while the detail truncates.</summary>
     public string DetailSuffix { get => _detailSuffix; set => Set(ref _detailSuffix, value); }
@@ -161,6 +198,7 @@ internal sealed class AgentRow : ObservableObject, IPerfCardRow
     private string _cardDescription = string.Empty;
     private PerfForm _intelligenceForm = PerfForm.None;
     private string _intelligenceAccessibleName = string.Empty;
+    private string _hostName = string.Empty;
 }
 
 /// <summary>One source of today's cost in the ⓘ popup: colour dot, name, amount and a thin share bar.</summary>
@@ -210,6 +248,10 @@ internal sealed partial class DashboardViewModel : ObservableObject
     private string _warningText = string.Empty;
     private bool _hasEstimate;
     private bool _reduceMotion;
+    private Brush _quotaTrack = Brushes.Gray;
+    private double _quotaTrackOpacity = 0.08;
+    private Brush _quotaTick = Brushes.Gray;
+    private double _quotaTickOpacity = 0.35;
     private string _heroAccessibleName = string.Empty;
 
     public DashboardViewModel()
@@ -440,7 +482,8 @@ internal sealed partial class DashboardViewModel : ObservableObject
         IsRunning = snapshot.State.Kind == MonitorStateKind.Running;
         HasEstimate = snapshot.LiveEstimatedShare > 0.001 || snapshot.History.Count > 0 && snapshot.History[^1].Estimated.ValueFor(metric) > 0.05;
 
-        UpdateSources(snapshot, metric, loc, unit);
+        UpdateSources(snapshot, metric, loc, unit, darkTheme);
+        UpdateHosts(snapshot, metric, loc, unit, darkTheme);
         _lastAgents = snapshot.Agents;
         _lastMetric = metric;
         _lastLoc = loc;
@@ -465,26 +508,34 @@ internal sealed partial class DashboardViewModel : ObservableObject
         }
     }
 
-    private void UpdateSources(SpeedSnapshot snapshot, SpeedMetric metric, Localizer loc, string unit)
+    private void UpdateSources(SpeedSnapshot snapshot, SpeedMetric metric, Localizer loc, string unit, bool dark)
     {
+        var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        UpdateQuotaInk(dark);
         foreach (var row in Sources)
         {
             row.Name = loc[DisplayText.SourceKey(row.Kind)];
             var status = snapshot.Sources.FirstOrDefault(s => s.Kind == row.Kind);
+            var quotaOn = QuotaSettings.IsOn(row.Kind);
+            var quotaListed = quotaOn && Quota.ListsSource(row.Kind, now);
             if (status is null)
             {
                 row.LiveKind = LiveValueKind.Dash;
                 row.LiveAccessibleName = loc["phase.idle"];
-                row.TodayText = string.Empty;
+                // Listed for its quota alone (DESIGN 4): today's values at 0, the cost too, like every other row.
+                row.TodayText = !quotaListed ? string.Empty
+                    : Cost is { } zeroCost ? $"{SpeedFormat.Tokens(0)} · {zeroCost.TallyText(CostTally.Zero, 0)}"
+                    : SpeedFormat.Tokens(0);
                 row.Status = string.Empty;
                 row.IsDimmed = false;
                 row.ShowSettingsLink = false;
-                row.IsListed = false;
-                row.AccessibleName = row.Name;
+                row.IsListed = quotaListed;
+                var spokenQuota = UpdateQuota(row, quotaOn, now, loc, dark);
+                row.AccessibleName = spokenQuota.Length > 0 ? $"{row.Name}, {spokenQuota}" : row.Name;
                 continue;
             }
 
-            row.IsListed = SourceDetection.ProducedToday(status);
+            row.IsListed = SourceDetection.ProducedToday(status) || quotaListed;
 
             var live = status.Live.ValueFor(metric);
             if (DisplayText.IsNegligibleSpeed(live))
@@ -542,14 +593,61 @@ internal sealed partial class DashboardViewModel : ObservableObject
                 row.ShowSettingsLink = false;
             }
 
+            var quotaSpoken = UpdateQuota(row, quotaOn, now, loc, dark);
+            var quotaPart = quotaSpoken.Length > 0 ? ", " + quotaSpoken : string.Empty;
             row.AccessibleName = row.IsDimmed
                 ? $"{row.Name}, {row.Status}"
                 : costSpoken.Length > 0
-                    ? $"{row.Name}, {loc["today.output"]} {SpeedFormat.Tokens(status.Today.Output)}, {loc["today.cost"]} {costSpoken}, {row.LiveAccessibleName}"
-                    : $"{row.Name}, {loc["today.output"]} {row.TodayText}, {row.LiveAccessibleName}";
+                    ? $"{row.Name}, {loc["today.output"]} {SpeedFormat.Tokens(status.Today.Output)}, {loc["today.cost"]} {costSpoken}{quotaPart}, {row.LiveAccessibleName}"
+                    : $"{row.Name}, {loc["today.output"]} {row.TodayText}{quotaPart}, {row.LiveAccessibleName}";
         }
 
         HasListedSources = Sources.Any(r => r.IsListed);
+    }
+
+    /// <summary>
+    /// The row's quota lines (DESIGN 4, Quota lines) and the Claude Code invitation; returns the windows as spoken after
+    /// the row's cost, empty without any.
+    /// </summary>
+    private string UpdateQuota(SourceRow row, bool quotaOn, long now, Localizer loc, bool dark)
+    {
+        IReadOnlyList<QuotaLine> lines = quotaOn && Quota.Of(row.Kind) is { HasWindows: true } snapshot ? QuotaLines.Of(snapshot, now, loc) : [];
+        QuotaLineRow.Sync(row.QuotaLines, lines, row.DotBrush, dark, HighContrast);
+        var invitation = row.Kind == SourceKind.ClaudeCode && !QuotaSettings.ClaudeCli && !QuotaSettings.CliInviteDismissed && row.IsListed
+            && lines.Count == 0;
+        row.SetBelow(lines.Count > 0, invitation);
+        return lines.Count > 0 ? QuotaLines.Spoken(lines, loc) : string.Empty;
+    }
+
+    /// <summary>The quotas the Sources rows show (QUOTAS); set by the app before an update.</summary>
+    public QuotaState Quota { get; set; } = QuotaState.Empty;
+
+    /// <summary>The quota switches and the invitation's state (DESIGN 5).</summary>
+    public QuotaSettings QuotaSettings { get; set; } = QuotaSettings.Default;
+
+    /// <summary>Windows high contrast: quota fills and pace marks in the text color.</summary>
+    public bool HighContrast { get; set; }
+
+    /// <summary>The widths the Sources section's quota lines share.</summary>
+    public QuotaColumns QuotaColumns { get; } = new();
+
+    /// <summary>The bars' track: the label color at 8 % (dark 12 %); high contrast the disabled-text color.</summary>
+    public Brush QuotaTrack { get => _quotaTrack; private set => Set(ref _quotaTrack, value); }
+
+    public double QuotaTrackOpacity { get => _quotaTrackOpacity; private set => Set(ref _quotaTrackOpacity, value); }
+
+    /// <summary>The pace mark: the label color at 35 %; high contrast the text color.</summary>
+    public Brush QuotaTick { get => _quotaTick; private set => Set(ref _quotaTick, value); }
+
+    public double QuotaTickOpacity { get => _quotaTickOpacity; private set => Set(ref _quotaTickOpacity, value); }
+
+    private void UpdateQuotaInk(bool dark)
+    {
+        var label = System.Windows.Application.Current?.TryFindResource("TextFillColorPrimaryBrush") as Brush ?? Brushes.Gray;
+        QuotaTrack = HighContrast ? System.Windows.SystemColors.GrayTextBrush : label;
+        QuotaTrackOpacity = HighContrast ? 1 : dark ? 0.12 : 0.08;
+        QuotaTick = HighContrast ? System.Windows.SystemColors.WindowTextBrush : label;
+        QuotaTickOpacity = HighContrast ? 1 : 0.35;
     }
 
     private void UpdateTodayCost(SpeedSnapshot snapshot, Localizer loc)
@@ -615,8 +713,15 @@ internal sealed partial class DashboardViewModel : ObservableObject
             var looping = WorkText.Looping(agent.Work, loc);
             row.IsLooping = looping is not null;
 
-            // The row's former tooltip lines are its score card's facts: effort and speed, a top rung's detail, traffic.
+            // The row's former tooltip lines are its score card's facts: the host, effort and speed, a top rung's detail, traffic.
             var facts = new List<string>();
+            var hostName = RemoteHostName(agent);
+            row.HostName = hostName ?? string.Empty;
+            if (hostName is not null)
+            {
+                facts.Add(loc.Format("remote.card.host", hostName));
+            }
+
             var capsule = EffortCapsule.Of(agent);
             row.Capsule = capsule;
             if (capsule.IsKnown)
@@ -667,9 +772,10 @@ internal sealed partial class DashboardViewModel : ObservableObject
 
             row.Indent = new Thickness(rows[i].Indent * TreeConnectors.LevelWidth, 0, 0, 0);
             row.Guides = rows[i].Guides;
+            var detailSpoken = hostName is null ? $"{row.Detail}{row.DetailSuffix}" : $"{row.Detail}, {loc.Format("remote.a11y.onHost", hostName)}{row.DetailSuffix}";
             var accessible = row.LiveKind == LiveValueKind.Number
-                ? string.Create(CultureInfo.InvariantCulture, $"{row.Project}, {row.Detail}{row.DetailSuffix}, {phase}, {row.LiveAccessibleName}")
-                : string.Create(CultureInfo.InvariantCulture, $"{row.Project}, {row.Detail}{row.DetailSuffix}, {phase}");
+                ? string.Create(CultureInfo.InvariantCulture, $"{row.Project}, {detailSpoken}, {phase}, {row.LiveAccessibleName}")
+                : string.Create(CultureInfo.InvariantCulture, $"{row.Project}, {detailSpoken}, {phase}");
             accessible = intelligence.Spoken.Length > 0 ? $"{accessible}, {intelligence.Spoken}" : accessible;
             accessible = capsule.IsKnown ? $"{accessible}, {capsule.AccessibilityText(loc)}" : accessible;
             row.AccessibleName = looping is null ? accessible : $"{accessible}, {looping}";

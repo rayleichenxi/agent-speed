@@ -42,9 +42,21 @@ public abstract record MenuAction
     /// <summary>What one orb's traffic readout shows (DESIGN 10).</summary>
     public sealed record SetOrbTraffic(string OrbId, Settings.Orbs.OrbTraffic Traffic) : MenuAction;
 
+    /// <summary>A <c>character</c> orb's character: a pack id, or null for Auto (CHARACTERS 7).</summary>
+    public sealed record SetOrbCharacter(string OrbId, string? Character) : MenuAction;
+
+    /// <summary>One card of a <c>character</c> orb (DESIGN 2a.6, Readouts).</summary>
+    public sealed record SetOrbCharacterReadout(string OrbId, Settings.Orbs.CharacterReadout Readout, bool On) : MenuAction;
+
     public sealed record SetOrbAllSources(string OrbId) : MenuAction;
 
     public sealed record ToggleOrbSource(string OrbId, SourceKind Source) : MenuAction;
+
+    /// <summary>The orb tracks every host again (DESIGN 13).</summary>
+    public sealed record SetOrbAllHosts(string OrbId) : MenuAction;
+
+    /// <summary>Checks or unchecks one host of the orb (<c>local</c> or a remote host id; never the last one).</summary>
+    public sealed record ToggleOrbHost(string OrbId, string HostId) : MenuAction;
 
     public sealed record SetOrbSize(string OrbId, double Size) : MenuAction;
 
@@ -78,6 +90,10 @@ public abstract record MenuAction
     public sealed record SetBoardAllSources(string BoardId) : MenuAction;
 
     public sealed record ToggleBoardSource(string BoardId, SourceKind Source) : MenuAction;
+
+    public sealed record SetBoardAllHosts(string BoardId) : MenuAction;
+
+    public sealed record ToggleBoardHost(string BoardId, string HostId) : MenuAction;
 
     public sealed record SetBoardSize(string BoardId, BoardSize Size) : MenuAction;
 

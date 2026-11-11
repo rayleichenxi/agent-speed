@@ -1578,17 +1578,65 @@
     "en": "Data Sources",
     "ja": "データソース"
   },
-  "settings.sources.change": {
-    "zh-Hant": "變更…",
-    "zh-Hans": "更改…",
-    "en": "Change…",
-    "ja": "変更…"
-  },
   "settings.sources.reset": {
     "zh-Hant": "重設",
     "zh-Hans": "重置",
     "en": "Reset",
     "ja": "リセット"
+  },
+  "settings.sources.locationsHint": {
+    "zh-Hant": "每個來源都可以讀取多個資料夾，例如同一個工具的不同版本各自寫入的資料夾。所有位置會一起讀取，同一份紀錄只計算一次。",
+    "zh-Hans": "每个来源都可以读取多个文件夹，例如同一工具的不同版本各自写入的文件夹。所有位置会一起读取，同一份记录只计算一次。",
+    "en": "Each source can read several folders, for example when two builds of the same tool keep their sessions apart. All locations are read together, and each record counts once.",
+    "ja": "各ソースは複数のフォルダを読み込めます（同じツールの別ビルドがそれぞれ別のフォルダに書き込む場合など）。すべての場所をまとめて読み込み、同じ記録は一度だけ数えます。"
+  },
+  "settings.sources.add": {
+    "zh-Hant": "加入資料夾…",
+    "zh-Hans": "添加文件夹…",
+    "en": "Add Folder…",
+    "ja": "フォルダを追加…"
+  },
+  "settings.sources.default": {
+    "zh-Hant": "預設",
+    "zh-Hans": "默认",
+    "en": "Default",
+    "ja": "デフォルト"
+  },
+  "settings.sources.remove": {
+    "zh-Hant": "移除",
+    "zh-Hans": "移除",
+    "en": "Remove",
+    "ja": "削除"
+  },
+  "settings.sources.removeLocation": {
+    "zh-Hant": "移除「%@」",
+    "zh-Hans": "移除“%@”",
+    "en": "Remove “%@”",
+    "ja": "「%@」を削除"
+  },
+  "settings.sources.keepOne": {
+    "zh-Hant": "至少要保留一個位置。要停止讀取這個來源，請關閉它的開關。",
+    "zh-Hans": "至少要保留一个位置。要停止读取这个来源，请关闭它的开关。",
+    "en": "Keep at least one location. To stop reading this source, turn it off.",
+    "ja": "場所は少なくとも 1 つ必要です。このソースの読み込みをやめるには、スイッチをオフにしてください。"
+  },
+  "settings.sources.limit": {
+    "zh-Hant": "最多可以加入 %d 個位置",
+    "zh-Hans": "最多可以添加 %d 个位置",
+    "en": "You can add up to %d locations",
+    "ja": "場所は最大 %d か所までです"
+  },
+  "settings.sources.alreadyListed": {
+    "zh-Hant": "這個位置已經在清單中。",
+    "zh-Hans": "这个位置已经在列表中。",
+    "en": "This location is already in the list.",
+    "ja": "この場所はすでにリストにあります。"
+  },
+  "settings.sources.alreadyDefault": {
+    "zh-Hant": "預設位置已經包含這個位置。",
+    "zh-Hans": "默认位置已经包含这个位置。",
+    "en": "The default location already includes this one.",
+    "ja": "この場所はデフォルトの場所にすでに含まれています。"
   },
   "settings.sources.sharedRoot": {
     "zh-Hant": "Claude Code 與 Claude Desktop 共用這個資料夾，依紀錄自動區分。",
@@ -1951,10 +1999,10 @@
     "ja": "Antigravity"
   },
   "settings.sources.ompHint": {
-    "zh-Hant": "omp（oh-my-pi）的 sessions 資料夾，通常是 ~/.omp/agent/sessions。未選擇資料夾時，也會自動讀取各個具名設定檔。",
-    "zh-Hans": "omp（oh-my-pi）的 sessions 文件夹，通常是 ~/.omp/agent/sessions。未选择文件夹时，也会自动读取各个命名配置文件。",
-    "en": "The sessions folder of omp (oh-my-pi), usually ~/.omp/agent/sessions. Unless you choose a folder, named profiles are included automatically.",
-    "ja": "omp（oh-my-pi）の sessions フォルダです。通常は ~/.omp/agent/sessions です。フォルダを選ばない場合は、名前付きプロファイルも自動で読み込みます。"
+    "zh-Hant": "omp（oh-my-pi）的 sessions 資料夾，通常是 ~/.omp/agent/sessions。預設位置也會自動讀取各個具名設定檔。",
+    "zh-Hans": "omp（oh-my-pi）的 sessions 文件夹，通常是 ~/.omp/agent/sessions。默认位置也会自动读取各个命名配置文件。",
+    "en": "The sessions folder of omp (oh-my-pi), usually ~/.omp/agent/sessions. The default location also includes named profiles automatically.",
+    "ja": "omp（oh-my-pi）の sessions フォルダです。通常は ~/.omp/agent/sessions です。デフォルトの場所には名前付きプロファイルも自動で含まれます。"
   },
   "settings.sources.antigravityHint": {
     "zh-Hant": "內含 conversations 的 Antigravity 資料夾，例如 ~/.gemini/antigravity-cli。命令列、桌面版與 IDE 的資料夾會自動讀取，對話紀錄只會讀取、不會變更。",
@@ -2375,6 +2423,258 @@
     "zh-Hans": "只有数字、细圆环和称号；最安静，缩小也清楚。",
     "en": "Just the number, a thin ring and the title. The calmest, and clear even when small.",
     "ja": "数字と細いリング、称号だけ。いちばん静かで、小さくても読みやすい。"
+  },
+  "style.character": {
+    "zh-Hant": "角色",
+    "zh-Hans": "角色",
+    "en": "Character",
+    "ja": "キャラクター"
+  },
+  "style.character.desc": {
+    "zh-Hant": "AI 娘站在桌面上隨速度舞動，速度、性能、網速和費用浮在她身旁；角色跟著最快的模型更換。",
+    "zh-Hans": "AI 娘站在桌面上随速度舞动，速度、性能、网速和费用浮在她身旁；角色跟着最快的模型更换。",
+    "en": "An AI character stands on your desktop and dances to the speed, with the speed, performance, network speed and cost floating beside her. She changes with the fastest model.",
+    "ja": "AI キャラクターがデスクトップに立ち、速度に合わせて踊ります。速度・性能・通信速度・費用が彼女のそばに浮かび、いちばん速いモデルに合わせて入れ替わります。"
+  },
+  "character.empty": {
+    "zh-Hant": "下載角色",
+    "zh-Hans": "下载角色",
+    "en": "Download a character",
+    "ja": "キャラクターをダウンロード"
+  },
+  "characters.title": {
+    "zh-Hant": "角色",
+    "zh-Hans": "角色",
+    "en": "Character",
+    "ja": "キャラクター"
+  },
+  "characters.choice": {
+    "zh-Hant": "顯示的角色",
+    "zh-Hans": "显示的角色",
+    "en": "Shown character",
+    "ja": "表示するキャラクター"
+  },
+  "characters.choice.hint": {
+    "zh-Hant": "自動：跟著這個懸浮窗目前最快的模型廠商更換。",
+    "zh-Hans": "自动：跟着这个悬浮窗当前最快的模型厂商更换。",
+    "en": "Automatic follows the vendor of this orb's fastest model.",
+    "ja": "自動：このオーブでいちばん速いモデルのベンダーに合わせて切り替えます。"
+  },
+  "characters.auto": {
+    "zh-Hant": "自動（跟著最快的模型）",
+    "zh-Hans": "自动（跟着最快的模型）",
+    "en": "Automatic (fastest model)",
+    "ja": "自動（いちばん速いモデル）"
+  },
+  "character.readouts": {
+    "zh-Hant": "顯示資訊",
+    "zh-Hans": "显示信息",
+    "en": "Readouts",
+    "ja": "表示する情報"
+  },
+  "character.readouts.intel": {
+    "zh-Hant": "性能",
+    "zh-Hans": "性能",
+    "en": "Performance",
+    "ja": "性能"
+  },
+  "character.readouts.thinking": {
+    "zh-Hant": "思考速度",
+    "zh-Hans": "思考速度",
+    "en": "Thinking Speed",
+    "ja": "思考速度"
+  },
+  "character.readouts.latency": {
+    "zh-Hant": "首字延遲",
+    "zh-Hans": "首字延迟",
+    "en": "First-Token Latency",
+    "ja": "初回出力までの時間"
+  },
+  "character.readouts.network": {
+    "zh-Hant": "網路速度",
+    "zh-Hans": "网络速度",
+    "en": "Network Speed",
+    "ja": "ネットワーク速度"
+  },
+  "character.readouts.cost": {
+    "zh-Hant": "費用",
+    "zh-Hans": "费用",
+    "en": "Cost",
+    "ja": "費用"
+  },
+  "character.readouts.agents": {
+    "zh-Hant": "今日用量與 agent",
+    "zh-Hans": "今日用量与 agent",
+    "en": "Today & Agents",
+    "ja": "今日の使用量と agent"
+  },
+  "character.readouts.models": {
+    "zh-Hant": "執行中的模型",
+    "zh-Hans": "运行中的模型",
+    "en": "Running Models",
+    "ja": "実行中のモデル"
+  },
+  "character.readouts.model": {
+    "zh-Hant": "最快的模型",
+    "zh-Hans": "最快的模型",
+    "en": "Fastest Model",
+    "ja": "いちばん速いモデル"
+  },
+  "character.latency.glyph": {
+    "zh-Hant": "首字",
+    "zh-Hans": "首字",
+    "en": "TTFT",
+    "ja": "初回"
+  },
+  "character.models.more": {
+    "zh-Hant": "+%@ 個模型",
+    "zh-Hans": "+%@ 个模型",
+    "en": "+%@ more",
+    "ja": "ほか %@ 件"
+  },
+  "character.readouts.networkScope": {
+    "zh-Hant": "網路速度範圍",
+    "zh-Hans": "网络速度范围",
+    "en": "Network Speed Of",
+    "ja": "ネットワーク速度の対象"
+  },
+  "character.readouts.hint": {
+    "zh-Hant": "速度一直顯示；其他資訊有資料時才浮現在她身旁，安靜 10 秒後淡出。",
+    "zh-Hans": "速度一直显示；其他信息有数据时才浮现在她身旁，安静 10 秒后淡出。",
+    "en": "The speed always shows; the others float in beside her while they have something to show and fade out after 10 quiet seconds.",
+    "ja": "速度は常に表示されます。ほかの情報はデータがあるときだけ彼女のそばに現れ、10 秒間静かだとフェードアウトします。"
+  },
+  "characters.more": {
+    "zh-Hant": "下載更多角色…",
+    "zh-Hans": "下载更多角色…",
+    "en": "Download More Characters…",
+    "ja": "ほかのキャラクターをダウンロード…"
+  },
+  "characters.auto.status": {
+    "zh-Hant": "正在下載全部角色（%d / %d）",
+    "zh-Hans": "正在下载全部角色（%d / %d）",
+    "en": "Downloading all characters (%d of %d)",
+    "ja": "すべてのキャラクターをダウンロード中（%d / %d）"
+  },
+  "characters.auto.stop": {
+    "zh-Hant": "停止",
+    "zh-Hans": "停止",
+    "en": "Stop",
+    "ja": "停止"
+  },
+  "characters.download": {
+    "zh-Hant": "下載",
+    "zh-Hans": "下载",
+    "en": "Download",
+    "ja": "ダウンロード"
+  },
+  "characters.update": {
+    "zh-Hant": "更新",
+    "zh-Hans": "更新",
+    "en": "Update",
+    "ja": "アップデート"
+  },
+  "characters.remove": {
+    "zh-Hant": "移除",
+    "zh-Hans": "移除",
+    "en": "Remove",
+    "ja": "削除"
+  },
+  "characters.cancel": {
+    "zh-Hant": "取消下載",
+    "zh-Hans": "取消下载",
+    "en": "Cancel Download",
+    "ja": "ダウンロードを中止"
+  },
+  "characters.installing": {
+    "zh-Hant": "安裝中…",
+    "zh-Hans": "安装中…",
+    "en": "Installing…",
+    "ja": "インストール中…"
+  },
+  "characters.artist": {
+    "zh-Hant": "繪師：%@",
+    "zh-Hans": "画师：%@",
+    "en": "Art by %@",
+    "ja": "イラスト：%@"
+  },
+  "characters.development": {
+    "zh-Hant": "開發用",
+    "zh-Hans": "开发用",
+    "en": "Development",
+    "ja": "開発用"
+  },
+  "characters.loading": {
+    "zh-Hant": "正在取得角色清單…",
+    "zh-Hans": "正在获取角色列表…",
+    "en": "Loading characters…",
+    "ja": "キャラクター一覧を取得中…"
+  },
+  "characters.unavailable": {
+    "zh-Hant": "暫時無法取得角色清單。",
+    "zh-Hans": "暂时无法获取角色列表。",
+    "en": "The character list is unavailable right now.",
+    "ja": "キャラクター一覧を取得できません。"
+  },
+  "characters.offline": {
+    "zh-Hant": "網路功能已關閉，無法下載角色。",
+    "zh-Hans": "网络功能已关闭，无法下载角色。",
+    "en": "Network features are off, so characters can't be downloaded.",
+    "ja": "ネットワーク機能がオフのため、キャラクターをダウンロードできません。"
+  },
+  "characters.retry": {
+    "zh-Hant": "重試",
+    "zh-Hans": "重试",
+    "en": "Retry",
+    "ja": "再試行"
+  },
+  "characters.footer": {
+    "zh-Hant": "切換到角色樣式時，會自動從 GitHub 依序下載全部角色，並在安裝前驗證完整性；移除或取消的角色不會再自動下載。",
+    "zh-Hans": "切换到角色样式时，会自动从 GitHub 依次下载全部角色，并在安装前验证完整性；移除或取消的角色不会再自动下载。",
+    "en": "Switching to the character style downloads every character from GitHub, one at a time, verified before it's installed. Characters you remove or cancel aren't downloaded again on their own.",
+    "ja": "キャラクタースタイルに切り替えると、GitHub からすべてのキャラクターを順にダウンロードし、インストール前に検証します。削除やキャンセルしたキャラクターは自動ではダウンロードしません。"
+  },
+  "characters.openFolder": {
+    "zh-Hant": "打開角色資料夾",
+    "zh-Hans": "打开角色文件夹",
+    "en": "Open Characters Folder",
+    "ja": "キャラクターフォルダを開く"
+  },
+  "characters.error.offline": {
+    "zh-Hant": "網路功能已關閉。",
+    "zh-Hans": "网络功能已关闭。",
+    "en": "Network features are off.",
+    "ja": "ネットワーク機能がオフです。"
+  },
+  "characters.error.network": {
+    "zh-Hant": "下載失敗，請稍後再試。",
+    "zh-Hans": "下载失败，请稍后再试。",
+    "en": "The download failed. Try again later.",
+    "ja": "ダウンロードに失敗しました。しばらくしてからもう一度お試しください。"
+  },
+  "characters.error.checksum": {
+    "zh-Hant": "下載的檔案驗證失敗，已刪除。",
+    "zh-Hans": "下载的文件验证失败，已删除。",
+    "en": "The download didn't pass verification and was deleted.",
+    "ja": "ダウンロードしたファイルの検証に失敗したため、削除しました。"
+  },
+  "characters.error.invalid": {
+    "zh-Hant": "角色檔案格式不正確，無法安裝。",
+    "zh-Hans": "角色文件格式不正确，无法安装。",
+    "en": "This character file is invalid and can't be installed.",
+    "ja": "キャラクターファイルの形式が正しくないため、インストールできません。"
+  },
+  "characters.error.newerApp": {
+    "zh-Hant": "這個角色需要較新版本的 Agent Speed。",
+    "zh-Hans": "这个角色需要较新版本的 Agent Speed。",
+    "en": "This character needs a newer version of Agent Speed.",
+    "ja": "このキャラクターには新しいバージョンの Agent Speed が必要です。"
+  },
+  "characters.error.remove": {
+    "zh-Hant": "無法移除這個角色。",
+    "zh-Hans": "无法移除这个角色。",
+    "en": "This character couldn't be removed.",
+    "ja": "このキャラクターを削除できませんでした。"
   },
   "orbs.style": {
     "zh-Hant": "樣式",
@@ -3840,6 +4140,24 @@
     "en": "performance %@, thinking %@ tokens per second",
     "ja": "性能 %@、思考 毎秒 %@ トークン"
   },
+  "a11y.orb.latency": {
+    "zh-Hant": "首字延遲 %@",
+    "zh-Hans": "首字延迟 %@",
+    "en": "first-token latency %@",
+    "ja": "初回出力まで %@"
+  },
+  "a11y.orb.models": {
+    "zh-Hant": "執行中的模型：%@",
+    "zh-Hans": "运行中的模型：%@",
+    "en": "running models: %@",
+    "ja": "実行中のモデル：%@"
+  },
+  "a11y.orb.modelSpeed": {
+    "zh-Hant": "%@ 每秒 %@ 個 token",
+    "zh-Hans": "%@ 每秒 %@ 个 token",
+    "en": "%@ at %@ tokens per second",
+    "ja": "%@ 毎秒 %@ トークン"
+  },
   "intel.none": {
     "zh-Hant": "性能：尚無分數",
     "zh-Hans": "性能：暂无分数",
@@ -4409,6 +4727,12 @@
     "zh-Hans": "性能分数：Agent Speed 依响应的时间与 token 数，以及工具调用的开始与结束时间、是否出错，计算每个 agent 的性能分数；用量历史只保存各模型每天的汇总数字。只有在你开启实时上报并保留模型分享、且服务支持时，才会把当前的分数和各模型的性能统计（输出与耗时总和、首段延迟分布、思考、缓存、工具调用的次数、耗时与失败数、活跃时间）发送给该服务，供排名与统计分析；从不发送单个请求或工具调用的数据，也不含提示词、命令、路径或时间点。",
     "en": "Performance score: Agent Speed computes each agent's performance score from the timing and token counts of its responses and from when its tool calls start and finish and whether they fail; the usage history keeps only per-model daily totals of these figures. Only live reporting sends anything of it, when you turn it on, leave model sharing on and the service supports it: the current score and per-model performance statistics (sums of output and duration, the first-content latency distribution, thinking, cache, tool-call counts, time and failures, active time), for ranking and statistical analysis. It never sends anything about a single request or tool call, and no prompts, commands, paths or timestamps.",
     "ja": "性能スコア：Agent Speed は、応答の時間と token 数、ツール呼び出しの開始・終了の時刻とエラーの有無から各 agent の性能スコアを計算し、使用履歴にはモデルごとの日別の合計だけを保存します。送信するのは、ライブ送信をオンにしてモデルの共有もオンのままにし、サービスが対応している場合だけで、内容は現在のスコアとモデルごとの性能統計（出力量と所要時間の合計、最初の出力までの時間の分布、思考、キャッシュ、ツール呼び出しの回数・所要時間・失敗数、アクティブ時間）です。ランキングと統計分析に使われます。個々のリクエストやツール呼び出しのデータ、プロンプト、コマンド、パス、時刻は送信しません。"
+  },
+  "privacy.remote": {
+    "zh-Hant": "遠端主機：Agent Speed 會在主機的 ~/.cache/agent-speed 放一個唯讀的小程式，並用你自己的 SSH 設定與金鑰連線。主機只傳回數字，絕不包含對話內容；任何關於主機的資訊都不會上報或傳送到其他地方。",
+    "zh-Hans": "远程主机：Agent Speed 会在主机的 ~/.cache/agent-speed 放置一个只读的小程序，并用你自己的 SSH 配置与密钥连接。主机只传回数字，绝不包含对话内容；任何关于主机的信息都不会上报或发送到其他地方。",
+    "en": "Remote hosts: Agent Speed puts a small read-only helper in ~/.cache/agent-speed on each host and connects with your own SSH configuration and keys. Only numbers come back, never conversation content, and nothing about your hosts is ever reported or sent anywhere else.",
+    "ja": "リモートホスト：Agent Speed は各ホストの ~/.cache/agent-speed に読み取り専用の小さなヘルパーを置き、あなた自身の SSH 設定と鍵で接続します。ホストから返ってくるのは数値だけで、会話の内容は含まれません。ホストに関する情報が報告されたり、ほかの場所へ送信されたりすることもありません。"
   },
   "settings.report": {
     "zh-Hant": "API",
@@ -5340,6 +5664,24 @@
     "en": "Factory Droid",
     "ja": "Factory Droid"
   },
+  "source.devin": {
+    "zh-Hant": "Devin",
+    "zh-Hans": "Devin",
+    "en": "Devin",
+    "ja": "Devin"
+  },
+  "source.qoder": {
+    "zh-Hant": "Qoder IDE",
+    "zh-Hans": "Qoder IDE",
+    "en": "Qoder IDE",
+    "ja": "Qoder IDE"
+  },
+  "source.qoderCli": {
+    "zh-Hant": "Qoder CLI",
+    "zh-Hans": "Qoder CLI",
+    "en": "Qoder CLI",
+    "ja": "Qoder CLI"
+  },
   "settings.sources.zcodeHint": {
     "zh-Hant": "讀取 ZCode 的本機工作階段資料庫；可選擇資料目錄或包含 db.sqlite 的資料夾。",
     "zh-Hans": "读取 ZCode 的本地会话数据库；可选择数据目录或包含 db.sqlite 的文件夹。",
@@ -5359,10 +5701,10 @@
     "ja": "Grok Build の sessions フォルダと各セッションの更新記録を読み取ります。"
   },
   "settings.sources.piHint": {
-    "zh-Hant": "Pi（Pi Coding Agent）的 sessions 資料夾，通常是 ~/.pi/agent/sessions。未選擇資料夾時，Pi 設定裡的自訂工作階段資料夾也會一起讀取。",
-    "zh-Hans": "Pi（Pi Coding Agent）的 sessions 文件夹，通常是 ~/.pi/agent/sessions。未选择文件夹时，也会读取 Pi 设置里的自定义会话文件夹。",
-    "en": "The sessions folder of Pi (Pi Coding Agent), usually ~/.pi/agent/sessions. Unless you choose a folder, the custom session folder in Pi's settings is included too.",
-    "ja": "Pi（Pi Coding Agent）の sessions フォルダです。通常は ~/.pi/agent/sessions です。フォルダを選ばない場合は、Pi の設定にあるカスタムのセッションフォルダも読み込みます。"
+    "zh-Hant": "Pi（Pi Coding Agent）的 sessions 資料夾，通常是 ~/.pi/agent/sessions。預設位置也會一起讀取 Pi 設定裡的自訂工作階段資料夾。",
+    "zh-Hans": "Pi（Pi Coding Agent）的 sessions 文件夹，通常是 ~/.pi/agent/sessions。默认位置也会读取 Pi 设置里的自定义会话文件夹。",
+    "en": "The sessions folder of Pi (Pi Coding Agent), usually ~/.pi/agent/sessions. The default location also includes the custom session folder in Pi's settings.",
+    "ja": "Pi（Pi Coding Agent）の sessions フォルダです。通常は ~/.pi/agent/sessions です。デフォルトの場所には Pi の設定にあるカスタムのセッションフォルダも含まれます。"
   },
   "settings.sources.openclawHint": {
     "zh-Hant": "OpenClaw 的狀態資料夾，通常是 ~/.openclaw；也可以選擇某個 agent 資料夾或 openclaw-agent.sqlite。交給 Claude Code、Codex 或 ACP agent 執行的對話，會算在那些工具底下。",
@@ -5381,6 +5723,24 @@
     "zh-Hans": "Factory Droid 的会话文件夹，通常是 ~/.factory/sessions（Windows 为 %USERPROFILE%\\.factory\\sessions），也可以选择 .factory 文件夹。Token 用量取自每个会话旁的 .settings.json，Droid 写入后才会出现；子 agent 分别计算。",
     "en": "Factory Droid's sessions folder, usually ~/.factory/sessions (Windows: %USERPROFILE%\\.factory\\sessions). You can also choose the .factory folder. Token usage comes from the .settings.json next to each session and appears once Droid saves it; sub-agents count on their own.",
     "ja": "Factory Droid のセッションフォルダです。通常は ~/.factory/sessions（Windows では %USERPROFILE%\\.factory\\sessions）です。.factory フォルダも選べます。トークン使用量は各セッションの隣にある .settings.json から取得し、Droid が保存した時点で反映されます。サブ agent はそれぞれ個別に集計されます。"
+  },
+  "settings.sources.devinHint": {
+    "zh-Hant": "Devin CLI 的工作階段資料庫，通常位於 ~/.local/share/devin/cli（Windows 為 %APPDATA%\\devin\\cli），也可以選擇上一層的 devin 資料夾。資料庫只會以唯讀方式讀取。",
+    "zh-Hans": "Devin CLI 的会话数据库，通常位于 ~/.local/share/devin/cli（Windows 为 %APPDATA%\\devin\\cli），也可以选择上一层的 devin 文件夹。数据库只会以只读方式读取。",
+    "en": "Devin CLI's session database, usually in ~/.local/share/devin/cli (Windows: %APPDATA%\\devin\\cli). You can also choose the devin folder above it. The database is only read, never written.",
+    "ja": "Devin CLI のセッションデータベースです。通常は ~/.local/share/devin/cli（Windows では %APPDATA%\\devin\\cli）にあり、その上の devin フォルダも選べます。データベースは読み取り専用で読み込みます。"
+  },
+  "settings.sources.qoderHint": {
+    "zh-Hant": "Qoder IDE 的對話資料庫 local.db，位於 IDE 資料夾內的 SharedClientCache/cache/db（IDE 資料夾在 macOS 為 ~/Library/Application Support/Qoder，Windows 為 %APPDATA%\\Qoder，Linux 為 ~/.config/Qoder；國內版為 QoderCN），也可以選擇 IDE 資料夾或 SharedClientCache 資料夾。資料庫只會以唯讀方式讀取。Qoder 只記錄所選的模型檔位（例如 Auto），沒有實際模型，所以不顯示費用。",
+    "zh-Hans": "Qoder IDE 的对话数据库 local.db，位于 IDE 文件夹内的 SharedClientCache/cache/db（IDE 文件夹在 macOS 为 ~/Library/Application Support/Qoder，Windows 为 %APPDATA%\\Qoder，Linux 为 ~/.config/Qoder；国内版为 QoderCN），也可以选择 IDE 文件夹或 SharedClientCache 文件夹。数据库只会以只读方式读取。Qoder 只记录所选的模型档位（例如 Auto），没有实际模型，所以不显示费用。",
+    "en": "Qoder IDE's chat database local.db, in SharedClientCache/cache/db inside the IDE's folder (macOS ~/Library/Application Support/Qoder, Windows %APPDATA%\\Qoder, Linux ~/.config/Qoder; the China edition: QoderCN). You can also choose the IDE's folder or its SharedClientCache folder. The database is only read, never written. Qoder records only the model tier you chose (such as Auto), not the model, so no cost is shown.",
+    "ja": "Qoder IDE のチャットデータベース local.db です。IDE フォルダ内の SharedClientCache/cache/db にあります（IDE フォルダは macOS では ~/Library/Application Support/Qoder、Windows では %APPDATA%\\Qoder、Linux では ~/.config/Qoder。中国版は QoderCN）。IDE フォルダや SharedClientCache フォルダも選べます。データベースは読み取り専用で読み込みます。Qoder は選んだモデルの段階（Auto など）だけを記録し、モデル名は記録しないため、費用は表示されません。"
+  },
+  "settings.sources.qoderCliHint": {
+    "zh-Hant": "Qoder CLI 的工作階段資料夾，通常是 ~/.qoder/projects（國內版為 ~/.qoder-cn/projects），也可以選擇 .qoder 資料夾。使用 Qoder 自家的模型時，Qoder CLI 不會把 token 用量存到本機，這裡只看得到工作階段和狀態；以 QODER_EXPOSE_TOKEN_USAGE=1（國內版為 QODERCN_EXPOSE_TOKEN_USAGE=1）啟動 qodercli，或使用自訂模型，才會有 token 和速度。",
+    "zh-Hans": "Qoder CLI 的会话文件夹，通常是 ~/.qoder/projects（国内版为 ~/.qoder-cn/projects），也可以选择 .qoder 文件夹。使用 Qoder 自家的模型时，Qoder CLI 不会把 token 用量存到本机，这里只能看到会话和状态；以 QODER_EXPOSE_TOKEN_USAGE=1（国内版为 QODERCN_EXPOSE_TOKEN_USAGE=1）启动 qodercli，或使用自定义模型，才会有 token 和速度。",
+    "en": "Qoder CLI's session folder, usually ~/.qoder/projects (the China edition: ~/.qoder-cn/projects). You can also choose the .qoder folder. With Qoder's own models, Qoder CLI keeps no token usage on disk, so only sessions and status show here; start qodercli with QODER_EXPOSE_TOKEN_USAGE=1 (China edition: QODERCN_EXPOSE_TOKEN_USAGE=1), or use a custom model, to get tokens and speed.",
+    "ja": "Qoder CLI のセッションフォルダです。通常は ~/.qoder/projects（中国版は ~/.qoder-cn/projects）にあり、.qoder フォルダも選べます。Qoder 独自のモデルでは Qoder CLI がトークン使用量をローカルに保存しないため、ここではセッションと状態だけが表示されます。トークンと速度を表示するには QODER_EXPOSE_TOKEN_USAGE=1（中国版は QODERCN_EXPOSE_TOKEN_USAGE=1）を付けて qodercli を起動するか、カスタムモデルを使ってください。"
   },
   "mode.label": {
     "zh-Hant": "執行模式",
@@ -6203,5 +6563,1337 @@
     "zh-Hant": "裝置管理",
     "zh-Hans": "设备管理",
     "ja": "デバイス管理"
+  },
+  "settings.remote": {
+    "zh-Hant": "遠端主機",
+    "zh-Hans": "远程主机",
+    "en": "Remote Hosts",
+    "ja": "リモートホスト"
+  },
+  "remote.local": {
+    "zh-Hant": "本機",
+    "zh-Hans": "本机",
+    "en": "This Mac",
+    "ja": "このMac"
+  },
+  "remote.hosts": {
+    "zh-Hant": "主機",
+    "zh-Hans": "主机",
+    "en": "Hosts",
+    "ja": "ホスト"
+  },
+  "remote.hosts.all": {
+    "zh-Hant": "全部主機",
+    "zh-Hans": "全部主机",
+    "en": "All Hosts",
+    "ja": "すべてのホスト"
+  },
+  "remote.hosts.allHint": {
+    "zh-Hant": "包含之後新增的主機。",
+    "zh-Hans": "包含之后添加的主机。",
+    "en": "Includes hosts that are added later.",
+    "ja": "あとから追加したホストも含みます。"
+  },
+  "remote.hosts.lastOne": {
+    "zh-Hant": "至少要追蹤一台主機。",
+    "zh-Hans": "至少要追踪一台主机。",
+    "en": "At least one host must be tracked.",
+    "ja": "少なくとも 1 台のホストが必要です。"
+  },
+  "remote.empty": {
+    "zh-Hant": "尚未加入遠端主機",
+    "zh-Hans": "尚未添加远程主机",
+    "en": "No remote hosts yet",
+    "ja": "リモートホストはまだありません"
+  },
+  "remote.empty.hint": {
+    "zh-Hant": "加入一台可以用 SSH 登入的 Linux 主機，它上面 agent 的速度就會和這台 Mac 的一起顯示。",
+    "zh-Hans": "添加一台可以用 SSH 登录的 Linux 主机，它上面 agent 的速度就会和这台 Mac 的一起显示。",
+    "en": "Add a Linux machine you can reach with SSH, and the speed of its agents appears next to this Mac’s.",
+    "ja": "SSH で接続できる Linux マシンを追加すると、そこで動く agent の速度がこの Mac の分と一緒に表示されます。"
+  },
+  "remote.empty.hint.computer": {
+    "zh-Hant": "加入一台可以用 SSH 登入的 Linux 主機，它上面 agent 的速度就會和這台電腦的一起顯示。",
+    "zh-Hans": "添加一台可以用 SSH 登录的 Linux 主机，它上面 agent 的速度就会和这台电脑的一起显示。",
+    "en": "Add a Linux machine you can reach with SSH, and the speed of its agents appears next to this computer’s.",
+    "ja": "SSH で接続できる Linux マシンを追加すると、そこで動く agent の速度がこのコンピューターの分と一緒に表示されます。"
+  },
+  "remote.add": {
+    "zh-Hant": "加入主機…",
+    "zh-Hans": "添加主机…",
+    "en": "Add Host…",
+    "ja": "ホストを追加…"
+  },
+  "remote.limit": {
+    "zh-Hant": "最多可以加入 %d 台主機",
+    "zh-Hans": "最多可以添加 %d 台主机",
+    "en": "You can add up to %d hosts",
+    "ja": "ホストは最大 %d 台までです"
+  },
+  "remote.footnote": {
+    "zh-Hant": "只傳回數字（例如 token 數、時間、模型與專案名稱），絕不傳送對話內容。連線使用你自己的 SSH 設定與金鑰，Agent Speed 不會儲存或詢問密碼。連線時會在主機的 ~/.cache/agent-speed 放一個唯讀的小程式。目前只支援 Linux（x86_64、ARM64）。",
+    "zh-Hans": "只传回数字（例如 token 数、时间、模型与项目名称），绝不发送对话内容。连接使用你自己的 SSH 配置与密钥，Agent Speed 不会保存或询问密码。连接时会在主机的 ~/.cache/agent-speed 放置一个只读的小程序。目前仅支持 Linux（x86_64、ARM64）。",
+    "en": "Only numbers come back — token counts, times, model and project names — never conversation content. Your own SSH configuration and keys are used; Agent Speed never stores or asks for a password. A small read-only helper is placed in ~/.cache/agent-speed on the host. Linux (x86_64, ARM64) only.",
+    "ja": "返ってくるのは数値（トークン数、時刻、モデル名やプロジェクト名など）だけで、会話の内容は送信されません。接続にはあなた自身の SSH 設定と鍵を使い、Agent Speed がパスワードを保存したり尋ねたりすることはありません。接続時にホストの ~/.cache/agent-speed に読み取り専用の小さなヘルパーを置きます。対応するのは Linux（x86_64、ARM64）のみです。"
+  },
+  "remote.edit": {
+    "zh-Hant": "編輯…",
+    "zh-Hans": "编辑…",
+    "en": "Edit…",
+    "ja": "編集…"
+  },
+  "remote.retry": {
+    "zh-Hant": "立即重試",
+    "zh-Hans": "立即重试",
+    "en": "Retry Now",
+    "ja": "今すぐ再試行"
+  },
+  "remote.copyCommand": {
+    "zh-Hant": "拷貝 SSH 指令",
+    "zh-Hans": "复制 SSH 命令",
+    "en": "Copy SSH Command",
+    "ja": "SSH コマンドをコピー"
+  },
+  "remote.remove": {
+    "zh-Hant": "移除…",
+    "zh-Hans": "移除…",
+    "en": "Remove…",
+    "ja": "削除…"
+  },
+  "remote.actions": {
+    "zh-Hant": "更多選項",
+    "zh-Hans": "更多选项",
+    "en": "More Options",
+    "ja": "その他のオプション"
+  },
+  "remote.enabled": {
+    "zh-Hant": "連線到「%@」",
+    "zh-Hans": "连接到“%@”",
+    "en": "Connect to %@",
+    "ja": "%@ に接続"
+  },
+  "remote.status.connecting": {
+    "zh-Hant": "連線中…",
+    "zh-Hans": "连接中…",
+    "en": "Connecting…",
+    "ja": "接続中…"
+  },
+  "remote.status.installing": {
+    "zh-Hant": "正在安裝…",
+    "zh-Hans": "正在安装…",
+    "en": "Installing…",
+    "ja": "インストール中…"
+  },
+  "remote.status.seeding": {
+    "zh-Hant": "讀取中… %d%%",
+    "zh-Hans": "读取中… %d%%",
+    "en": "Reading… %d%%",
+    "ja": "読み込み中… %d%%"
+  },
+  "remote.status.connected": {
+    "zh-Hant": "已連線",
+    "zh-Hans": "已连接",
+    "en": "Connected",
+    "ja": "接続済み"
+  },
+  "remote.status.connected.agents": {
+    "zh-Hant": "已連線 · %d 個 agent",
+    "zh-Hans": "已连接 · %d 个 agent",
+    "en": "Connected · %d agents",
+    "ja": "接続済み · %d 個の agent"
+  },
+  "remote.status.connected.one": {
+    "zh-Hant": "已連線 · %d 個 agent",
+    "zh-Hans": "已连接 · %d 个 agent",
+    "en": "Connected · %d agent",
+    "ja": "接続済み · %d 個の agent"
+  },
+  "remote.status.unreachable": {
+    "zh-Hant": "無法連線",
+    "zh-Hans": "无法连接",
+    "en": "Can’t reach the host",
+    "ja": "ホストに接続できません"
+  },
+  "remote.status.retryIn": {
+    "zh-Hant": "%@，%d 秒後重試",
+    "zh-Hans": "%@，%d 秒后重试",
+    "en": "%@ — retrying in %d s",
+    "ja": "%@。%d 秒後に再試行します"
+  },
+  "remote.status.retryingNow": {
+    "zh-Hant": "%@，正在重試…",
+    "zh-Hans": "%@，正在重试…",
+    "en": "%@ — retrying…",
+    "ja": "%@。再試行しています…"
+  },
+  "remote.status.authFailed": {
+    "zh-Hant": "需要金鑰登入 — Agent Speed 不使用密碼，請設定 SSH 金鑰或 ssh-agent",
+    "zh-Hans": "需要密钥登录 — Agent Speed 不使用密码，请配置 SSH 密钥或 ssh-agent",
+    "en": "Needs key login — Agent Speed never uses passwords; set up an SSH key or ssh-agent",
+    "ja": "鍵によるログインが必要です。Agent Speed はパスワードを使いません。SSH 鍵か ssh-agent を設定してください"
+  },
+  "remote.status.hostKeyUnknown": {
+    "zh-Hant": "尚未信任這台主機 — 請先在終端機執行 ssh %@",
+    "zh-Hans": "尚未信任这台主机 — 请先在终端执行 ssh %@",
+    "en": "This host isn’t trusted yet — run ssh %@ in Terminal once",
+    "ja": "まだ信頼されていないホストです。ターミナルで一度 ssh %@ を実行してください"
+  },
+  "remote.status.unsupportedSystem": {
+    "zh-Hant": "不支援這個系統（%@），只支援 Linux x86_64 與 ARM64",
+    "zh-Hans": "不支持这个系统（%@），仅支持 Linux x86_64 与 ARM64",
+    "en": "Unsupported system (%@) — only Linux x86_64 and ARM64",
+    "ja": "対応していないシステムです（%@）。Linux x86_64 と ARM64 のみ対応しています"
+  },
+  "remote.status.cannotVerify": {
+    "zh-Hant": "主機上沒有驗證檔案的工具（sha256sum、shasum 或 openssl）",
+    "zh-Hans": "主机上没有校验文件的工具（sha256sum、shasum 或 openssl）",
+    "en": "The host has no tool to verify files (sha256sum, shasum or openssl)",
+    "ja": "ホストにファイルを検証するツール（sha256sum、shasum、openssl）がありません"
+  },
+  "remote.status.uploadFailed": {
+    "zh-Hant": "無法把小程式傳到主機上",
+    "zh-Hans": "无法把小程序传到主机上",
+    "en": "Couldn’t copy the helper to the host",
+    "ja": "ヘルパーをホストへ転送できませんでした"
+  },
+  "remote.status.notExecutable": {
+    "zh-Hant": "無法在遠端資料夾執行程式 — 請改用其他資料夾",
+    "zh-Hans": "无法在远程文件夹运行程序 — 请改用其他文件夹",
+    "en": "Programs can’t run in the remote folder — choose another folder",
+    "ja": "リモートのフォルダでプログラムを実行できません。別のフォルダを指定してください"
+  },
+  "remote.status.versionMismatch": {
+    "zh-Hant": "版本不相符 — 請更新 Agent Speed",
+    "zh-Hans": "版本不匹配 — 请更新 Agent Speed",
+    "en": "Version mismatch — update Agent Speed",
+    "ja": "バージョンが一致しません。Agent Speed をアップデートしてください"
+  },
+  "remote.status.protocolError": {
+    "zh-Hant": "收到無法辨識的資料",
+    "zh-Hans": "收到无法识别的数据",
+    "en": "Received data it couldn’t read",
+    "ja": "読み取れないデータを受信しました"
+  },
+  "remote.status.exited": {
+    "zh-Hant": "連線意外結束",
+    "zh-Hans": "连接意外结束",
+    "en": "The connection ended unexpectedly",
+    "ja": "接続が予期せず終了しました"
+  },
+  "remote.status.sshMissing": {
+    "zh-Hant": "找不到 /usr/bin/ssh",
+    "zh-Hans": "找不到 /usr/bin/ssh",
+    "en": "/usr/bin/ssh is missing",
+    "ja": "/usr/bin/ssh が見つかりません"
+  },
+  "remote.status.invalidDestination": {
+    "zh-Hant": "目的地無效 — 請編輯這台主機",
+    "zh-Hans": "目标无效 — 请编辑这台主机",
+    "en": "Invalid destination — edit this host",
+    "ja": "接続先が無効です。このホストを編集してください"
+  },
+  "remote.status.networkOff": {
+    "zh-Hant": "網路已關閉",
+    "zh-Hans": "网络已关闭",
+    "en": "Network access is off",
+    "ja": "ネットワーク接続はオフです"
+  },
+  "remote.status.disabled": {
+    "zh-Hant": "已停用",
+    "zh-Hans": "已停用",
+    "en": "Off",
+    "ja": "オフ"
+  },
+  "remote.status.historyTooLarge": {
+    "zh-Hant": "這台主機的用量歷史太多，無法同步",
+    "zh-Hans": "这台主机的用量历史太多，无法同步",
+    "en": "This host has too much usage history to sync",
+    "ja": "このホストの使用履歴が多すぎるため同期できません"
+  },
+  "remote.status.lastError": {
+    "zh-Hant": "上次錯誤：%@",
+    "zh-Hans": "上次错误：%@",
+    "en": "Last error: %@",
+    "ja": "前回のエラー：%@"
+  },
+  "remote.status.exitCode": {
+    "zh-Hant": "結束代碼 %d",
+    "zh-Hans": "退出代码 %d",
+    "en": "Exit status %d",
+    "ja": "終了ステータス %d"
+  },
+  "remote.status.relay": {
+    "zh-Hant": "小程式 %@ · %@",
+    "zh-Hans": "小程序 %@ · %@",
+    "en": "Helper %@ · %@",
+    "ja": "ヘルパー %@ · %@"
+  },
+  "remote.clock.skewed": {
+    "zh-Hant": "遠端時鐘相差 %d 秒，已自動校正",
+    "zh-Hans": "远程时钟相差 %d 秒，已自动校正",
+    "en": "The host’s clock is %d s off; corrected automatically",
+    "ja": "ホストの時計が %d 秒ずれています。自動で補正済みです"
+  },
+  "remote.clock.skewedMinutes": {
+    "zh-Hant": "遠端時鐘相差 %d 分鐘，已自動校正",
+    "zh-Hans": "远程时钟相差 %d 分钟，已自动校正",
+    "en": "The host’s clock is %d min off; corrected automatically",
+    "ja": "ホストの時計が %d 分ずれています。自動で補正済みです"
+  },
+  "remote.word.connecting": {
+    "zh-Hant": "連線中",
+    "zh-Hans": "连接中",
+    "en": "Connecting",
+    "ja": "接続中"
+  },
+  "remote.word.retrying": {
+    "zh-Hant": "重試中",
+    "zh-Hans": "重试中",
+    "en": "Retrying",
+    "ja": "再試行中"
+  },
+  "remote.word.attention": {
+    "zh-Hant": "需要處理",
+    "zh-Hans": "需要处理",
+    "en": "Needs action",
+    "ja": "要対応"
+  },
+  "remote.word.offline": {
+    "zh-Hant": "離線",
+    "zh-Hans": "离线",
+    "en": "Offline",
+    "ja": "オフライン"
+  },
+  "remote.orb.offline": {
+    "zh-Hant": "主機離線",
+    "zh-Hans": "主机离线",
+    "en": "Host offline",
+    "ja": "ホストはオフライン"
+  },
+  "remote.sheet.add": {
+    "zh-Hant": "加入遠端主機",
+    "zh-Hans": "添加远程主机",
+    "en": "Add Remote Host",
+    "ja": "リモートホストを追加"
+  },
+  "remote.sheet.edit": {
+    "zh-Hant": "編輯「%@」",
+    "zh-Hans": "编辑“%@”",
+    "en": "Edit “%@”",
+    "ja": "「%@」を編集"
+  },
+  "remote.sheet.body": {
+    "zh-Hant": "輸入你在終端機裡 ssh 後面會打的內容，例如 ~/.ssh/config 中的 Host 名稱。",
+    "zh-Hans": "输入你在终端里 ssh 后面会输入的内容，例如 ~/.ssh/config 中的 Host 名称。",
+    "en": "Enter what you would type after ssh in Terminal, such as a Host from ~/.ssh/config.",
+    "ja": "ターミナルで ssh の後に入力するもの（~/.ssh/config の Host 名など）を入力してください。"
+  },
+  "remote.destination": {
+    "zh-Hant": "SSH 目的地",
+    "zh-Hans": "SSH 目标",
+    "en": "SSH Destination",
+    "ja": "SSH 接続先"
+  },
+  "remote.destination.placeholder": {
+    "zh-Hant": "devbox 或 user@server",
+    "zh-Hans": "devbox 或 user@server",
+    "en": "devbox or user@server",
+    "ja": "devbox または user@server"
+  },
+  "remote.name": {
+    "zh-Hant": "名稱",
+    "zh-Hans": "名称",
+    "en": "Name",
+    "ja": "名前"
+  },
+  "remote.advanced": {
+    "zh-Hant": "進階",
+    "zh-Hans": "高级",
+    "en": "Advanced",
+    "ja": "詳細設定"
+  },
+  "remote.relayFolder": {
+    "zh-Hant": "主機上的資料夾",
+    "zh-Hans": "主机上的文件夹",
+    "en": "Folder on the Host",
+    "ja": "ホスト上のフォルダ"
+  },
+  "remote.relayFolder.hint": {
+    "zh-Hant": "小程式與它的快取放在這裡。主目錄不允許執行程式（noexec）時，請改用其他資料夾。",
+    "zh-Hans": "小程序及其缓存放在这里。主目录不允许运行程序（noexec）时，请改用其他文件夹。",
+    "en": "The helper and its cache live here. Choose another folder if programs can’t run in your home folder (noexec).",
+    "ja": "ヘルパーとそのキャッシュの置き場所です。ホームフォルダでプログラムを実行できない（noexec）場合は別のフォルダを指定してください。"
+  },
+  "remote.test": {
+    "zh-Hant": "測試連線",
+    "zh-Hans": "测试连接",
+    "en": "Test Connection",
+    "ja": "接続をテスト"
+  },
+  "remote.test.running": {
+    "zh-Hant": "正在測試…",
+    "zh-Hans": "正在测试…",
+    "en": "Testing…",
+    "ja": "テスト中…"
+  },
+  "remote.test.ok": {
+    "zh-Hant": "可以連線 · %@",
+    "zh-Hans": "可以连接 · %@",
+    "en": "Reachable · %@",
+    "ja": "接続できます · %@"
+  },
+  "remote.addButton": {
+    "zh-Hant": "加入",
+    "zh-Hans": "添加",
+    "en": "Add",
+    "ja": "追加"
+  },
+  "remote.save": {
+    "zh-Hant": "儲存",
+    "zh-Hans": "保存",
+    "en": "Save",
+    "ja": "保存"
+  },
+  "remote.error.empty": {
+    "zh-Hant": "請輸入目的地",
+    "zh-Hans": "请输入目标",
+    "en": "Enter a destination",
+    "ja": "接続先を入力してください"
+  },
+  "remote.error.tooLong": {
+    "zh-Hant": "太長了（最多 %d 個字元）",
+    "zh-Hans": "太长了（最多 %d 个字符）",
+    "en": "Too long (at most %d characters)",
+    "ja": "長すぎます（最大 %d 文字）"
+  },
+  "remote.error.leadingDash": {
+    "zh-Hant": "不能以「-」開頭",
+    "zh-Hans": "不能以“-”开头",
+    "en": "Can’t start with “-”",
+    "ja": "「-」で始めることはできません"
+  },
+  "remote.error.forbiddenCharacter": {
+    "zh-Hant": "含有不允許的字元（空格、引號或 ; & | $ 等符號）",
+    "zh-Hans": "含有不允许的字符（空格、引号或 ; & | $ 等符号）",
+    "en": "Contains a character that isn’t allowed (spaces, quotes or symbols such as ; & | $)",
+    "ja": "使用できない文字（スペース、引用符、; & | $ などの記号）が含まれています"
+  },
+  "remote.error.folderCharacter": {
+    "zh-Hant": "只能使用英文字母、數字和 . _ - / ~",
+    "zh-Hans": "只能使用英文字母、数字和 . _ - / ~",
+    "en": "Use only letters, digits and . _ - / ~",
+    "ja": "英数字と . _ - / ~ のみ使用できます"
+  },
+  "remote.error.notAbsolute": {
+    "zh-Hant": "請以 ~/ 或 / 開頭",
+    "zh-Hans": "请以 ~/ 或 / 开头",
+    "en": "Start with ~/ or /",
+    "ja": "~/ または / で始めてください"
+  },
+  "remote.error.unsafeComponent": {
+    "zh-Hant": "不能包含「..」或「//」",
+    "zh-Hans": "不能包含“..”或“//”",
+    "en": "Can’t contain “..” or “//”",
+    "ja": "「..」や「//」は使用できません"
+  },
+  "remote.remove.confirm": {
+    "zh-Hant": "要移除「%@」嗎？",
+    "zh-Hans": "要移除“%@”吗？",
+    "en": "Remove “%@”?",
+    "ja": "「%@」を削除しますか？"
+  },
+  "remote.remove.files": {
+    "zh-Hant": "連線會立即中斷。小程式會留在主機的 %@，需要時可以自行刪除。",
+    "zh-Hans": "连接会立即断开。小程序会留在主机的 %@，需要时可以自行删除。",
+    "en": "The connection stops right away. The helper stays in %@ on the host; you can delete it there yourself.",
+    "ja": "接続はすぐに停止します。ヘルパーはホストの %@ に残ります。必要に応じて手動で削除できます。"
+  },
+  "remote.remove.deleteHistory": {
+    "zh-Hant": "同時刪除它的用量歷史",
+    "zh-Hans": "同时删除它的用量历史",
+    "en": "Also delete its usage history",
+    "ja": "使用履歴も削除する"
+  },
+  "remote.remove.button": {
+    "zh-Hant": "移除",
+    "zh-Hans": "移除",
+    "en": "Remove",
+    "ja": "削除"
+  },
+  "remote.a11y.onHost": {
+    "zh-Hant": "在 %@ 上執行",
+    "zh-Hans": "在 %@ 上运行",
+    "en": "running on %@",
+    "ja": "%@ で実行中"
+  },
+  "remote.card.host": {
+    "zh-Hant": "主機：%@",
+    "zh-Hans": "主机：%@",
+    "en": "Host: %@",
+    "ja": "ホスト：%@"
+  },
+  "remote.dashboard.hint": {
+    "zh-Hant": "顯示這台主機的用量歷史",
+    "zh-Hans": "显示这台主机的用量历史",
+    "en": "Show this host’s usage history",
+    "ja": "このホストの使用履歴を表示"
+  },
+  "remote.history.allHosts": {
+    "zh-Hant": "全部主機",
+    "zh-Hans": "全部主机",
+    "en": "All Hosts",
+    "ja": "すべてのホスト"
+  },
+  "lan.segment.report": {
+    "zh-Hant": "即時上報",
+    "zh-Hans": "实时上报",
+    "en": "Live Reporting",
+    "ja": "ライブレポート"
+  },
+  "lan.segment.lan": {
+    "zh-Hant": "區域網路",
+    "zh-Hans": "局域网",
+    "en": "Local Network",
+    "ja": "ローカルネットワーク"
+  },
+  "lan.server": {
+    "zh-Hant": "讓裝置讀取",
+    "zh-Hans": "让设备读取",
+    "en": "Devices Read",
+    "ja": "デバイスから読み取る"
+  },
+  "lan.server.enabled": {
+    "zh-Hant": "允許區網裝置讀取即時速度",
+    "zh-Hans": "允许局域网设备读取实时速度",
+    "en": "Let devices on this network read the live speed",
+    "ja": "このネットワークのデバイスにライブ速度の読み取りを許可"
+  },
+  "lan.server.hint": {
+    "zh-Hant": "裝置可以用 HTTP、WebSocket 或 TCP 連到這台電腦，帶上存取碼讀取速度。",
+    "zh-Hans": "设备可以通过 HTTP、WebSocket 或 TCP 连接到这台电脑，带上访问码读取速度。",
+    "en": "Devices connect to this computer over HTTP, WebSocket or TCP and read the speed with the access key.",
+    "ja": "デバイスは HTTP、WebSocket または TCP でこのコンピュータに接続し、アクセスキーを使って速度を読み取ります。"
+  },
+  "lan.server.status.listening": {
+    "zh-Hant": "等待裝置連線",
+    "zh-Hans": "等待设备连接",
+    "en": "Waiting for devices",
+    "ja": "デバイスの接続を待っています"
+  },
+  "lan.server.status.connected": {
+    "zh-Hant": "已連線 · %d 台裝置",
+    "zh-Hans": "已连接 · %d 台设备",
+    "en": "Connected · %d devices",
+    "ja": "接続中 · %d 台"
+  },
+  "lan.server.status.connected.one": {
+    "zh-Hant": "已連線 · %d 台裝置",
+    "zh-Hans": "已连接 · %d 台设备",
+    "en": "Connected · %d device",
+    "ja": "接続中 · %d 台"
+  },
+  "lan.server.status.portInUse": {
+    "zh-Hant": "連接埠 %d 已被其他程式使用，30 秒後重試",
+    "zh-Hans": "端口 %d 已被其他程序占用，30 秒后重试",
+    "en": "Port %d is used by another app — retrying in 30 s",
+    "ja": "ポート %d は他のアプリが使用中です。30 秒後に再試行します"
+  },
+  "lan.server.status.failed": {
+    "zh-Hant": "無法開啟連接埠",
+    "zh-Hans": "无法打开端口",
+    "en": "Can’t open the port",
+    "ja": "ポートを開けません"
+  },
+  "lan.server.status.networkOff": {
+    "zh-Hant": "網路已關閉",
+    "zh-Hans": "网络已关闭",
+    "en": "Network access is off",
+    "ja": "ネットワーク接続はオフです"
+  },
+  "lan.key": {
+    "zh-Hant": "存取碼",
+    "zh-Hans": "访问码",
+    "en": "Access Key",
+    "ja": "アクセスキー"
+  },
+  "lan.key.copy": {
+    "zh-Hant": "拷貝存取碼",
+    "zh-Hans": "复制访问码",
+    "en": "Copy Access Key",
+    "ja": "アクセスキーをコピー"
+  },
+  "lan.key.copied": {
+    "zh-Hant": "已拷貝",
+    "zh-Hans": "已复制",
+    "en": "Copied",
+    "ja": "コピーしました"
+  },
+  "lan.key.regenerate": {
+    "zh-Hant": "重新產生…",
+    "zh-Hans": "重新生成…",
+    "en": "Regenerate…",
+    "ja": "再生成…"
+  },
+  "lan.key.regenerate.confirm": {
+    "zh-Hant": "要重新產生存取碼嗎？",
+    "zh-Hans": "要重新生成访问码吗？",
+    "en": "Regenerate the access key?",
+    "ja": "アクセスキーを再生成しますか？"
+  },
+  "lan.key.regenerate.detail": {
+    "zh-Hant": "目前連線的裝置會立刻中斷，之後要改用新的存取碼。",
+    "zh-Hans": "当前连接的设备会立即断开，之后需要改用新的访问码。",
+    "en": "Connected devices are disconnected at once and must use the new key.",
+    "ja": "接続中のデバイスはすぐに切断され、新しいキーが必要になります。"
+  },
+  "lan.addresses": {
+    "zh-Hant": "位址",
+    "zh-Hans": "地址",
+    "en": "Address",
+    "ja": "アドレス"
+  },
+  "lan.addresses.none": {
+    "zh-Hant": "這台電腦目前沒有區網位址",
+    "zh-Hans": "这台电脑当前没有局域网地址",
+    "en": "This computer has no local network address right now",
+    "ja": "このコンピュータには現在ローカルネットワークのアドレスがありません"
+  },
+  "lan.copy": {
+    "zh-Hant": "拷貝",
+    "zh-Hans": "复制",
+    "en": "Copy",
+    "ja": "コピー"
+  },
+  "lan.copy.http": {
+    "zh-Hant": "拷貝 HTTP 網址（含存取碼）",
+    "zh-Hans": "复制 HTTP 网址（含访问码）",
+    "en": "Copy HTTP URL (with Key)",
+    "ja": "HTTP の URL をコピー（キー付き）"
+  },
+  "lan.copy.ws": {
+    "zh-Hant": "拷貝 WebSocket 網址（含存取碼）",
+    "zh-Hans": "复制 WebSocket 网址（含访问码）",
+    "en": "Copy WebSocket URL (with Key)",
+    "ja": "WebSocket の URL をコピー（キー付き）"
+  },
+  "lan.copy.tcp": {
+    "zh-Hant": "拷貝 TCP 位址",
+    "zh-Hans": "复制 TCP 地址",
+    "en": "Copy TCP Address",
+    "ja": "TCP アドレスをコピー"
+  },
+  "lan.port": {
+    "zh-Hant": "連接埠",
+    "zh-Hans": "端口",
+    "en": "Port",
+    "ja": "ポート"
+  },
+  "lan.port.invalid": {
+    "zh-Hant": "請輸入 1024 到 65535 之間的數字",
+    "zh-Hans": "请输入 1024 到 65535 之间的数字",
+    "en": "Enter a number from 1024 to 65535",
+    "ja": "1024〜65535 の数値を入力してください"
+  },
+  "lan.targets": {
+    "zh-Hant": "主動送到裝置",
+    "zh-Hans": "主动发送到设备",
+    "en": "Send to Devices",
+    "ja": "デバイスへ送信"
+  },
+  "lan.targets.empty": {
+    "zh-Hant": "尚未加入裝置",
+    "zh-Hans": "尚未添加设备",
+    "en": "No devices yet",
+    "ja": "デバイスはまだありません"
+  },
+  "lan.targets.empty.hint": {
+    "zh-Hant": "加入裝置的位址，速度一有變化，app 就會主動送過去，適合自製的桌面螢幕或智慧家庭。",
+    "zh-Hans": "添加设备的地址，速度一有变化，应用就会主动发送过去，适合自制的桌面屏幕或智能家居。",
+    "en": "Add a device’s address, and the app sends the speed to it as it changes — for a homemade desk display or a smart home hub.",
+    "ja": "デバイスのアドレスを追加すると、速度が変わるたびにアプリが送信します。自作のデスクディスプレイやスマートホームに。"
+  },
+  "lan.targets.add": {
+    "zh-Hant": "加入裝置…",
+    "zh-Hans": "添加设备…",
+    "en": "Add Device…",
+    "ja": "デバイスを追加…"
+  },
+  "lan.targets.limit": {
+    "zh-Hant": "最多可以加入 %d 個裝置",
+    "zh-Hans": "最多可以添加 %d 个设备",
+    "en": "You can add up to %d devices",
+    "ja": "追加できるデバイスは最大 %d 台です"
+  },
+  "lan.target.edit": {
+    "zh-Hant": "編輯…",
+    "zh-Hans": "编辑…",
+    "en": "Edit…",
+    "ja": "編集…"
+  },
+  "lan.target.remove": {
+    "zh-Hant": "移除…",
+    "zh-Hans": "移除…",
+    "en": "Remove…",
+    "ja": "削除…"
+  },
+  "lan.target.remove.confirm": {
+    "zh-Hant": "要移除「%@」嗎？",
+    "zh-Hans": "要移除“%@”吗？",
+    "en": "Remove “%@”?",
+    "ja": "「%@」を削除しますか？"
+  },
+  "lan.target.enabled": {
+    "zh-Hant": "送到「%@」",
+    "zh-Hans": "发送到“%@”",
+    "en": "Send to %@",
+    "ja": "「%@」へ送信"
+  },
+  "lan.target.kind": {
+    "zh-Hant": "傳送方式",
+    "zh-Hans": "发送方式",
+    "en": "Method",
+    "ja": "送信方法"
+  },
+  "lan.target.kind.udp.hint": {
+    "zh-Hant": "速度一變就送出，至少每秒一次。裝置端的程式最簡單；填廣播位址就能送給整個網路。",
+    "zh-Hans": "速度一变就发送，至少每秒一次。设备端的程序最简单；填写广播地址即可发送给整个网络。",
+    "en": "Sent as the speed changes, at least once a second. The simplest for a device; a broadcast address reaches the whole network.",
+    "ja": "速度が変わるたびに送信し、少なくとも 1 秒に 1 回送ります。デバイス側の実装が最も簡単で、ブロードキャストアドレスならネットワーク全体に届きます。"
+  },
+  "lan.target.kind.http.hint": {
+    "zh-Hant": "以 POST 送出，最多每秒一次，閒置時每 10 秒一次。適合 webhook 與智慧家庭。",
+    "zh-Hans": "以 POST 发送，最多每秒一次，空闲时每 10 秒一次。适合 webhook 与智能家居。",
+    "en": "Sent as a POST, at most once a second and every 10 s while idle. For webhooks and smart home hubs.",
+    "ja": "POST で送信します。最大 1 秒に 1 回、待機中は 10 秒ごとです。Webhook やスマートホームに。"
+  },
+  "lan.target.address": {
+    "zh-Hant": "位址",
+    "zh-Hans": "地址",
+    "en": "Address",
+    "ja": "アドレス"
+  },
+  "lan.target.address.placeholder.udp": {
+    "zh-Hant": "192.168.1.50:7247",
+    "zh-Hans": "192.168.1.50:7247",
+    "en": "192.168.1.50:7247",
+    "ja": "192.168.1.50:7247"
+  },
+  "lan.target.address.placeholder.http": {
+    "zh-Hant": "http://192.168.1.50/agent-speed",
+    "zh-Hans": "http://192.168.1.50/agent-speed",
+    "en": "http://192.168.1.50/agent-speed",
+    "ja": "http://192.168.1.50/agent-speed"
+  },
+  "lan.target.address.invalid": {
+    "zh-Hant": "位址格式不正確",
+    "zh-Hans": "地址格式不正确",
+    "en": "This address isn’t valid",
+    "ja": "アドレスの形式が正しくありません"
+  },
+  "lan.target.address.port": {
+    "zh-Hant": "請加上連接埠，例如 :7247",
+    "zh-Hans": "请加上端口，例如 :7247",
+    "en": "Add a port, for example :7247",
+    "ja": "ポートを付けてください（例：:7247）"
+  },
+  "lan.target.address.https": {
+    "zh-Hant": "只支援 http://：區網裝置之間不加密",
+    "zh-Hans": "仅支持 http://：局域网设备之间不加密",
+    "en": "Only http:// is supported: local devices aren’t encrypted",
+    "ja": "http:// のみ対応しています（ローカルのデバイス間は暗号化されません）"
+  },
+  "lan.target.name": {
+    "zh-Hant": "名稱",
+    "zh-Hans": "名称",
+    "en": "Name",
+    "ja": "名前"
+  },
+  "lan.target.name.placeholder": {
+    "zh-Hant": "選填",
+    "zh-Hans": "选填",
+    "en": "Optional",
+    "ja": "任意"
+  },
+  "lan.target.key": {
+    "zh-Hant": "金鑰",
+    "zh-Hans": "密钥",
+    "en": "Key",
+    "ja": "キー"
+  },
+  "lan.target.key.hint": {
+    "zh-Hant": "選填。填了金鑰，每一份資料都會附上簽章，裝置可以確認資料來自這台電腦。",
+    "zh-Hans": "选填。填写密钥后，每一份数据都会附上签名，设备可以确认数据来自这台电脑。",
+    "en": "Optional. With a key, every frame carries a signature, so the device can check it came from this computer.",
+    "ja": "任意。キーを設定すると各データに署名が付き、デバイスはこのコンピュータから届いたことを確認できます。"
+  },
+  "lan.target.broadcast": {
+    "zh-Hant": "廣播會送給這個網路上的所有裝置。",
+    "zh-Hans": "广播会发送给这个网络上的所有设备。",
+    "en": "A broadcast reaches every device on this network.",
+    "ja": "ブロードキャストはこのネットワーク上のすべてのデバイスに届きます。"
+  },
+  "lan.target.test": {
+    "zh-Hant": "傳送一次測試",
+    "zh-Hans": "发送一次测试",
+    "en": "Send Test",
+    "ja": "テスト送信"
+  },
+  "lan.target.test.ok": {
+    "zh-Hant": "已送出",
+    "zh-Hans": "已发送",
+    "en": "Sent",
+    "ja": "送信しました"
+  },
+  "lan.target.status.ok": {
+    "zh-Hant": "已送出 · %@",
+    "zh-Hans": "已发送 · %@",
+    "en": "Sent · %@",
+    "ja": "送信済み · %@"
+  },
+  "lan.target.status.waiting": {
+    "zh-Hant": "等待第一次傳送",
+    "zh-Hans": "等待首次发送",
+    "en": "Waiting to send",
+    "ja": "送信待ち"
+  },
+  "lan.target.status.notFound": {
+    "zh-Hant": "找不到這個名稱",
+    "zh-Hans": "找不到这个名称",
+    "en": "Can’t find this name",
+    "ja": "この名前が見つかりません"
+  },
+  "lan.target.status.notLocal": {
+    "zh-Hant": "不是區網位址，不會傳送",
+    "zh-Hans": "不是局域网地址，不会发送",
+    "en": "Not a local network address — nothing is sent",
+    "ja": "ローカルネットワークのアドレスではないため送信しません"
+  },
+  "lan.target.status.unreachable": {
+    "zh-Hant": "無法連線，%d 秒後重試",
+    "zh-Hans": "无法连接，%d 秒后重试",
+    "en": "Can’t connect — retrying in %d s",
+    "ja": "接続できません。%d 秒後に再試行します"
+  },
+  "lan.target.status.httpStatus": {
+    "zh-Hant": "裝置回應 %d",
+    "zh-Hans": "设备响应 %d",
+    "en": "The device answered %d",
+    "ja": "デバイスの応答：%d"
+  },
+  "lan.target.status.failed": {
+    "zh-Hant": "傳送失敗",
+    "zh-Hans": "发送失败",
+    "en": "Couldn’t send",
+    "ja": "送信できませんでした"
+  },
+  "lan.target.status.networkOff": {
+    "zh-Hant": "網路已關閉",
+    "zh-Hans": "网络已关闭",
+    "en": "Network access is off",
+    "ja": "ネットワーク接続はオフです"
+  },
+  "lan.target.status.off": {
+    "zh-Hant": "已停用",
+    "zh-Hans": "已停用",
+    "en": "Off",
+    "ja": "オフ"
+  },
+  "lan.footnote": {
+    "zh-Hant": "只會送出速度數字（tok/s、估算比例、工作中的 session 數）和這台電腦的名稱，不含對話內容、模型、專案名稱或路徑，也只送到區網內的位址。資料以明文傳送，同一個網路上能監看流量的人也看得到。裝置可以用 Bonjour 搜尋 _agentspeed._tcp 找到這台電腦。",
+    "zh-Hans": "只会发送速度数字（tok/s、估算比例、工作中的 session 数）和这台电脑的名称，不含对话内容、模型、项目名称或路径，也只发送到局域网内的地址。数据以明文传输，同一网络中能监听流量的人也能看到。设备可以通过 Bonjour 搜索 _agentspeed._tcp 找到这台电脑。",
+    "en": "Only speed numbers (tok/s, the estimated share, working sessions) and this computer’s name are sent — never conversation content, models, project names or paths — and only to local network addresses. They travel as plain text, so anyone who can watch this network’s traffic can read them. Devices can find this computer by browsing Bonjour for _agentspeed._tcp.",
+    "ja": "送信するのは速度の数値（tok/s、推定の割合、作業中のセッション数）とこのコンピュータの名前だけで、会話の内容、モデル、プロジェクト名、パスは含まれず、送信先もローカルネットワーク内のアドレスに限られます。データは平文で送られるため、このネットワークの通信を監視できる人には読めます。デバイスは Bonjour で _agentspeed._tcp を検索するとこのコンピュータを見つけられます。"
+  },
+  "lan.docs": {
+    "zh-Hant": "開發者說明",
+    "zh-Hans": "开发者文档",
+    "en": "Developer Guide",
+    "ja": "開発者向けガイド"
+  },
+  "privacy.lan": {
+    "zh-Hant": "區域網路：開啟後，區網內的裝置可以用存取碼讀取即時速度，app 也會把速度送到你加入的裝置。只包含速度數字和這台電腦的名稱，只在區網內，以明文傳送。",
+    "zh-Hans": "局域网：开启后，局域网内的设备可以用访问码读取实时速度，应用也会把速度发送到你添加的设备。只包含速度数字和这台电脑的名称，只在局域网内，以明文传输。",
+    "en": "Local network: when you turn it on, devices on your network can read the live speed with an access key, and the app sends it to devices you add. Only speed numbers and this computer’s name, only on the local network, as plain text.",
+    "ja": "ローカルネットワーク：オンにすると、ネットワーク内のデバイスがアクセスキーでライブ速度を読み取れるようになり、追加したデバイスにもアプリが速度を送信します。速度の数値とこのコンピュータの名前だけを、ローカルネットワーク内で平文で送ります。"
+  },
+  "lan.sheet.add": {
+    "zh-Hant": "加入裝置",
+    "zh-Hans": "添加设备",
+    "en": "Add Device",
+    "ja": "デバイスを追加"
+  },
+  "lan.sheet.edit": {
+    "zh-Hant": "編輯「%@」",
+    "zh-Hans": "编辑“%@”",
+    "en": "Edit “%@”",
+    "ja": "「%@」を編集"
+  },
+  "lan.sheet.body": {
+    "zh-Hant": "速度一有變化，app 就會把資料送到這個位址；只能填區網內的位址。",
+    "zh-Hans": "速度一有变化，应用就会把数据发送到这个地址；只能填写局域网内的地址。",
+    "en": "The app sends the speed to this address as it changes. It must be on your local network.",
+    "ja": "速度が変わるたびに、アプリがこのアドレスへ送信します。ローカルネットワーク内のアドレスに限ります。"
+  },
+  "quota.title": {
+    "zh-Hant": "額度",
+    "zh-Hans": "额度",
+    "en": "Quota",
+    "ja": "利用枠"
+  },
+  "quota.reset.in": {
+    "zh-Hant": "%@後重置",
+    "zh-Hans": "%@后重置",
+    "en": "resets in %@",
+    "ja": "%@後にリセット"
+  },
+  "quota.reset.at": {
+    "zh-Hant": "%@ 重置",
+    "zh-Hans": "%@ 重置",
+    "en": "resets %@",
+    "ja": "%@にリセット"
+  },
+  "quota.duration.m": {
+    "zh-Hant": "%d 分",
+    "zh-Hans": "%d 分钟",
+    "en": "%d min",
+    "ja": "%d分"
+  },
+  "quota.duration.h": {
+    "zh-Hant": "%d 小時",
+    "zh-Hans": "%d 小时",
+    "en": "%d h",
+    "ja": "%d時間"
+  },
+  "quota.duration.hm": {
+    "zh-Hant": "%d 小時 %d 分",
+    "zh-Hans": "%d 小时 %d 分",
+    "en": "%d h %d min",
+    "ja": "%d時間%d分"
+  },
+  "quota.duration.d": {
+    "zh-Hant": "%d 天",
+    "zh-Hans": "%d 天",
+    "en": "%d d",
+    "ja": "%d日"
+  },
+  "quota.age": {
+    "zh-Hant": "%@前更新",
+    "zh-Hans": "%@前更新",
+    "en": "updated %@ ago",
+    "ja": "%@前に更新"
+  },
+  "quota.updated": {
+    "zh-Hant": "更新於 %@",
+    "zh-Hans": "更新于 %@",
+    "en": "Updated %@",
+    "ja": "%@ に更新"
+  },
+  "quota.pace": {
+    "zh-Hant": "時間進度 %d%%",
+    "zh-Hans": "时间进度 %d%%",
+    "en": "%d%% of the window has passed",
+    "ja": "期間の %d%% が経過"
+  },
+  "a11y.quota.window": {
+    "zh-Hant": "%@ 已用 %d%%，%@",
+    "zh-Hans": "%@ 已用 %d%%，%@",
+    "en": "%@ %d%% used, %@",
+    "ja": "%@ %d%% 使用、%@"
+  },
+  "a11y.quota.windowNoReset": {
+    "zh-Hant": "%@ 已用 %d%%",
+    "zh-Hans": "%@ 已用 %d%%",
+    "en": "%@ %d%% used",
+    "ja": "%@ %d%% 使用"
+  },
+  "a11y.orb.quota": {
+    "zh-Hant": "額度：%@",
+    "zh-Hans": "额度：%@",
+    "en": "Quota: %@",
+    "ja": "利用枠：%@"
+  },
+  "character.readouts.quota": {
+    "zh-Hant": "額度",
+    "zh-Hans": "额度",
+    "en": "Quota",
+    "ja": "利用枠"
+  },
+  "dashboard.quota.enableCli": {
+    "zh-Hant": "顯示 Claude Code 額度…",
+    "zh-Hans": "显示 Claude Code 额度…",
+    "en": "Show Claude Code quota…",
+    "ja": "Claude Code の利用枠を表示…"
+  },
+  "dashboard.quota.dismiss": {
+    "zh-Hant": "不再顯示",
+    "zh-Hans": "不再显示",
+    "en": "Don't show again",
+    "ja": "今後表示しない"
+  },
+  "settings.quota.codex": {
+    "zh-Hant": "顯示 Codex 額度",
+    "zh-Hans": "显示 Codex 额度",
+    "en": "Show Codex quota",
+    "ja": "Codex の利用枠を表示"
+  },
+  "settings.quota.codex.hint": {
+    "zh-Hant": "來自 Codex 的對話紀錄，每次回應都會更新。",
+    "zh-Hans": "来自 Codex 的对话记录，每次回复都会更新。",
+    "en": "Read from Codex's session logs and updated with every response.",
+    "ja": "Codex のセッション記録から読み取り、応答のたびに更新されます。"
+  },
+  "settings.quota.claudeDesktop": {
+    "zh-Hant": "顯示 Claude Desktop 額度",
+    "zh-Hans": "显示 Claude Desktop 额度",
+    "en": "Show Claude Desktop quota",
+    "ja": "Claude Desktop の利用枠を表示"
+  },
+  "settings.quota.claudeDesktop.hint": {
+    "zh-Hant": "讀取 Claude Desktop 自己留在本機的用量快取：只讀、不連網、不碰登入資料。Desktop 開著時約每 15 分鐘更新；這不是公開的介面，Desktop 改版後可能讀不到。",
+    "zh-Hans": "读取 Claude Desktop 自己留在本机的用量缓存：只读、不联网、不碰登录数据。Desktop 开着时约每 15 分钟更新；这不是公开的接口，Desktop 更新后可能读不到。",
+    "en": "Reads the usage response Claude Desktop keeps in its own cache on this computer: read-only, no network, no sign-in data. It updates about every 15 minutes while Desktop runs. This is not a public interface, so a Desktop update may stop it.",
+    "ja": "Claude Desktop がこのコンピュータに残す使用量のキャッシュを読み取ります。読み取り専用で、通信もサインイン情報の読み取りもしません。Desktop の起動中は約 15 分ごとに更新されます。公開された仕組みではないため、Desktop の更新で読めなくなることがあります。"
+  },
+  "settings.quota.claudeCli": {
+    "zh-Hant": "透過狀態列顯示 Claude Code 額度",
+    "zh-Hans": "通过状态栏显示 Claude Code 额度",
+    "en": "Show Claude Code quota through its status line",
+    "ja": "ステータスラインで Claude Code の利用枠を表示"
+  },
+  "settings.quota.claudeCli.hint": {
+    "zh-Hant": "Claude Code 只把額度交給狀態列指令。開啟後，Agent Speed 會把 Claude Code 的狀態列換成一個小工具：它把額度存在本機，並照常顯示你原本的狀態列；關閉時還原。只有終端機裡的 Claude Code 會執行狀態列，Desktop 的 Code 分頁不會。",
+    "zh-Hans": "Claude Code 只把额度交给状态栏命令。开启后，Agent Speed 会把 Claude Code 的状态栏换成一个小工具：它把额度存在本机，并照常显示你原来的状态栏；关闭时还原。只有终端里的 Claude Code 会运行状态栏，Desktop 的 Code 标签页不会。",
+    "en": "Claude Code hands its quota only to a status line command. When this is on, Agent Speed points Claude Code's status line at a small helper that saves the quota on this computer and still shows your own status line; turning it off restores it. Only Claude Code in a terminal runs a status line, not Desktop's Code tab.",
+    "ja": "Claude Code は利用枠をステータスラインのコマンドにだけ渡します。オンにすると、Agent Speed は Claude Code のステータスラインを小さな補助ツールに切り替えます。補助ツールは利用枠をこのコンピュータに保存し、元のステータスラインもそのまま表示します。オフにすると元に戻ります。ステータスラインを実行するのはターミナルの Claude Code だけで、Desktop の Code タブは実行しません。"
+  },
+  "settings.quota.claudeCli.confirm.title": {
+    "zh-Hant": "接上 Claude Code 狀態列？",
+    "zh-Hans": "接入 Claude Code 状态栏？",
+    "en": "Connect to Claude Code's status line?",
+    "ja": "Claude Code のステータスラインに接続しますか？"
+  },
+  "settings.quota.claudeCli.confirm.message": {
+    "zh-Hant": "Agent Speed 會把 %@ 裡的 statusLine 改成執行 Agent Speed 的小工具。小工具只把 5h／7d 額度存到本機，再照常執行你原本的狀態列；沒有的話就顯示「5h 6% · 7d 86%」這樣的一行。原檔會先備份，關閉這個功能時還原。",
+    "zh-Hans": "Agent Speed 会把 %@ 里的 statusLine 改成运行 Agent Speed 的小工具。小工具只把 5h／7d 额度存到本机，再照常运行你原来的状态栏；没有的话就显示「5h 6% · 7d 86%」这样的一行。原文件会先备份，关闭这个功能时还原。",
+    "en": "Agent Speed will set statusLine in %@ to run Agent Speed's helper. The helper only saves the 5h / 7d quota on this computer, then runs your own status line as before; without one it shows a line like “5h 6% · 7d 86%”. The file is backed up first and restored when you turn this off.",
+    "ja": "Agent Speed は %@ の statusLine を Agent Speed の補助ツールを実行するように変更します。補助ツールは 5h／7d の利用枠をこのコンピュータに保存してから、元のステータスラインをそのまま実行します。元のものがなければ「5h 6% · 7d 86%」のような 1 行を表示します。ファイルは先にバックアップされ、この機能をオフにすると元に戻ります。"
+  },
+  "settings.quota.claudeCli.confirm.ok": {
+    "zh-Hant": "接上",
+    "zh-Hans": "接入",
+    "en": "Connect",
+    "ja": "接続"
+  },
+  "settings.quota.cli.waiting": {
+    "zh-Hant": "已接上，等待 Claude Code 下一次回應",
+    "zh-Hans": "已接入，等待 Claude Code 下一次回复",
+    "en": "Connected. Waiting for Claude Code's next response",
+    "ja": "接続済み。Claude Code の次の応答を待っています"
+  },
+  "settings.quota.cli.ok": {
+    "zh-Hant": "已接上，額度更新於 %@",
+    "zh-Hans": "已接入，额度更新于 %@",
+    "en": "Connected. Quota updated %@",
+    "ja": "接続済み。利用枠の更新：%@"
+  },
+  "settings.quota.cli.replaced": {
+    "zh-Hant": "狀態列已被其他設定取代",
+    "zh-Hans": "状态栏已被其他设置取代",
+    "en": "The status line was replaced by another setting",
+    "ja": "ステータスラインが別の設定に置き換えられました"
+  },
+  "settings.quota.cli.reconnect": {
+    "zh-Hant": "重新接上",
+    "zh-Hans": "重新接入",
+    "en": "Reconnect",
+    "ja": "再接続"
+  },
+  "settings.quota.cli.unreadable": {
+    "zh-Hant": "無法讀取 %@（不是有效的 JSON），沒有做任何變更",
+    "zh-Hans": "无法读取 %@（不是有效的 JSON），没有做任何更改",
+    "en": "Couldn't read %@ (not valid JSON). Nothing was changed",
+    "ja": "%@ を読み取れません（有効な JSON ではありません）。何も変更していません"
+  },
+  "settings.quota.cli.failed": {
+    "zh-Hant": "無法寫入 %@，沒有做任何變更",
+    "zh-Hans": "无法写入 %@，没有做任何更改",
+    "en": "Couldn't write %@. Nothing was changed",
+    "ja": "%@ に書き込めません。何も変更していません"
+  },
+  "privacy.quota": {
+    "zh-Hant": "額度：Codex 的額度來自它的對話紀錄；Claude Desktop 的額度來自 Desktop 自己留在本機的用量快取；Claude Code 的額度只在你開啟後，透過它的狀態列取得。Agent Speed 不讀取任何 Claude 登入憑證或權杖，也不向 Claude 傳送任何請求。其他 agent 的額度依各自的開關，讀取本機資料，或用該 agent 自己的登入、你貼上的 API Key，或你同意後讀取的瀏覽器登入，只向該 agent 的廠商查詢；這些登入資料只放在記憶體裡、用完即丟。額度不會上報，也不會傳到其他裝置。",
+    "zh-Hans": "额度：Codex 的额度来自它的对话记录；Claude Desktop 的额度来自 Desktop 自己留在本机的用量缓存；Claude Code 的额度只在你开启后，通过它的状态栏获取。Agent Speed 不读取任何 Claude 登录凭据或令牌，也不向 Claude 发送任何请求。其他 agent 的额度按各自的开关，读取本机数据，或用该 agent 自己的登录、你粘贴的 API Key，或你同意后读取的浏览器登录，只向该 agent 的厂商查询；这些登录数据只放在内存里、用完即丢。额度不会上报，也不会传到其他设备。",
+    "en": "Quotas: Codex's come from its session logs, Claude Desktop's from the usage response Desktop keeps in its own cache on this computer, and Claude Code's, only once you turn it on, from its status line. Agent Speed never reads Claude credentials or tokens and never sends a request to Claude. Other agents' quotas follow their own switches: local data, or a request to that agent's own vendor with the agent's sign-in, an API key you pasted, or, once you allow it, your browser sign-in. Those credentials stay in memory and are dropped after use. Quotas are not reported or sent to other devices.",
+    "ja": "利用枠：Codex の利用枠はセッション記録から、Claude Desktop の利用枠は Desktop がこのコンピュータに残す使用量のキャッシュから、Claude Code の利用枠はオンにした場合だけステータスラインから取得します。Agent Speed は Claude のサインイン情報やトークンを読み取らず、Claude にリクエストを送ることもありません。ほかの agent の利用枠はそれぞれのスイッチに従い、ローカルのデータを読むか、その agent 自身のサインイン、貼り付けた API キー、または許可したブラウザのサインインで、その agent のベンダーにだけ問い合わせます。これらの資格情報はメモリ上にだけ置き、使い終わったら破棄します。利用枠は送信されず、ほかのデバイスにも渡りません。"
+  },
+  "quota.window.month": {
+    "zh-Hant": "月",
+    "zh-Hans": "月",
+    "en": "mo",
+    "ja": "月"
+  },
+  "quota.window.credits": {
+    "zh-Hant": "點數",
+    "zh-Hans": "积分",
+    "en": "credits",
+    "ja": "クレジット"
+  },
+  "settings.quota.unverified": {
+    "zh-Hant": "依開源工具 Tokei、CodexBar 的做法實作，尚未以真實帳號驗證；數字有誤請回報。",
+    "zh-Hans": "依开源工具 Tokei、CodexBar 的做法实现，尚未用真实账号验证；数字有误请反馈。",
+    "en": "Built the way the open-source tools Tokei and CodexBar do it and not yet checked with a real account; please report wrong numbers.",
+    "ja": "オープンソースの Tokei と CodexBar の方法で実装しており、実際のアカウントではまだ確認していません。数値がおかしい場合はお知らせください。"
+  },
+  "settings.quota.grokBuild": {
+    "zh-Hant": "顯示 Grok Build 額度",
+    "zh-Hans": "显示 Grok Build 额度",
+    "en": "Show Grok Build quota",
+    "ja": "Grok Build の利用枠を表示"
+  },
+  "settings.quota.grokBuild.hint": {
+    "zh-Hant": "讀取 Grok Build 寫在本機日誌裡的帳單資訊，不連網。",
+    "zh-Hans": "读取 Grok Build 写在本机日志里的账单信息，不联网。",
+    "en": "Reads the billing details Grok Build writes to its local log, with no network.",
+    "ja": "Grok Build がローカルのログに書く請求情報を読み取ります。通信はしません。"
+  },
+  "settings.quota.grokBuildLive": {
+    "zh-Hant": "用 Grok Build 的登入向 xAI 即時查詢",
+    "zh-Hans": "用 Grok Build 的登录向 xAI 实时查询",
+    "en": "Ask xAI live with Grok Build's sign-in",
+    "ja": "Grok Build のサインインで xAI にリアルタイムで問い合わせ"
+  },
+  "settings.quota.devin": {
+    "zh-Hant": "顯示 Devin 額度",
+    "zh-Hans": "显示 Devin 额度",
+    "en": "Show Devin quota",
+    "ja": "Devin の利用枠を表示"
+  },
+  "settings.quota.devin.hint": {
+    "zh-Hant": "讀取 Devin 桌面版啟動時存在本機的方案快取，不連網；只用 CLI 時沒有資料。",
+    "zh-Hans": "读取 Devin 桌面版启动时存在本机的方案缓存，不联网；只用 CLI 时没有数据。",
+    "en": "Reads the plan Devin Desktop caches on this computer when it starts, with no network; CLI-only users have none.",
+    "ja": "Devin デスクトップ版が起動時にこのコンピュータに保存するプラン情報を読み取ります。通信はしません。CLI だけを使っている場合はデータがありません。"
+  },
+  "settings.quota.antigravity": {
+    "zh-Hant": "顯示 Antigravity 額度",
+    "zh-Hans": "显示 Antigravity 额度",
+    "en": "Show Antigravity quota",
+    "ja": "Antigravity の利用枠を表示"
+  },
+  "settings.quota.antigravity.hint": {
+    "zh-Hant": "只詢問本機正在執行的 Antigravity 語言伺服器，不會啟動 Antigravity。",
+    "zh-Hans": "只询问本机正在运行的 Antigravity 语言服务器，不会启动 Antigravity。",
+    "en": "Asks only the Antigravity language server already running on this computer; never starts Antigravity.",
+    "ja": "このコンピュータで動作中の Antigravity 言語サーバーにだけ問い合わせます。Antigravity を起動することはありません。"
+  },
+  "settings.quota.kimi": {
+    "zh-Hant": "顯示 Kimi Code 額度",
+    "zh-Hans": "显示 Kimi Code 额度",
+    "en": "Show Kimi Code quota",
+    "ja": "Kimi Code の利用枠を表示"
+  },
+  "settings.quota.kimi.hint": {
+    "zh-Hant": "用 Kimi Code CLI 自己的登入向 api.kimi.com 查詢；只讀取登入，不會更新它。",
+    "zh-Hans": "用 Kimi Code CLI 自己的登录向 api.kimi.com 查询；只读取登录，不会刷新它。",
+    "en": "Asks api.kimi.com with the Kimi Code CLI's own sign-in, which is only read, never refreshed.",
+    "ja": "Kimi Code CLI 自身のサインインで api.kimi.com に問い合わせます。サインイン情報は読み取るだけで更新しません。"
+  },
+  "settings.quota.gemini": {
+    "zh-Hant": "顯示 Gemini CLI 額度",
+    "zh-Hans": "显示 Gemini CLI 额度",
+    "en": "Show Gemini CLI quota",
+    "ja": "Gemini CLI の利用枠を表示"
+  },
+  "settings.quota.gemini.hint": {
+    "zh-Hant": "用 Gemini CLI 自己的 Google 登入向 Google 查詢；個人帳號自 2026 年 6 月起已無法使用 Gemini CLI 登入。",
+    "zh-Hans": "用 Gemini CLI 自己的 Google 登录向 Google 查询；个人账号自 2026 年 6 月起已无法使用 Gemini CLI 登录。",
+    "en": "Asks Google with the Gemini CLI's own Google sign-in. Individual accounts can no longer sign in to Gemini CLI since June 2026.",
+    "ja": "Gemini CLI 自身の Google サインインで Google に問い合わせます。個人アカウントは 2026 年 6 月から Gemini CLI にサインインできなくなっています。"
+  },
+  "settings.quota.droid": {
+    "zh-Hant": "顯示 Factory Droid 額度",
+    "zh-Hans": "显示 Factory Droid 额度",
+    "en": "Show Factory Droid quota",
+    "ja": "Factory Droid の利用枠を表示"
+  },
+  "settings.quota.droid.hint": {
+    "zh-Hant": "用 FACTORY_API_KEY（環境變數或 ~/.factory/.env）向 api.factory.ai 查詢。",
+    "zh-Hans": "用 FACTORY_API_KEY（环境变量或 ~/.factory/.env）向 api.factory.ai 查询。",
+    "en": "Asks api.factory.ai with FACTORY_API_KEY (from the environment or ~/.factory/.env).",
+    "ja": "FACTORY_API_KEY（環境変数または ~/.factory/.env）で api.factory.ai に問い合わせます。"
+  },
+  "settings.quota.zcode": {
+    "zh-Hant": "顯示 ZCode 額度",
+    "zh-Hans": "显示 ZCode 额度",
+    "en": "Show ZCode quota",
+    "ja": "ZCode の利用枠を表示"
+  },
+  "settings.quota.zcode.hint": {
+    "zh-Hant": "貼上 GLM Coding Plan 的 API Key，它會存在系統的鑰匙圈，只用來向智譜查詢額度。",
+    "zh-Hans": "粘贴 GLM Coding Plan 的 API Key，它会存在系统的钥匙串，只用来向智谱查询额度。",
+    "en": "Paste your GLM Coding Plan API key. It is kept in the system keychain and only used to ask Zhipu for your quota.",
+    "ja": "GLM Coding Plan の API キーを貼り付けてください。システムのキーチェーンに保存し、Zhipu への利用枠の問い合わせにだけ使います。"
+  },
+  "settings.quota.zcode.key": {
+    "zh-Hant": "API Key",
+    "zh-Hans": "API Key",
+    "en": "API key",
+    "ja": "API キー"
+  },
+  "settings.quota.zcode.keyPlaceholder": {
+    "zh-Hant": "貼上 API Key",
+    "zh-Hans": "粘贴 API Key",
+    "en": "Paste the API key",
+    "ja": "API キーを貼り付け"
+  },
+  "settings.quota.zcode.saved": {
+    "zh-Hant": "已存在鑰匙圈",
+    "zh-Hans": "已存入钥匙串",
+    "en": "Saved in the keychain",
+    "ja": "キーチェーンに保存済み"
+  },
+  "settings.quota.zcode.remove": {
+    "zh-Hant": "移除",
+    "zh-Hans": "移除",
+    "en": "Remove",
+    "ja": "削除"
+  },
+  "settings.quota.zcode.region": {
+    "zh-Hant": "區域",
+    "zh-Hans": "区域",
+    "en": "Region",
+    "ja": "地域"
+  },
+  "settings.quota.zcode.regionGlobal": {
+    "zh-Hant": "國際版（z.ai）",
+    "zh-Hans": "国际版（z.ai）",
+    "en": "International (z.ai)",
+    "ja": "国際版（z.ai）"
+  },
+  "settings.quota.zcode.regionCn": {
+    "zh-Hant": "中國版（bigmodel.cn）",
+    "zh-Hans": "中国版（bigmodel.cn）",
+    "en": "China (bigmodel.cn)",
+    "ja": "中国版（bigmodel.cn）"
+  },
+  "settings.quota.qoder": {
+    "zh-Hant": "顯示 Qoder 額度（讀取瀏覽器登入）",
+    "zh-Hans": "显示 Qoder 额度（读取浏览器登录）",
+    "en": "Show Qoder quota (reads the browser sign-in)",
+    "ja": "Qoder の利用枠を表示（ブラウザのサインインを読み取り）"
+  },
+  "settings.quota.workbuddy": {
+    "zh-Hant": "顯示 WorkBuddy 額度（讀取瀏覽器登入）",
+    "zh-Hans": "显示 WorkBuddy 额度（读取浏览器登录）",
+    "en": "Show WorkBuddy quota (reads the browser sign-in)",
+    "ja": "WorkBuddy の利用枠を表示（ブラウザのサインインを読み取り）"
+  },
+  "settings.quota.cookies.hint": {
+    "zh-Hant": "從這台電腦的瀏覽器讀取 %@ 的登入，向 %@ 查詢額度；只放在記憶體裡，用完即丟。",
+    "zh-Hans": "从这台电脑的浏览器读取 %@ 的登录，向 %@ 查询额度；只放在内存里，用完即丢。",
+    "en": "Reads your %@ sign-in from the browsers on this computer to ask %@ for your quota; kept in memory and dropped after use.",
+    "ja": "このコンピュータのブラウザから %@ のサインインを読み取り、%@ に利用枠を問い合わせます。メモリ上にだけ置き、使い終わったら破棄します。"
+  },
+  "settings.quota.cookies.confirm.title": {
+    "zh-Hant": "讀取 %@ 的瀏覽器登入？",
+    "zh-Hans": "读取 %@ 的浏览器登录？",
+    "en": "Read your %@ sign-in from the browser?",
+    "ja": "ブラウザから %@ のサインインを読み取りますか？"
+  },
+  "settings.quota.cookies.confirm.message": {
+    "zh-Hant": "Agent Speed 會從這台電腦的瀏覽器讀取 %@ 的 Cookie，只用來向 %@ 查詢你的額度，只放在記憶體裡，用完即丟，不會存檔或傳到其他地方。macOS 會為每個瀏覽器詢問一次是否允許使用它的「Safe Storage」鑰匙圈項目，拒絕就略過那個瀏覽器。",
+    "zh-Hans": "Agent Speed 会从这台电脑的浏览器读取 %@ 的 Cookie，只用来向 %@ 查询你的额度，只放在内存里，用完即丢，不会存盘或传到其他地方。macOS 会为每个浏览器询问一次是否允许使用它的「Safe Storage」钥匙串项目，拒绝就跳过那个浏览器。",
+    "en": "Agent Speed will read the %@ cookies from the browsers on this computer, only to ask %@ for your quota. They stay in memory, are dropped after use, and are never saved or sent anywhere else. macOS asks once per browser whether to allow its “Safe Storage” keychain item; refusing skips that browser.",
+    "ja": "Agent Speed はこのコンピュータのブラウザから %@ の Cookie を読み取り、%@ に利用枠を問い合わせるためだけに使います。Cookie はメモリ上にだけ置き、使い終わったら破棄し、保存したりほかへ送ったりしません。macOS はブラウザごとに「Safe Storage」キーチェーン項目の使用を許可するか一度だけ確認します。拒否したブラウザは使いません。"
+  },
+  "settings.quota.cookies.confirm.ok": {
+    "zh-Hant": "允許讀取",
+    "zh-Hans": "允许读取",
+    "en": "Allow",
+    "ja": "許可"
+  },
+  "settings.quota.status.ok": {
+    "zh-Hant": "已更新 %@",
+    "zh-Hans": "已更新 %@",
+    "en": "Updated %@",
+    "ja": "%@ に更新"
+  },
+  "settings.quota.status.noCredential": {
+    "zh-Hant": "找不到登入資料",
+    "zh-Hans": "找不到登录数据",
+    "en": "No sign-in found",
+    "ja": "サインイン情報が見つかりません"
+  },
+  "settings.quota.status.expired": {
+    "zh-Hant": "登入已過期，等 %@ 重新整理後再查詢",
+    "zh-Hans": "登录已过期，等 %@ 刷新后再查询",
+    "en": "The sign-in has expired; waiting for %@ to renew it",
+    "ja": "サインインの期限が切れています。%@ が更新するのを待っています"
+  },
+  "settings.quota.status.denied": {
+    "zh-Hant": "%@ 拒絕了請求，登入變更後再試",
+    "zh-Hans": "%@ 拒绝了请求，登录变更后再试",
+    "en": "%@ refused the request; trying again once the sign-in changes",
+    "ja": "%@ がリクエストを拒否しました。サインインが変わったら再試行します"
+  },
+  "settings.quota.status.failed": {
+    "zh-Hant": "上次查詢失敗，稍後重試",
+    "zh-Hans": "上次查询失败，稍后重试",
+    "en": "The last request failed; trying again later",
+    "ja": "前回の問い合わせに失敗しました。あとで再試行します"
+  },
+  "settings.quota.status.noBrowser": {
+    "zh-Hant": "在瀏覽器裡找不到 %@ 的登入",
+    "zh-Hans": "在浏览器里找不到 %@ 的登录",
+    "en": "No %@ sign-in found in your browsers",
+    "ja": "ブラウザに %@ のサインインが見つかりません"
+  },
+  "settings.quota.status.networkOff": {
+    "zh-Hant": "網路已關閉（關於 → 網路）",
+    "zh-Hans": "网络已关闭（关于 → 网络）",
+    "en": "Network is off (About → Network)",
+    "ja": "ネットワークがオフです（情報 → ネットワーク）"
+  },
+  "settings.quota.status.notRunning": {
+    "zh-Hant": "%@ 沒有在執行",
+    "zh-Hans": "%@ 没有在运行",
+    "en": "%@ is not running",
+    "ja": "%@ は実行されていません"
+  },
+  "remote.quota.claudeCli": {
+    "zh-Hant": "在這台主機接上 Claude Code 狀態列以顯示額度",
+    "zh-Hans": "在这台主机接入 Claude Code 状态栏以显示额度",
+    "en": "Show Claude Code quota through its status line on this host",
+    "ja": "このホストで Claude Code のステータスラインに接続して利用枠を表示"
+  },
+  "remote.quota.claudeCli.hint": {
+    "zh-Hant": "Agent Speed 的小程式會把這台主機上 Claude Code 的狀態列換成自己，把額度存在主機上的小程式資料夾，並照常顯示你原本的狀態列；關閉或移除主機時還原。",
+    "zh-Hans": "Agent Speed 的小程序会把这台主机上 Claude Code 的状态栏换成自己，把额度存在主机上的小程序文件夹，并照常显示你原来的状态栏；关闭或移除主机时还原。",
+    "en": "Agent Speed's helper on this host becomes Claude Code's status line there, saves the quota in its folder on the host and still shows your own status line; turning this off or removing the host restores it.",
+    "ja": "このホストの Agent Speed の補助プログラムが、ホスト上の Claude Code のステータスラインになります。利用枠はホスト上の補助プログラムのフォルダに保存し、元のステータスラインもそのまま表示します。オフにするかホストを削除すると元に戻ります。"
+  },
+  "remote.quota.claudeCli.confirm.title": {
+    "zh-Hant": "在 %@ 接上 Claude Code 狀態列？",
+    "zh-Hans": "在 %@ 接入 Claude Code 状态栏？",
+    "en": "Connect to Claude Code's status line on %@?",
+    "ja": "%@ で Claude Code のステータスラインに接続しますか？"
+  },
+  "remote.quota.claudeCli.confirm.message": {
+    "zh-Hant": "小程式會把主機上 %@ 的 statusLine 改成執行它自己。它只把 5h／7d 額度存在主機上，再照常執行你原本的狀態列。原檔會先備份在主機上，關閉這個功能時還原。",
+    "zh-Hans": "小程序会把主机上 %@ 的 statusLine 改成运行它自己。它只把 5h／7d 额度存在主机上，再照常运行你原来的状态栏。原文件会先备份在主机上，关闭这个功能时还原。",
+    "en": "The helper will set statusLine in %@ on the host to run itself. It only saves the 5h / 7d quota on the host, then runs your own status line as before. The file is backed up on the host first and restored when you turn this off.",
+    "ja": "補助プログラムはホスト上の %@ の statusLine を自分自身を実行するように変更します。5h／7d の利用枠をホストに保存してから、元のステータスラインをそのまま実行します。ファイルは先にホスト上でバックアップされ、この機能をオフにすると元に戻ります。"
+  },
+  "remote.quota.removeNote": {
+    "zh-Hant": "這台主機接上了 Claude Code 狀態列。連得上時會先還原；連不上的話，主機上的狀態列會繼續執行 %@ 裡的小程式，直到你重新連上後關閉，或自行還原備份 claude-settings.backup.json。",
+    "zh-Hans": "这台主机接入了 Claude Code 状态栏。连得上时会先还原；连不上的话，主机上的状态栏会继续运行 %@ 里的小程序，直到你重新连上后关闭，或自行还原备份 claude-settings.backup.json。",
+    "en": "This host's Claude Code status line runs Agent Speed's helper. It is restored first if the host can be reached; otherwise the status line keeps running the helper in %@ until you reconnect and turn it off, or restore claude-settings.backup.json yourself.",
+    "ja": "このホストの Claude Code のステータスラインは Agent Speed の補助プログラムを実行しています。接続できればまず元に戻します。接続できない場合は、再接続してオフにするか claude-settings.backup.json を自分で戻すまで、%@ の補助プログラムが実行され続けます。"
+  },
+  "settings.quota.status.noCertificates": {
+    "zh-Hant": "主機上找不到 HTTPS 憑證，無法查詢",
+    "zh-Hans": "主机上找不到 HTTPS 证书，无法查询",
+    "en": "No HTTPS certificates on the host, so it cannot ask",
+    "ja": "ホストに HTTPS 証明書がないため問い合わせできません"
   }
 }

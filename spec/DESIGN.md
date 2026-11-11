@@ -172,7 +172,7 @@ Latin) at the 7 pt floor with its tracking tightened to 0 — the narrowest the 
 
 | Budget | `w7` | Guarantee |
 | --- | --- | --- |
-| Comfortable | ≤ 44.2 pt | fits every style at every size from 96 pt (`minimal` from 72 pt) |
+| Comfortable | ≤ 44.2 pt | fits every style at every size from 96 pt (`minimal` from 72 pt); on smaller orbs, down to the 64 pt floor, it may run past the label width, centered, never truncated |
 | Maximum | ≤ 51.5 pt | fits every style from the Small size preset (112 pt) up; on smaller orbs it may run past the label width, centered, never truncated |
 
 Up to six CJK characters are comfortable (42 pt) and seven reach the maximum (49 pt); in English about eight letters
@@ -298,6 +298,9 @@ White-hot core for highlights: `#FFF7D6`. With overdrive `o > 0`, highlights ble
 | OpenClaw | `#DE2E1F` lobster red |
 | Hermes Agent | `#B8860B` dark goldenrod |
 | Factory Droid | `#9E5F46` rust copper |
+| Devin | `#557F14` fern |
+| Qoder IDE | `#B3329D` orchid |
+| Qoder CLI | `#7E61B6` heather |
 
 Pink is `#EC4899`, not the lighter `#F472B6` (too close to coral and lilac); lime is `#84CC16`, not the lighter `#A3E635`, which nearly vanishes on light backgrounds.
 
@@ -325,6 +328,16 @@ crowded (coral, amber, rose, lobster red, dark goldenrod), so it keeps their hue
 and reads on both appearances (contrast against `#1E1E1E`: 3.3; against white: 5.0). Like every source it has no icon
 and no short name: its dot and `source.droid` "Factory Droid", in source order (METRICS 1) after Hermes Agent.
 
+Devin takes fern `#557F14`, a deep olive green (OKLCH L 0.55, C 0.14, h 130°). Green between omp's lime and the
+WorkBuddy jade is the one free stretch of the wheel; reds and pinks, near Cognition's own marks, are taken by OpenClaw,
+Kimi Code CLI and Antigravity (a raspberry `#BE185D` would be 0.11 from OpenClaw's red). Fern is at least 0.14 (OKLab)
+from every other source color and from the slate `#7C8798` (closest: WorkBuddy jade 0.145, Hermes Agent's dark
+goldenrod 0.154, Factory Droid's copper 0.162, slate 0.175; omp's lime 0.233) and reads on both appearances (contrast
+against `#1E1E1E`: 3.5; against white: 4.7). Like every source it has no icon and no short name: its dot and
+`source.devin` "Devin", in source order (METRICS 1) after Factory Droid.
+
+Qoder IDE and Qoder CLI, one product line, take two members of one purple family, as the two WorkBuddy editions share teal: orchid `#B3329D` (OKLCH L 0.55, C 0.20, h 336°) for the editor and heather `#7E61B6` (L 0.56, C 0.13, h 298°), bluer and quieter, for the CLI. The magenta–violet stretch between Antigravity's pink and Pi's violet is the last one with room: orchid is at least 0.126 (OKLab) from every other source color and from the slate `#7C8798` (closest: Antigravity pink 0.126, Pi violet 0.145, Kimi rose 0.170), heather at least 0.124 (closest: Pi violet 0.124, WorkBuddy AI ocean 0.124, slate 0.125, orchid 0.126); both read on both appearances (contrast against `#1E1E1E`: 3.1 and 3.4; against white: 5.4 and 4.9). Like every source they have no icon and no short name: their dots and `source.qoder` "Qoder IDE" and `source.qoderCli` "Qoder CLI", in source order (METRICS 1) after Devin.
+
 The two WorkBuddy editions share one app icon, teal-green (`#0EC8A8` → `#05C890`), which is nearly Codex mint (OKLab
 distance about 0.04; the closest existing pair, coral and amber, is 0.11 apart). So both take a darker member of that teal family,
 which keeps them related to each other and to the brand: jade at the brand's hue for WorkBuddy, and ocean, bluer
@@ -339,8 +352,8 @@ after Antigravity, the China edition first.
 ## 2. The orb (floating window)
 
 A circular smoked-glass instrument. This section defines the shared frame and the default style, `led`; section 2a adds
-four more styles and section 2b lets the user float several orbs, each tracking its own sources. Diameter `S` (per orb,
-96–240 pt/DIP, `minimal` 64–240, default 148). The window is `1.5 S` square so the aura and sparks can leave the disc; everything outside the disc is fully transparent and ignores clicks wherever
+five more styles and section 2b lets the user float several orbs, each tracking its own sources. Diameter `S` (per orb,
+64–240 pt/DIP in every style, default 148; `character` stands in a disc of 2 S, 2a.6). The window is `1.5 S` square so the aura and sparks can leave the disc; everything outside the disc is fully transparent and ignores clicks wherever
 the platform allows it. The orb follows the Appearance setting. The dark variant is described inline below; the
 light variant ("porcelain") changes only these tokens:
 
@@ -403,7 +416,11 @@ Layers, back to front:
 
 Idle state: value `0` in white 60 %, the title theme's idle label (`待機` for Vehicles, section 1), gauge dim, comet
 hidden, and every 6 s a slow light sweep runs along the unlit segments as a sign of life. Optional "fade when idle"
-(setting): after 60 s idle, fade the window to 45 % opacity; restore instantly on activity or hover.
+(setting, per orb, 2b; a board has the same switch and follows this rule, 2c): after 60 s idle (the window's live
+value in the idle tier of section 1 all that time, counted from launch at the earliest), fade the window to 45 % of
+its opacity over 0.6 s ease-in-out; restore instantly on activity (the tier leaves idle), hover or a drag, or when the
+switch is turned off, and fade again about 2 s after the pointer leaves. Reduce Motion: the fade is a cut too. The fade
+is the only motion it adds: once faded, an idle window draws no more than an idle one that is not faded.
 
 Hover: the orb scales to 1.03 (spring), the title label crossfades to a compact info line
 (`今日 1.2M · 3 個 agent`, counted over the orb's sources), and the cursor shows it is draggable. An orb tracking a
@@ -413,7 +430,7 @@ Interaction:
 - Drag anywhere on the disc to move. On release within 24 pt of a screen edge, snap to a 12 pt margin (spring); other
   orbs attract it magnetically (2b). Position (per orb, per display arrangement, 2b) persists.
 - Double-click: open the dashboard.
-- Right-click: the orb's context menu (2b) — style, sources, size (S / M / L presets 112 / 148 / 196), effects (Off /
+- Right-click: the orb's context menu (2b) — style, sources, size (S / M / L presets 112 / 148 / 196 and a slider), effects (Off /
   Soft / Standard / Max), always on top, click-through, add / duplicate / split / merge, hide, remove, settings, quit.
 - Click-through mode (per orb): the orb ignores all mouse events; it is controlled from the menu bar / taskbar.
 
@@ -536,11 +553,13 @@ unchanged — the benchmark harness must show it.
 
 ## 2a. Orb styles
 
-Every floating orb has a **style**: `led` (the LED gauge of section 2, the default), `needle`, `liquid`, `reactor` or
-`minimal`. The styles are one family: they share the disc and window, the body, the aura, the readout, the agent dots,
-the response wave, the new-peak pill, hover, the source bezel (2b), the effects levels, accessibility and the frame
-policy below; each one adds its own instrument between the body and the readout. The dashboard hero (section 4) always
-uses `led` with the hero vehicle.
+Every floating orb has a **style**: `led` (the LED gauge of section 2, the default), `needle`, `liquid`, `reactor`,
+`minimal` or `character`. The first five are one family: they share the disc and window, the body, the aura, the
+readout, the agent dots, the response wave, the new-peak pill, hover, the source bezel (2b), the effects levels,
+accessibility and the frame policy below; each one adds its own instrument between the body and the readout.
+`character` (2a.6) replaces the instrument and the body with an animated character and floats the readout beside her
+as cards; it keeps the window rules, hover, the effects levels, accessibility and the frame policy. The dashboard
+hero (section 4) always uses `led` with the hero vehicle.
 
 | Key | Name (`style.*`) | Personality | Primary encoding of `h` |
 | --- | --- | --- | --- |
@@ -549,6 +568,7 @@ uses `led` with the hero vehicle.
 | `liquid` | 能量液球 | organic, luminous, alive | liquid level in a glass sphere |
 | `reactor` | 反應爐 | sci-fi, rotational energy | arc length and spin of counter-rotating rings |
 | `minimal` | 極簡圓環 | quiet, typographic | one thin progress ring |
+| `character` | 角色 | alive, playful, personal | the character's pose and motion, and a ring of lights at her feet |
 
 Conventions for this section: `c` = disc center, `S` = diameter, radii and lengths are fractions of `S`, angles are
 degrees clockwise from 3 o'clock in screen space (y down). A *dial position* `n` maps to the angle `135° + 270° n` (the
@@ -576,12 +596,17 @@ OKLab L, stepped to ≥ 4.5:1 against the body); *hot* is `mix(heat(h), #FFF7D6,
   | `minimal` | 0.30 S · c + 0.07 S · 0.66 S | none | 0.098 S below the value · 0.068 S · 0.62 S | none | c − 0.25 S |
 
   - The value shrinks to its max width. Titles tighten, then shrink to 80 %, and are never truncated (section 1); the
-    hover info line shrinks to 70 %. Unit and title never go below 7 pt; below S = 64 (thumbnails, 2b and section 5)
-    only the value is drawn.
+    hover info line shrinks to 70 %. Unit and title never go below 7 pt. Below S = 96 the unit line is not drawn in
+    any style, as in `minimal`: held at that floor it would outgrow its gap (at 64 pt it runs into the value in
+    `needle` and `reactor`, and into the title in `led`, `liquid` and `reactor`). The title keeps its place, a money
+    value carries its symbol in front (section 9) and the value takes the unit's click (section 9, Switching); from
+    96 pt up every style is drawn exactly as its frame row says. Below S = 64 (thumbnails, 2b and section 5) only the
+    value is drawn.
   - **Odometer**: on a value change only the characters that changed roll, each clipped to its own character cell,
     travel 0.92 × the value size, 0.24 s ease-out (up when rising). Different lengths crossfade in 0.12 s. No roll with
     Off, Reduce Motion, `minimal` and S < 80 (the text simply updates).
-  - Readout text is always drawn above every effect. Particles that pass behind it fade to 35 % inside the *readout
+  - Readout text is always drawn above every effect (`character`'s cards included: they never pass behind her, 2a.6). Particles
+    that pass behind it fade to 35 % inside the *readout
     zone* (an ellipse 0.30 S × 0.19 S around `c + (0, 0.07 S)`, Gaussian falloff) so it never competes with them.
 - **Readout** (optional, per orb): two small lines above the value (`needle`: inside the hub, below it) with the
   download and upload speed or 性能, the performance score (section 10; values in section 12).
@@ -837,8 +862,8 @@ thumbnails draw rotors A and C and the core only.
 
 ### 2a.5 `minimal` — Minimal ring
 
-Only the number, one thin progress ring and the title; almost nothing moves. The calmest style, and the one that stays
-clear at small sizes (it alone may go down to 64 pt).
+Only the number, one thin progress ring and the title; almost nothing moves. The calmest style, and the one made for
+the smallest orbs (64 pt, the floor of every style).
 
 Layers, back to front:
 
@@ -866,7 +891,205 @@ no frames at all.
 
 Reduce Motion: steady glow (no breathing), the gold tint and blink become 0.2 s crossfades. Increase Contrast: track
 × 2, ring width × 1.25, no glow. Windows high contrast: track in the theme's gray text color, ring in its highlight
-color. Sizes 64–240 pt; at S < 80 the title uses 7 pt and the ring keeps `w ≥ 2.5 pt`.
+color. At S < 80 the title uses 7 pt and the ring keeps `w ≥ 2.5 pt`.
+
+### 2a.6 `character` — Character
+
+An anime character, one per model vendor, stands on the desktop and acts out the speed; the speed and every live fact
+of the orb float beside her as cards. Packs, rig evaluation, motion, the pose swap, the choice of character and the
+floating readouts are specified in CHARACTERS (spec/CHARACTERS.md); this section covers what the orb adds.
+
+**Footprint.** The style occupies a disc `D = 2 S` (S = the orb's size, 64–240): the window is `1.5 D` square and
+placement, snapping, magnets, the name plate and the source chip use this disc. Changing to or from `character`
+resizes the orb like a size change (the docked edge stays). The character stands centered with her feet at
+`c + 0.45 D` and her height ≈ 0.86 D. There is no body, blur, lens or bezel: outside her and the readouts the window is
+fully transparent. Clicks, hover, the cursor and click-through use an upright capsule around her body (0.42 D wide,
+0.9 D tall, centered 0.04 D below `c`) instead of the disc; the Settings highlight rings that capsule.
+
+Layers, back to front (conventions of 2a with `S` replaced by `D`):
+
+1. **Ground glow**: an ellipse 0.27 × 0.08 D at the feet in the label color, opacity `0.12 + 0.3 h` (additive in dark),
+   and a soft contact shadow 0.15 × 0.03 D, black 55 %.
+2. **Ring, back half**: 96 lights on an ellipse of radius 0.23 D squashed to 17 %, starting at the front and going
+   counter-clockwise; light `i` is lit when `i < 96 h` in the heat color of its own position, the leading light
+   white-hot; unlit lights in the unlit token. Depth scales size and opacity (55 % at the back). A comet brightens the
+   lights it passes (period `6 − 5.3 h` s).
+3. **Agent lights, back half**: one light per generating agent in its source color on a tilted orbit around her waist
+   (0.3 × 0.05 D), with a short tail; speed `0.25 + 0.9 h` rad/s.
+4. **The character**: the skinned pose of the current band (CHARACTERS 3, 6), drawn as textured triangle meshes.
+5. **Ring and agent lights, front half**, response ripples (the ring growing to 1.42 × and fading over 0.9 s,
+   strength from `log10(output)`), embers rising from the ring at redline.
+6. **Her particles in front** (CHARACTERS 8, Particles; the rest of them draw behind her, after layer 3).
+   Each character has her own kind:
+   Claude's petals blown by the wind from boost up; bubbles rising and swaying (DeepSeek), twinkling four-point
+   sparkles or stars, music notes floating up (Kimi), embers from her feet (Grok), blue foxfire wisps (GLM),
+   tumbling confetti from above (MiniMax), `Z z` drifting from her head only while she rests (Llama), pages and
+   blossoms blown sideways (文心, Qwen), feathers and snow falling. Dots are soft ellipses in her accent's tints or the
+   kind's own colors; stars, wisps and embers add up on dark glass and are laid over on light; notes and `Z` are
+   bold glyphs. Take-offs, wing flaps, pounces and pose swaps throw out a puff of 14. The slow drift rides the
+   band's frame rate (15 fps at idle); puffs and wind-blown petals ask for 60.
+7. **The cards** (*Readouts* below), always over her, then the new-peak pill (gold, above the speed card, with 24
+   rays).
+
+**Readouts.** Nothing ever goes behind her: the readout is a set of cards beside her, each with a fixed place, placed
+every frame against her outline as drawn (the skinned mesh of the current pose, in bands of `max(2, D / 150)` pt), so a
+raised arm, a held-out staff or open wings push a card away instead of covering it:
+
+- **Speed** (always shown): at her right at chest height (her chin + 45 % of the way to her waist), its left edge
+  `0.035 D` clear of her outline over the rows it spans; if it does not fit there, the nearest row (±0.04 … 0.3 D)
+  where it overflows least. Rolling digits sampled 5 times a second, size 0.068 D, the unit and the speed title chip
+  below; no plate.
+- **Models** (`character.readouts.models`, on by default; user's choice, 2026-11-10): a card under the speed title
+  chip, `0.022 D` below it, listing the orb's running models (METRICS 6.9 *Readouts of a set*): one row per model,
+  fastest first — the vendor's accent dot (the theme color of an installed character of the model's vendor, CHARACTERS
+  7, else of the catalog's, else the secondary token; Increase Contrast: the system highlight color; a model run by
+  several agents takes the vendor of its fastest agent), the model's **display name** at `t` in the value token, and
+  its speed at the trailing edge, a whole number of tok/s in tabular digits with the unit `tok/s` once, after the
+  first row's number when it has one, in the secondary token (`–` while the model has no timed response yet). The
+  display name is the id without a trailing date (`-YYYYMMDD` or `-YYYY-MM-DD`: `claude-sonnet-4-5-20250929` →
+  `claude-sonnet-4-5`; user's choice, 2026-11-10), truncated at its end with `…` beyond the name width. At most 4
+  rows; more models add a fifth, secondary line `character.models.more` (`+3 個模型`), counting every running model
+  not drawn. Rows are `0.3 t` apart and reorder with a 0.3 s glide (Reduce Motion: at once); a model that stops
+  running fades out of its row (0.25 s) and the card eases to its new height.
+  - **Place and width** (user's choice, 2026-11-10: shorten before hiding). Its left edge is on the speed's line, or
+    further right where her outline under the speed is wider (skirt, hair), `0.035 D` clear of it as the spill-over
+    cards keep. The name width is `9 t`, narrowed as far as `4 t` to fit the room to the orb's edge; below that the
+    rows drop the names and keep the dot and the speed. Only when even that does not fit does the card move down
+    past the spill-over cards' room (up to 0.3 D below them), and then hide. It moves or hides after it has not fit
+    for 0.6 s, comes back after it has fit with `0.04 D` to spare for 1.2 s, and moves back up from the lower place
+    after 4 s; a change of place fades out and in (0.18 s / 0.3 s) instead of crossing her or another card.
+  - Accessibility reads `a11y.orb.models` with one `a11y.orb.modelSpeed` per running model (the full id; the model
+    alone while it has no speed), every running model, drawn or not, joined by `list.separator`, after the cost; the
+    首字 row adds `a11y.orb.latency` (the shown value with its unit) after the 性能 reading.
+- **Model** (`character.readouts.model`, off by default): a glass chip with the vendor's accent dot and the fastest
+  model's name, centered over her head `0.03 D` above its top (face, hair, headwear and ears), pushed up past anything
+  of her that rises under it. With no live model it shows the last one.
+- **The column** at her left, top to bottom from her shoulders (chin + 25 % to the waist): **性能** (`性能 1,286` at
+  `p = 1.25 t` over `思考 412 tok/s` at `t`, the score's motion, pale resting form and provisional mark as in section 10;
+  the 思考 row fades after its hold at 0 and the card closes up, section 10 *Thinking hidden at zero*; a third row
+  `首字 1.2 s` at `t`, `character.readouts.latency`, on by default, user's choice 2026-11-10: the orb's first-content
+  latency of METRICS 6.9 *Readouts of a set*, its label `character.latency.glyph`, the value in the value token and
+  the unit in the secondary one — below 1 s whole milliseconds rounded to the nearest 10 with `perf.unit.ms`
+  (`850 ms`), from 1 s one decimal with `perf.unit.s` (`1.2 s`), from 10 s whole seconds (`14 s`); shown while the
+  value exists, fading in and out (0.25 s) as the card eases to its height, so an orb of sources without first-content
+  times never shows the row), **network**
+  (`↓` over `↑`, fixed cells as in section 10), **費用** (`cost.glyph`, the live cost rate at `p` with `≥` when partial,
+  `–` when nothing is priced, and the money unit), **today** (`boards.today` with today's tokens over
+  `agents.count`) and last **額度** (below). `t = max(8, 0.027 D)` pt. The cards' right edges share one line `0.035 D` clear of her outline over
+  every row the column spans; the column may move up or down (±0.04 … 0.12 D) to where it fits. Cards are `0.022 D`
+  apart; a hidden card's room closes up as it fades.
+- **額度** (`character.readouts.quota`, on by default; user's choice 2026-11-10: the left column, only agents whose app
+  runs and is signed in): the column's last card. It lists every source of the orb whose app runs, is signed in and has
+  a quota with at least one window (QUOTAS 6), in source order, each with only the windows its account has (QUOTAS 2):
+  an account with a weekly window alone shows one line, never a placeholder for a missing 5-hour window.
+  - Per source: a header line with the source's color dot (`0.55 t`) and its name (`source.*`) at `0.9 t` in the
+    secondary token, then one line per window in QUOTAS 2 order.
+  - A window line: the label (`5h`, `7d`, `Fable 7d`) at `0.9 t` in the secondary token, in a column as wide as the
+    card's widest label; `0.5 t`; the bar, `5 t` long and `0.26 t` tall, fully rounded; `0.5 t`; the percent at `t` in
+    the value token, tabular, right-aligned in a cell as wide as `100%`; `0.4 t`; the short reset (QUOTAS 7: `42m`,
+    `3h`, `週五`) at `0.9 t` in the secondary token, in a cell as wide as the card's widest, nothing while unknown or
+    passed.
+  - Bar: track label 12 % (dark 16 %); fill the source color, amber `#F5A524` (light `#B86E00`) from 80 %, the system
+    red from 95 %, when the percent takes the same red. Increase Contrast: the fill in the text color, the track in the
+    disabled-text color.
+  - Spacing: sources `0.45 t` apart, a source's lines `0.25 t` apart.
+  - Motion: a bar eases to its new length (0.4 s, ease-out); a reset empties it over 0.6 s while its reset cell fades
+    out; a changed percent crossfades (0.2 s); a source joining or leaving fades its lines (0.25 s) as the card eases to
+    its height. Reduce Motion: lengths change at once, fades stay.
+  - Room: the card is as wide as its content and keeps the column's right edge. When it does not fit the room to the
+    orb's edge, the reset cells go first, then the bars shorten to `3 t`, then the header lines go (the dot moves before
+    the source's first label, `0.35 t` before it). Only then does the card spill over like the column's other cards.
+  - Accessibility: after the today reading, `a11y.orb.quota` with each source's name followed by one
+    `a11y.quota.window` per window (the long reset of QUOTAS 7; `a11y.quota.windowNoReset` without one), sources joined
+    by `list.separator`.
+- **Balance** (user's choice 2026-11-11: "右邊這麼空…讓左側和右側自動放的卡片內容要看起來視覺是相等的"). The column's
+  cards are split between her two sides so that their weight is as even as possible:
+  - The left keeps the column's first `n − k` shown cards. The last `k` continue on the right, under the models card
+    (or under the title chip while no models card shows), keeping the column's top-to-bottom order. So the 額度 card
+    is the first to move, then today, and on the right today stays above 額度.
+  - Their left edges share one line with the models card's, or lie further right where her outline needs it. A moved
+    card is never further left than the models card, so the right side reads as one column.
+  - The right side's weight is the models card plus the moved cards; the speed and its title chip do not count. Each
+    side's weight is the sum of its cards' heights plus the gaps between them.
+  - `k` minimizes `|left − right|`. A tie goes to the smaller `k`; `k = 0` when the column alone is not heavier than
+    the right side.
+  - The split must fit both sides by the placement rules above. Otherwise the next best `k` that fits is used, and
+    the spill-over below decides when none does.
+  - **Steadiness.** The split is chosen again when a card appears or disappears, or when a side's weight changes by
+    more than `0.06 D` (a card growing or shrinking: a source joining the 額度 card, the models card gaining a row). The
+    new split must have held for 0.6 s.
+  - A card changes sides at most once in 4 s. If its previous change came less than 30 s after the one before, the
+    wait is 12 s. This holds whether balance or spill-over moves it, so a dance never makes a card flicker between
+    sides.
+  - Cards fade as spill-over does (0.18 s out, 0.3 s in). A card's accent edge is the one facing her on either side.
+  - Below S = 96 (LOD) there is no balance: the column keeps its first two shown cards on the left, as before.
+- **Spill-over**: when her left side cannot hold the whole column near her shoulders (wide hair, a step to the left),
+  its last cards continue under the speed at her right (under the models card while it shows), left edges on one
+  line, in the same order. Only when no split
+  fits does the column move further (up to 0.3 D), and only then do its cards hug her outline one by one. Cards move
+  only after the column has overflowed for 0.6 s and come back once the larger column has fitted near her shoulders
+  with `0.04 D` to spare for 4 s (12 s within 30 s of the last change, so a dance that keeps reaching out does not send
+  them back and forth), and a passing gesture moves nothing; a card changing sides fades out where it was
+  (0.18 s) and back in at its new place (0.3 s) instead of crossing her. A card's accent edge is the one facing her.
+
+Each card is a frosted glass plate: corner `0.72 t` (the model chip a capsule), padding `0.8 t` × `0.55 t`, fill
+`#12141D` 64 % on dark / white 80 % on light (92 % with Increase Contrast, 97 % with Reduce Transparency), a hairline rim
+(white 15 % / black 8.5 %), a soft shadow (black 30 % / 11 %, Gaussian `0.9 t`, `0.2 t` down), a sheen along the top
+edge (white 10 % / 75 %) and a spine of her accent color along the edge facing her (`0.15 t` wide, 60 % of the height).
+Numbers are the value token at 90 % (98 % with Increase Contrast), glyphs and units the secondary token.
+
+**Which cards show.** A card shows while it is switched on (`characterReadouts`, 2b; the speed always) and has
+something to say, by the quiet rule of section 10: network while `↓ + ↑ ≥ 1 KB/s`, 性能 while its score is live or
+resting or an agent generates, 費用 while money flows (or a generating set has no price), models while a model runs
+(an agent of the orb is not idle), each until 10 s after its last loud moment (the models card keeps its last rows
+for those 10 s); today while there is a token today; 額度 while it has a source (QUOTAS 6), with no quiet rule: a
+quota does not change by the second, it is shown whenever it applies. Cards fade in over 0.35 s rising 0.02 D, and out over 0.5 s;
+their plates ease to a new size (3.2 Hz, critically damped) instead of jumping when their text changes. A
+`character` orb's network card follows `traffic` for its scope (`machine` = the whole computer, anything else = the
+orb's agents); its speed stays in tok/s (`unit` is not used: the cost has its own card, and clicking the orb does not
+switch units).
+
+**Floating.** Anchors follow her on springs (0.9 Hz, damping 0.78); a card she reaches into (closer than half the gap)
+gets out of her way at once (time constant 0.06 s) and drifts back on the slow spring. Every card floats on its own slow figure of eight
+(two sines per axis, periods 2.6–13 s, a phase of its own), the speed by `±0.008 × ±0.011 D`, the others by
+`±0.013 × ±0.017 D`, tilts by up to ±2.6° (the speed ±1.6°) with its glyphs, and breathes ±1.2 % in size, so the
+readout drifts gently beside her while each value stays where the eye left it.
+
+The speed has no plate; it stays legible over her dress and any wallpaper by its ink. Digits are the value color
+(white 96 % on dark, `#0B0D12` 92 % on light) with an outline 0.06 × the text size in the opposite tone (near-black
+90 % on dark, white 95 % on light; 0.085 × and opaque with Increase Contrast) and a soft halo of the same tone (radius
+0.1 ×, 45 %); the unit has the same outline. A changed digit rolls: the old one slides up out of a one-digit window as
+the new one slides in from below, a full window apart, so the two never overlap (0.12 s, ease-out). **Lightning**:
+when digits change, each changed digit crackles: an arc of 9 points around its ellipse (0.6 advance × 0.8 cap) with a
+jagged radius (±20 %), sweeping 1.2–2.2 rad, at most three digits; when more than the last digit changes, a 12-point
+arc also jumps over the changed digits. Bolts are three-stroke polylines (glow 0.22, mid 0.09, core 0.04 × the text
+size; electric `#8CD1FF` blended 20 % toward the heat color with a white-hot core on dark, `#4D8CFF` with a `#1F4DF2`
+core on light), redrawn in a new shape 30 times a second, flickering (55–100 %), fading over 0.2 s (units only) or
+0.3 s, strength `0.35 + 0.65 h`; the changed digits' halo flares electric (90 %, radius 0.18 ×) with them. Soft: one
+crackle per digit and no arc, 0.7 × the life (also below S = 96); Max: one more crackle from `h` 0.54 up; Off: none;
+Reduce Motion: the flare only, no bolts. While a bolt lives the orb draws at 60 fps.
+
+Motion: CHARACTERS 5 drives every parameter from the orb's level (the director, grooves per band, actions, hand
+acting, springs). Pulse accent: the ripple of layer 6. New peak: the pill and rays of layer 7. Title change: the
+title chip crossfades and slides 14 pt (0.35 s). Tier change: the pose swap of CHARACTERS 6 when the band's pose
+differs, else the ring flashes. Idle: her idle groove (breathing, glances, blinks, hand ripple) at 15 fps, 60 while
+she acts out a gesture or move.
+
+| Effects | `character` |
+| --- | --- |
+| Off | the character at rest pose with breathing only, cards still (no float or tilt), no particles |
+| Soft | grooves and actions at half amplitude, no embers or particles |
+| Standard | as described |
+| Max | Standard with 1.6 × particle rates |
+
+Reduce Motion: the cards keep their places without floating, tilting or easing (fades stay, card size changes are
+instant), actions that leave the ground (hops, jumps, spins, steps) are skipped, and pose swaps become 0.3 s
+crossfades. Increase Contrast: the card plates become nearly opaque (92 %) with stronger rims and text, unlit ring lights × 2. With no character
+installed, the style draws the ring and the standard readout of the frame table (value 0.13 D) with `character.empty`
+above it; the context menu's `characters.more` leads to the downloads. LOD: below S = 96 the agent lights and the today card are
+not drawn and the column keeps at most its first two shown cards (the 額度 card counts as one of them when shown,
+listing its first source without reset cells), and the models card keeps at most its first two
+rows; thumbnails and style cards show the pack's `preview.png`.
 
 ### Frame policy and performance budget (normative for every style, `led` included)
 
@@ -879,13 +1102,13 @@ k-th tick. "60 fps" means the integer divisor of the refresh rate closest to 60 
 120 → 60, 60 → 60); "30 fps" likewise (144 → 28.8, 120 → 30); "15 fps" likewise. The display refresh rate itself is
 never used above 72.
 
-| State | `led` | `needle` | `liquid` | `reactor` | `minimal` |
-| --- | --- | --- | --- | --- | --- |
-| Idle, not hovered | static; 30 fps during the 0.9 s sweep every 6 s | static; 30 fps sweep | static; 30 fps for the 1.2 s bubble | static; 30 fps sweep | static, never animates |
-| Cruise, boost (`h < 0.45`) | 30 fps | 30 fps; 60 while the needle turns > 90°/s | 30 fps | 30 fps | 30 fps while a spring settles, else static |
-| Overdrive, redline | 60 fps | 60 fps | 60 fps (Soft: 30) | 60 fps | as above; 15 fps for the redline breathing |
-| Transitions (title, peak, pulse, hover, style change) | 60 fps for their duration | 60 | 60 | 60 | 30 |
-| Off or Reduce Motion | on change only: a value tick (≤ 2/s) renders the spring at 30 fps until it settles (change < 0.001), then stops | same | same | same | same |
+| State | `led` | `needle` | `liquid` | `reactor` | `minimal` | `character` |
+| --- | --- | --- | --- | --- | --- | --- |
+| Idle, not hovered | static; 30 fps during the 0.9 s sweep every 6 s | static; 30 fps sweep | static; 30 fps for the 1.2 s bubble | static; 30 fps sweep | static, never animates | 15 fps while she only breathes and glances; 60 while she acts (a gesture, a move, a pose swap) |
+| Cruise, boost (`h < 0.45`) | 30 fps | 30 fps; 60 while the needle turns > 90°/s | 30 fps | 30 fps | 30 fps while a spring settles, else static | cruise band 30 fps, boost band 60; 60 while she acts |
+| Overdrive, redline | 60 fps | 60 fps | 60 fps (Soft: 30) | 60 fps | as above; 15 fps for the redline breathing | 60 fps |
+| Transitions (title, peak, pulse, hover, style change) | 60 fps for their duration | 60 | 60 | 60 | 30 | 60 |
+| Off or Reduce Motion | on change only: a value tick (≤ 2/s) renders the spring at 30 fps until it settles (change < 0.001), then stops | same | same | same | same | 30 fps while a pose crossfades or a spring settles, else static |
 
 - "Static" means no frames: the last frame stays on screen; the next one is drawn on data change, hover or the next
   scheduled sign of life (a single timer, not polling).
@@ -913,6 +1136,14 @@ the orb's own ≈ 0.1–0.2 ms, so the budget is a frame-count budget: keep the 
 present a frame that would be identical to the previous one.
 | GPU time per orb frame (S = 240, 2× / 200 %) | ≤ 1.0 ms | ≤ 1.0 ms |
 | Memory per orb (surfaces, buffers, atlases) | ≤ 12 MB | ≤ 12 MB |
+| `character`: idle (15 fps between actions, 60 while she acts), one orb | ≤ 3 % | ≤ 4 % |
+| `character`: cruise to redline (60 fps while she acts, which is most of the time) | ≤ 6.5 % | ≤ 8 % |
+| `character`: GPU time per frame (S = 240, 2×) | ≤ 2.0 ms | ≤ 2.0 ms |
+| `character`: memory per orb | ≤ 48 MB | ≤ 48 MB |
+
+The character's own work is small (performer step and scene ≈ 0.1–0.2 ms of CPU, warm frames allocate nothing); its
+budget is higher only because she is drawn at 60 fps whenever she moves, and each presented frame costs the system
+≈ 0.5 ms of CPU (measured on an M5 Pro at 120 Hz: led at redline 3.8 %, `character` at redline 4.3 %, at cruise 5.9 %).
 
 Targets are part of the definition of done: each platform ships a benchmark harness that drives every style through
 the scenario of the prototype (idle → climb → redline → overdrive → back) and reports these numbers.
@@ -925,6 +1156,11 @@ the scenario of the prototype (idle → climb → redline → overdrive → back
   surface, body, currents and spherical shade are one fragment shader evaluating `y(x)` per pixel; text comes from a
   glyph atlas (digits, `.kMB–`, the unit and the titles of the title themes in use — presets in the current language,
   custom titles as typed — built once per size and rebuilt when a theme or custom set changes).
+- Exception for `character` (2a.6): the character is a textured, skinned triangle mesh pass (bone matrices in a
+  per-frame buffer, the atlas sampled with mipmaps and premultiplied after sampling) between the SDF batches; her
+  particles and lights draw on both sides of her, so text and shape batches interleave in depth order. Only the current pose's atlas
+  and, during a swap, the incoming one are resident; atlases are downscaled once to the on-screen size (at most 2 ×
+  the drawn height at the backing scale) when loaded. Glyphs of the cards tilt with their card.
 - No per-frame allocation: instance buffers and particle pools are sized once from the style's maximum budget (ring
   buffers), paths and geometry are rebuilt only on a size or appearance change; WPF: frozen resources only.
 - CPU per frame ≤ 0.25 ms for state updates (springs, particles) at the maximum budget.
@@ -984,8 +1220,10 @@ Persisted as one JSON value in the settings store (key `orbs`), written atomical
 | `id` | UUID, never reused. |
 | `name` | Custom name, 1–32 characters, trimmed; `null` = automatic: `orbs.sources.all` for all sources, the source name for one, `orbs.name.pair` for two, `orbs.name.more` (first source + count) for three or more, in source order (METRICS 1). |
 | `sources` | `"all"` (every enabled source, including sources detected or added later) or a non-empty array of METRICS 1 keys, stored in source order without duplicates. Unknown keys from a newer version are kept and ignored. |
-| `style` | `led` · `needle` · `liquid` · `reactor` · `minimal`; unknown → `led`. |
-| `size` | 96–240 pt/DIP (`minimal` 64–240), clamped when the style changes (a 72 pt `minimal` becomes 96 pt `needle`). |
+| `style` | `led` · `needle` · `liquid` · `reactor` · `minimal` · `character`; unknown → `led`. |
+| `size` | 64–240 pt/DIP, one range for every style; values outside it are clamped when read. Changing the style never changes the size; `character` occupies a disc of 2 × the size (2a.6, Footprint), which placement, snapping and magnets use. |
+| `character` | `character` style only: a character pack id (CHARACTERS 1), or absent = Auto, following the fastest model vendor (CHARACTERS 7). An id that is not installed counts as Auto. |
+| `characterReadouts` | `character` style only: the cards beside her (2a.6, *Readouts*), an object of booleans `intelligence`, `thinking`, `latency`, `network`, `cost`, `agents`, `models`, `quota` (default true) and `model` (default false). A missing key or a value that is not a boolean takes its default; written only when it differs from the defaults. Copied by Add, Duplicate and Split; Merge keeps the target's. |
 | `opacity` | 0.4–1.0. |
 | `alwaysOnTop`, `clickThrough`, `fadeWhenIdle`, `allSpaces` | As the former global settings, now per orb (`allSpaces` macOS only). |
 | `visible` | Hides one orb without removing it. |
@@ -1044,7 +1282,7 @@ be removed (Remove is disabled; the master switch hides it).
 - **Z-order**: all orbs use the window level of their `alwaysOnTop`; among orbs the last dragged or clicked is in front.
   Because snapping prevents overlap, the order rarely shows. Orbs never take keyboard focus (non-activating, as today).
 - **Click-through** and **fade when idle** are per orb. Fade uses the orb's own idle state (its sources idle for 60 s)
-  and multiplies its opacity.
+  and multiplies its opacity (section 2 has the rule; a board's fade is the same, on its own sources, 2c).
 - **Master switch**: hides or shows all orbs. Turning it on while every orb is individually hidden makes them all
   visible. The quick menu (menu bar / tray) keeps one item, `menu.showOrb` / `menu.hideOrb` with one orb and
   `menu.showOrbs` / `menu.hideOrbs` with several; with several orbs it adds a `settings.orb` submenu listing each orb
@@ -1083,7 +1321,7 @@ wallpapers, in tight rows, columns and clusters, with Latin, CJK, long and multi
   and sits at the 7 pt floor at 112); print on the dial above the value (that space holds the traffic readout and the
   new-peak pill, and at 112 a name shrinks to `CL…`); a curved glass collar hugging the lower rim (charming alone, but
   curved text reads worse, a row of them makes a wavy line, and long or CJK names tilt at the ends); plain text with a
-  shadow and no plate (breaks up on light and patterned wallpapers). One plate for all five styles: a mixed-style row
+  shadow and no plate (breaks up on light and patterned wallpapers). One plate for all six styles: a mixed-style row
   shares one baseline, and the plate repeats the orb's own glass instead of competing with any instrument.
 - **When it shows**: the orb's `showName` (`true` / `false`), else the global `orbNames`:
 
@@ -1093,8 +1331,8 @@ wallpapers, in tight rows, columns and clusters, with Latin, CJK, long and multi
   | `"always"` | on every orb |
   | `"never"` | on none |
 
-  Never drawn below S = 80 (`minimal` only: the plate would outweigh the orb's 7 pt title; the source chip still appears
-  on hover), nor while its orb is hidden.
+  Never drawn below S = 80 (the plate would outweigh the orb's 7 pt title; the source chip still appears on hover),
+  nor while its orb is hidden.
 - **Content**: colour dots, then the orb's name (custom `name`, else automatic; data model above).
   - Dots: one per tracked source in source order, at most three, each overlapping the previous by a third, the first in
     front, separated by a 1 pt ring in the plate color; source colors as the bezel (light: darkened 10 %). All sources:
@@ -1199,7 +1437,11 @@ An orb never deletes or rewrites its sources because of that.
 ### Context menu (right-click on an orb)
 
 Native menu (macOS `NSMenu` with leading check marks; Windows Fluent context menu), submenus open away from the screen
-edge. Windows (this menu and the tray quick menu): every label starts in one text column whether or not the item has an
+edge. It opens with its top-left corner at the pointer (at the disc's centre from accessibility), moved left and up as
+needed to stay whole on that screen's visible area, never scrolled. On macOS the menu has no parent window (boards'
+menus too): a menu opened for a floating panel joins the panel's window group, and macOS 27 can leave that group on no
+Space after the panel is dragged to another display, so the menu is never drawn and the orb can leave the screen with
+it. Windows (this menu and the tray quick menu): every label starts in one text column whether or not the item has an
 icon (icons sit in a fixed leading column), and toggle items show their check mark trailing, right-aligned in the same
 column as submenu chevrons, so checked and unchecked items never shift the text:
 
@@ -1207,16 +1449,31 @@ column as submenu chevrons, so checked and unchecked items never shift the text:
    capsule or mode row (user's choice, 2026-10-28); agents' effort and speed stay on the dashboard's agent rows
    (section 4, Agents), boards and history. The orb's hover info line never mentions modes either, and a configured
    value (section 4, *Configured capsule*) is no exception: an orb looks the same whether or not one exists.
-2. `orbs.style` ▸ the five style names, check on the current one.
+2. `orbs.style` ▸ the six style names, check on the current one. A `character` orb follows it with
+   `characters.title` ▸ `characters.auto`, separator, every installed character (checked when locked to it), separator,
+   `characters.more` (opens the orb's Settings, where the character section sits under the style cards).
 3. `orbs.sources` ▸ `orbs.sources.all`, separator, every source in source order with its colour dot and a check when
    tracked; unavailable ones show their status in secondary text and stay selectable. Unchecking the last tracked source
    is disabled (`orbs.sources.lastOne`). Checking `orbs.sources.all` replaces the set; checking a source on an
    all-sources orb makes the set that single source. It is followed by `orbs.unit` ▸ `orbs.unit.tokens` /
    `orbs.unit.cost` (section 9), `orbs.traffic` ▸ `orbs.traffic.sources` / `orbs.traffic.machine` /
    `orbs.traffic.intelligence` / `orbs.traffic.off` (section 10) and `orbs.showName`, checked when the orb's name
-   plate shows (Name plate).
-4. `menu.size` ▸ `menu.size.small` / `.medium` / `.large` (112 / 148 / 196; `minimal` sizes below 96 are set in
-   Settings).
+   plate shows (Name plate). A `character` orb has `character.readouts` ▸ in place of the unit and traffic items: a
+   check per card (`character.readouts.intel`, `.thinking`, `.latency`, `.network`, `.cost`, `.agents`, `.models`,
+   `.quota`, `.model`; network disabled
+   while traffic is not measured), a separator, the section header `character.readouts.networkScope` and the radio
+   pair `orbs.traffic.sources` / `orbs.traffic.machine` (disabled while the network card is off). The quick menu
+   does the same. In Settings the orb editor shows the cards as checkboxes with the scope popup and
+   `character.readouts.hint` (section `character.readouts`) in place of the unit section.
+4. `menu.size` ▸ `menu.size.small` / `.medium` / `.large` (112 / 148 / 196, checked when the size is one of them), a
+   separator, then a slider over the whole range (64–240 pt, 4 pt steps) with the value at its trailing edge
+   (`%d pt`, tabular digits, secondary text). The orb resizes live while the thumb moves, every step is stored like a
+   preset, and the presets' checks follow it. Keyboard (Windows, Linux): once the slider row has the focus, ← / → step
+   4 pt and ↑ / ↓ move on to the other rows. macOS: NSMenu stops navigating while a view in it holds the focus (and the
+   orb's menu belongs to an app that is usually not active), so the row never takes it and the arrow keys keep moving
+   between rows; the presets and Settings are the keyboard route there. Its accessible name is `settings.orb.size` and
+   its value the `%d pt` text; VoiceOver, Narrator and Orca increment and decrement it by 4 pt. The quick menu's size
+   item (one orb) is the same submenu.
 5. `menu.effects` ▸ Off / Soft / Standard / Max (global).
 6. Separator; `menu.alwaysOnTop`, `menu.clickThrough` (this orb).
 7. Separator; `orbs.add`; `menu.orb.duplicate`; `menu.orb.split` (enabled when the orb tracks two or more available
@@ -1286,7 +1543,7 @@ Persisted next to the orbs as one JSON value (key `boards`), written atomically 
 ```json
 { "version": 1,
   "boards": [ { "id": "…", "style": "neon", "size": "M", "sources": "all", "opacity": 1.0, "alwaysOnTop": true,
-                "clickThrough": false, "allSpaces": true, "visible": true,
+                "clickThrough": false, "fadeWhenIdle": false, "allSpaces": true, "visible": true,
                 "readouts": { "intelligence": true, "thinking": true, "cost": true } } ],
   "layouts": { "<arrangement key>": { "<board id>": { "display": "…", "xAnchor": "high", "x": 12, "yAnchor": "fraction", "y": 0.2 } } } }
 ```
@@ -1298,6 +1555,7 @@ Persisted next to the orbs as one JSON value (key `boards`), written atomically 
 | `size` | `S` 280 × 280, `M` 340 × 340 (default), `L` 420 × 420 pt/DIP; unknown → `M`. |
 | `sources` | As an orb's (2b): `"all"` or METRICS 1 keys; the board counts only those sources (METRICS 6.8). |
 | `opacity`, `alwaysOnTop`, `clickThrough`, `allSpaces`, `visible` | As an orb's. |
+| `fadeWhenIdle` | As an orb's (section 2, *fade when idle*), on the board's own idle state (*Interaction and window*, below); default `false`. Added in this version without a format change: a board saved by an earlier version, or a value that is not a boolean, reads as `false`, and older builds ignore the key. |
 | `readouts` | The live metrics switches (*Live metrics*, below): `intelligence`, `thinking`, `cost`; a missing field or key, or a value that is not a boolean, reads as `true`. A `rowCost` key saved by an earlier version is ignored and no longer written. |
 | `layouts` | As the orbs' (2b, arrangement keys, position records, at most 16 arrangements). |
 
@@ -1730,8 +1988,15 @@ memory the board owns (layer textures, swap chain or drawable surfaces, instance
   懸浮窗, Boards).
 - Settings → 懸浮窗 gains a Boards list under the orbs: one row per board (style preview thumbnail, style name,
   sources, visible switch) with add / remove, and an editor for style, size, sources, the live metrics switches
-  (*Live metrics*), opacity and the window toggles.
+  (*Live metrics*), opacity and the window toggles: `menu.alwaysOnTop`, `menu.clickThrough`, `settings.orb.fadeIdle`,
+  `settings.orb.allSpaces` (macOS), in the orb editor's order and with its captions (section 5).
   The quick menu gets `boards.show` / `boards.hide` (all boards) and `boards.add`.
+- **Fade when idle** (`fadeWhenIdle`, off for a new board): section 2's rule on the board's own idle state, its
+  `live_A` in the idle tier (the hero shows the idle label) for 60 s. The whole window fades as one, the rounded square
+  and the effects around it (bloom, comets, sparks), to 45 % of the board's opacity. Activity of its sources, the
+  pointer on the square (hover, a drag) and switching it off restore the board at once. Like the orb's, the switch is
+  in Settings only, not in the context menu. A faded idle board stays static (*Frame policy*): the 0.6 s fade is its
+  only motion.
 - Accessibility: a board is a list element labelled `a11y.board` (sources, value, title); each group row is an item
   labelled `a11y.board.row` (`第 1 名，tihu，每秒 7.88k 個 token，推理強度 xhigh，加速 Fast，100 個子 agent`); the live
   metrics add their words to both (*Live metrics*, Accessibility).
@@ -1780,6 +2045,17 @@ Windows only. macOS has no equivalent: the system places menu bar items and the 
   4 px × the taskbar's DPI scale before it, spanning the notification area's height when that is shorter than the
   taskbar. Other programs that draw on the taskbar (for example KuGou Music's taskbar lyrics) may claim the same spot,
   so the user can move the widget along the taskbar.
+- Other programs' windows on the taskbar: every visible window that another program hosts anywhere inside the taskbar
+  window (TrafficMonitor's `TrafficMonitorTaskbarWindow` beside the notification area, taskbar lyrics, other meters) is
+  kept clear by the same scaled gap. The shell's own parts and any Agent Speed widget are not counted, nor is a window
+  that does not cross the taskbar or covers more than half of its length (an overlay, not a neighbour). A spot that would
+  come within the gap of one moves toward the taskbar's start until the widget clears every one of them, so neighbours
+  in a row are passed together; without room before the limit below it moves back toward the notification area instead;
+  with room on neither side the widget is unavailable, as when the taskbar has no room. Drawing, the press that starts a
+  drag and the offset a drag stores all use this rule, so a widget dropped onto a neighbour stores the spot it actually
+  took. The widget's periodic check (every 2 s) looks again, so it follows when such a window appears, moves or goes
+  away. Matching every foreign window instead of a list of known programs needs no update for the next taskbar tool and
+  never mistakes the shell's own buttons for one.
 - Drag: press the left button on the widget and move the pointer along the taskbar (left/right; up/down on a vertical
   taskbar). Once the pointer has moved along the taskbar by more than the system drag distance (`SM_CXDRAG` /
   `SM_CYDRAG` at the taskbar's DPI), the press becomes a drag: the widget follows the pointer at once (no animation)
@@ -1834,6 +2110,32 @@ Sections (top to bottom, 16 pt spacing, hairline separators):
    with its status. A listed source that is disabled is dimmed. Rows fade in and out as sources join and leave (at
    midnight every row leaves until its source produces again). With no row the section shows
    `dashboard.sources.empty` in secondary text under its header.
+   A source with a quota observed within the last 24 hours (QUOTAS 2) is listed too, its today values at 0.
+   **Quota lines** (QUOTAS; user's choice 2026-11-10: two bars per row, percent and reset time): a row whose source
+   has a quota with windows, and whose quota switch is on (section 5), adds one line per window under its secondary
+   line, in QUOTAS 2 order. Only the windows the account has appear: a weekly-only account shows one line, with no
+   placeholder for a 5-hour window.
+   - Columns, from the name's leading edge: the label (`5h`, `7d`, `Fable 7d`), 11 pt medium, secondary, in a column
+     as wide as the section's widest label; 8 pt; the bar, flexible, at least 88 pt; 8 pt; the percent, 11.5 pt
+     semibold tabular in the value color, right-aligned in a cell as wide as `100%`; 8 pt; the long reset (QUOTAS 7:
+     `3 小時 12 分後重置`, `週五 09:00 重置`), 11 pt secondary, in the rest of the row, its tail truncated. While the
+     snapshot is more than 1 hour old, ` · ` and `quota.age` follow in tertiary.
+   - Bar: 4 pt tall, fully rounded; track label 8 % (dark 12 %); fill the source color, amber `#F5A524` (light
+     `#B86E00`) from 80 %, the system red from 95 %, when the percent takes the same red. The pace mark, while
+     QUOTAS 7 gives one, is a 1 × 8 pt tick at the pace fraction, label 35 %, centered on the bar's height.
+   - Spacing: the first line 6 pt below the secondary line, lines 4 pt apart; the row eases to its new height (0.25 s).
+   - Motion: a bar eases to its new length (0.4 s, ease-out); a reset empties it over 0.6 s; texts crossfade in 0.2 s.
+     Reduce Motion: lengths change at once.
+   - Tooltip of a line: `quota.updated` with the snapshot's time (time only today, else date and time) and, while
+     known, `quota.pace`.
+   - Accessibility: the row's label adds, after the cost, one `a11y.quota.window` per window
+     (`a11y.quota.windowNoReset` without a reset time), joined by `list.separator`.
+   - Increase Contrast / Windows high contrast: fill and pace mark in the text color, track in the disabled-text color.
+   - **Claude Code invitation**: while `quotaClaudeCli` is off and the invitation was not dismissed, the listed Claude
+     Code row shows one line in place of quota lines: the link button `dashboard.quota.enableCli` (11 pt, accent color)
+     and, at the trailing edge, a × (10 pt, tertiary, secondary on hover; tooltip and accessibility label
+     `dashboard.quota.dismiss`). The link asks as section 5 does (*額度*) and turns the bridge on; × hides the
+     invitation for good (`quotaCliInvite`).
 4. **Agents** — up to 6 rows sorted by section 6.7 of METRICS: project (semibold), source + model (secondary,
    truncated), phase badge (generating: animated three-dot shimmer in the source color; tools: wrench glyph;
    idle: grey dot), effort capsule, 性能 (the performance score, section 12) and live tok/s right-aligned. Sub-agents are indented 12 pt with a
@@ -2057,6 +2359,9 @@ rows, section 10); the file name is `agent-speed-history-<code>-<first date>-<la
 | `openclaw` | `openclaw` |
 | `hermes` | `hermes` |
 | `droid` | `droid` |
+| `devin` | `devin` |
+| `qoder` | `qoder` |
+| `qoderCli` | `qoder-cli` |
 
 Empty state (the range has neither token usage nor agent traffic, section 10): centered muted gauge glyph,
 `history.empty` and `history.empty.hint`. First launch after upgrading:
@@ -2442,8 +2747,9 @@ once; the glow blends two pre-blurred copies (σ 1.6 and 4.2 units) per frame in
 
 ## 5. Settings
 
-Native settings window (macOS: SwiftUI `Settings`/grouped `Form`, 600 pt wide so that the nine toolbar tabs fit in
-every language — the Japanese labels need at least 580 pt — and 680 pt for 一般 and 懸浮窗; Windows: Fluent WPF window
+Native settings window (macOS: SwiftUI `Settings`/grouped `Form`, 640 pt wide so that the ten toolbar tabs fit in
+every language — the Japanese labels need at least 628 pt, with the short tab labels `Remote` / `リモート` for 遠端主機
+— and 680 pt for 一般 and 懸浮窗; Windows: Fluent WPF window
 with Mica). Sections:
 
 - **一般 General** — Appearance (Auto / Light / Dark), Language (System / 繁體中文 / 简体中文 / English / 日本語),
@@ -2464,55 +2770,143 @@ with Mica). Sections:
 - **懸浮窗 Floating orbs** — the orb list and the per-orb editor (Floating orb pane, below).
 - **特效 Effects** — Intensity (Off / Soft / Standard / Max), Celebrate new peaks, Response pulses,
   **Preview effects** button: runs the demo driver for 20 s sweeping through every tier.
+  macOS adds, last, `mac.settings.effects.displaySync` (on by default) with the footnote
+  `mac.settings.effects.displaySync.hint`: the Metal layers of the orbs and boards present in step with the display's
+  refresh (`CAMetalLayer.displaySyncEnabled`). Off presents a frame as soon as it is drawn, as every build before the
+  switch did; on an M1 MacBook Pro that kept the built-in display's brightness from changing (issue #48). A change
+  applies from each surface's next frame.
 - **費用 Cost** — currency, live value unit, subscription marks, price table status (section 9).
 - **網路流量 Network Traffic** — measuring switch, tools, speed unit, the menu bar / taskbar readout and the per-agent
   measurement status; on Windows the optional helper service (section 10).
 - **API** (`settings.report`, the same short name in every language; the broadcast icon) — opt-in live reporting to
   an API the user chooses, for example a leaderboard service: service, username, API key, what is sent, status, pause
-  and *Forget this device* (section 11, `spec/REPORTING.md`).
-- **資料來源 Data sources** — per source: toggle, detected path, status (`找到 128 個工作階段` / `未找到資料夾`),
-  Change…, Reset. Below the list: `history.open` and `history.clear` (with a confirmation dialog `history.clear.confirm`).
-  - omp: one row. The path is the default sessions root (METRICS 2); the status counts the sessions of the default
-    root and every named-profile root together. Change… picks one `sessions` folder and replaces all automatic roots;
-    Reset returns to them. Caption `settings.sources.ompHint`.
-  - Pi: one row after Grok Build: the path is the default sessions root (METRICS 2), the status counts the main
-    session files of every automatic root (`source.sessions`; sub-agent files are not sessions), Change… picks one
-    folder and replaces the automatic roots (`mac.settings.sources.choosePi` on macOS), Reset returns to them.
-    Caption `settings.sources.piHint`. An omp folder that is Pi's (METRICS 4.7) is counted under Pi only.
-  - OpenClaw: one row after Pi. The path lists the state folders found (`~/.openclaw`, then any `~/.openclaw-<profile>`;
-    METRICS 2, 4.14); the status counts the transcript windows of every agent database that are not sub-agents
-    (`source.sessions`). Change… picks one folder or database — a state folder, an agent folder (OpenClaw's
-    `agentDir`) or `openclaw-agent.sqlite` — and replaces the automatic roots (`mac.settings.sources.chooseOpenClaw`
-    on macOS, a file-or-folder picker); Reset returns to them. A database of OpenClaw 2026.7 or older (no session
-    tables) shows `warning.unsupportedFormat`. Caption `settings.sources.openclawHint`, which also says that turns
-    OpenClaw hands to Claude Code, Codex or ACP agents count under those agents.
-  - Hermes Agent: one row after OpenClaw. The path is the Hermes home (`~/.hermes`, Windows `%LOCALAPPDATA%\hermes`; METRICS 2,
-    4.15); the status counts today's main sessions (`source.sessions`; sub-agent sessions are not counted). Change…
-    picks a Hermes home or one `logs` folder and replaces the automatic home (`mac.settings.sources.chooseHermes` on
-    macOS); Reset returns to it. A home without logs (installed, never run) shows `source.sessions` with 0. Caption
-    `settings.sources.hermesHint`, which also says that turns of Hermes's Codex runtime count under Codex.
-  - Factory Droid: one row after Hermes Agent. The path is the sessions folder (`~/.factory/sessions`, Windows
-    `%USERPROFILE%\.factory\sessions`; METRICS 2, 4.16); the status counts today's main sessions (`source.sessions`;
-    Task-tool workers are not counted). Change… picks the `.factory` folder or its `sessions` folder and replaces the
-    automatic root (`mac.settings.sources.chooseDroid` on macOS); Reset returns to it. Caption
-    `settings.sources.droidHint`, which also says that token usage comes from each session's settings file, so a
-    call's tokens appear once droid saves them, and that sub-agents count on their own.
-  - Antigravity: one row. The path lists the stores found (`~/.gemini/antigravity-cli`, `antigravity`,
-    `antigravity-ide`); the status counts conversation databases (`source.sessions`). Change… picks one store folder
-    (or its `conversations` folder) and replaces all three; Reset returns to them. A chosen `*-backup` store is never
-    read (METRICS 4.8) and shows `source.folderMissing`. Caption `settings.sources.antigravityHint`.
-  - WorkBuddy and WorkBuddy AI: one row each, adjacent in source order, each with its own folder (two groups where a
-    platform groups rows by folder, as macOS does). The path is the data folder (`~/.workbuddy`, `~/.workbuddy-ai`);
-    the status counts main session files (`source.sessions`; sub-agent transcripts and cloud conversations are not
-    sessions here). Change… picks the data folder or its `projects` folder and replaces that source's folder only;
-    Reset returns to the default. A data folder without `projects` (installed, never used) shows `source.sessions`
-    with 0. Captions `settings.sources.workbuddyHint` and `settings.sources.workbuddyAiHint`, which also say that
-    cloud conversations are not counted (METRICS 4.9).
+  and *Forget this device* (section 11, `spec/REPORTING.md`). A segmented control on top switches to 區域網路, the local
+  network feed for devices on the user's network (section 14, `spec/LAN.md`).
+- **資料來源 Data sources** — every source can read several folders (issue #45; the rules are METRICS 2.1). The pane
+  opens with the caption `settings.sources.locationsHint`. Then one group per location list (Claude Code and Claude
+  Desktop share one; WorkBuddy and WorkBuddy AI have one each): the source toggles, each with its status line
+  (`找到 128 個工作階段` / `未找到資料夾` / off / reading; the count covers every location), then one row per entry of
+  the list, then the actions row; the group's caption below. Below the groups: `history.open` and `history.clear` (with
+  a confirmation dialog `history.clear.confirm`). Mock (approved):
+
+  ```
+  Codex
+    ~/.codex/sessions        預設   🔍 ⊖
+    ~/work/codex/sessions           🔍 ⊖
+    [加入資料夾…]  [重設]
+  ```
+
+  - **Entry row**: folder icon (22 pt; a document icon for a database file), then the path abbreviated with `~`, one
+    line, middle-truncated, selectable, the full path as tooltip. The automatic entry names its default folders as
+    before lists existed — Gemini CLI both `tmp` folders on two lines, Antigravity the stores found (all three when
+    none is), OpenClaw the state folders found (`~/.openclaw` when none is), omp and Pi only their default root
+    although profiles and Pi's custom session folder are read too — and its first line ends with the badge
+    `settings.sources.default` (預設; caption weight, secondary on a faint capsule, an outline with increased
+    contrast); a user location has no badge. When nothing the entry reads exists, its icon and path are dimmed and a
+    second line `⚠ source.folderMissing` follows (an automatic entry with several folders dims only the missing ones).
+    Trailing: Show in Finder (magnifying glass; disabled when nothing exists) and Remove (minus circle; tooltip
+    `settings.sources.remove`, accessibility label `settings.sources.removeLocation` with the path; disabled on the
+    only entry, with the tooltip `settings.sources.keepOne`). The row's context menu repeats both. Accessibility: the
+    path column is one element labelled as the folder, valued with its paths, then 預設, then `source.folderMissing`
+    when missing; the two buttons follow it.
+  - **Actions row**, leading-aligned as in the mock: `settings.sources.add` (加入資料夾…) then `settings.sources.reset`
+    (重設). Add opens the folder picker of the platform with the source's message (the same picker, validation and
+    message as the single *Change…* of earlier versions; OpenClaw's also accepts `openclaw-agent.sqlite`). A pick the
+    list refuses (METRICS 2.1 *Editing*) changes nothing and says why in a sheet or dialog on Settings:
+    `settings.sources.alreadyListed`, `settings.sources.alreadyDefault` or `settings.sources.limit`, with the picked
+    path as its detail and one OK button. At 8 entries Add is disabled, and `settings.sources.limit` (最多可以加入 8 個
+    位置) reads at the trailing end of the row and as Add's tooltip. Reset is disabled while the list is the automatic
+    entry alone. Adding, removing and resetting animate the rows (none with reduce motion).
+  - What each automatic entry reads and what each source's status counts: omp the default root and every
+    named-profile root together (caption `settings.sources.ompHint`); Pi the main session files of its automatic roots
+    (`source.sessions`; sub-agent files are not sessions; caption `settings.sources.piHint`; an omp folder that is Pi's,
+    METRICS 4.7, is counted under Pi only); OpenClaw the transcript windows that are not sub-agents of every agent
+    database (a database of OpenClaw 2026.7 or older shows `warning.unsupportedFormat`; caption
+    `settings.sources.openclawHint`, which also says that turns OpenClaw hands to Claude Code, Codex or ACP agents count
+    under those agents); Hermes Agent today's main sessions (a home without logs shows `source.sessions` with 0; caption
+    `settings.sources.hermesHint`); Factory Droid today's main sessions (Task-tool workers are not counted; caption
+    `settings.sources.droidHint`); Devin the CLI sessions with a row today (METRICS 4.17; caption
+    `settings.sources.devinHint`); Qoder IDE the chat sessions with a row today (METRICS 4.18; caption
+    `settings.sources.qoderHint`, which also says that tiers name no model, so no cost shows); Qoder CLI today's main
+    session files (METRICS 4.19; caption `settings.sources.qoderCliHint`, which also says that Qoder's own models keep
+    no token usage on disk unless `qodercli` runs with `QODER_EXPOSE_TOKEN_USAGE=1`); Antigravity conversation databases (a `*-backup` store is never read, METRICS 4.8,
+    and as a user location shows `source.folderMissing`; caption `settings.sources.antigravityHint`); WorkBuddy and
+    WorkBuddy AI main session files (a data folder without `projects` shows `source.sessions` with 0; captions
+    `settings.sources.workbuddyHint` and `settings.sources.workbuddyAiHint`, which also say that cloud conversations are
+    not counted). Pi, OpenClaw, Hermes Agent, Factory Droid, Devin, Qoder IDE and Qoder CLI sit in source order after
+    Grok Build. Devin's
+    automatic entry names the CLI folder that holds `sessions.db` (`~/.local/share/devin/cli`); with `$CHISEL_SESSION_DB`
+    it names that database's folder and is found while that file exists, whatever its name.
+  - Add Folder… accepts what METRICS 2 names for the source: omp one `sessions` folder; Pi one folder
+    (`mac.settings.sources.choosePi` on macOS); OpenClaw a state folder, an agent folder (OpenClaw's `agentDir`) or
+    `openclaw-agent.sqlite` (a file-or-folder picker); Hermes Agent a Hermes home or one `logs` folder; Factory Droid
+    the `.factory` folder or its `sessions` folder; Devin the CLI folder that holds `sessions.db` or its `devin` data
+    folder (`mac.settings.sources.chooseDevin` on macOS); Qoder IDE the IDE's data folder, its `SharedClientCache`
+    folder or the folder that holds `local.db` (`mac.settings.sources.chooseQoder`); Qoder CLI a config folder (`.qoder`)
+    or its `projects` folder (`mac.settings.sources.chooseQoderCli`);
+    Antigravity one store folder or its `conversations` folder;
+    WorkBuddy the data folder or its `projects` folder.
+  - **Storage**: one settings value `sourceLocations`, the JSON document
+    `{"version":1,"lists":{"codex":[{"automatic":true},{"path":"/Users/me/work/codex/sessions"}]}}` (macOS: data in
+    the app's defaults). A list that is the automatic entry alone is left out; lists of sources the build does not
+    know are kept as stored; unknown entries are skipped. The single-folder values of earlier versions (`codexRoot`,
+    `claudeRoot`, … `droidRoot` on macOS) are read only while `sourceLocations` is absent, to migrate (METRICS 2.1), and
+    are never written again.
+  - `settings.sources.change` (*Change…*) is retired by the list and removed from `strings.json`.
+  - **額度** (`quota.title`; QUOTAS; user's choice 2026-11-10). Switches after the source toggles of their group, each
+    with its hint as caption:
+    - Codex: `settings.quota.codex` (`quotaCodex`, on).
+    - Claude: `settings.quota.claudeDesktop` (`quotaClaudeDesktop`, on) and `settings.quota.claudeCli`
+      (`quotaClaudeCli`, off).
+    Turning `quotaClaudeCli` on asks first. The sheet (macOS) or dialog has the title
+    `settings.quota.claudeCli.confirm.title` and the message `settings.quota.claudeCli.confirm.message` with the
+    settings file's path abbreviated with `~`, and offers `settings.quota.claudeCli.confirm.ok` (default) and Cancel.
+    - Confirming runs QUOTAS 5.2. Cancel, or a failed install, leaves the switch off and shows the failure under it
+      (`settings.quota.cli.unreadable`, `settings.quota.cli.failed`) in the warning style.
+    - While the bridge is on, a status line under the switch reads QUOTAS 5.4:
+      - `settings.quota.cli.waiting`;
+      - `settings.quota.cli.ok` with the quota file's time (short time; date and time when not today);
+      - `settings.quota.cli.replaced` in the warning style, with the button `settings.quota.cli.reconnect`.
+    - Turning it off runs QUOTAS 5.3 at once, without a dialog.
+    Storage: `quotaCodex`, `quotaClaudeDesktop`, `quotaClaudeCli` (booleans) and `quotaCliInvite` (`"dismissed"` or
+    absent). Remote hosts use the same source switches for their agents (REMOTE 11); the Claude Code bridge is a
+    switch of each host (section 13).
+  - **額度, phase 2** (QUOTAS 9; user's choice 2026-11-10). Each source's group gets its switch after the source
+    toggles, with its hint and `settings.quota.unverified` below as the caption (secondary, then tertiary):
+    - Grok Build: `settings.quota.grokBuild` (`quotaGrokBuild`, on), and indented under it
+      `settings.quota.grokBuildLive` (`quotaGrokBuildLive`, off; disabled while the first is off).
+    - Devin `settings.quota.devin`, Antigravity `settings.quota.antigravity`, Kimi Code `settings.quota.kimi`, Gemini
+      CLI `settings.quota.gemini`, Factory Droid `settings.quota.droid`: on.
+    - ZCode: `settings.quota.zcode` (`quotaZcode`, off) with, while on:
+      - a secure text field `settings.quota.zcode.key` (placeholder `settings.quota.zcode.keyPlaceholder`). A pasted
+        key is saved to the secret store (QUOTAS 9.8) when the field loses focus or Return is pressed, and the field
+        then shows `settings.quota.zcode.saved` with a `settings.quota.zcode.remove` button. The key is never shown
+        again.
+      - a region picker `settings.quota.zcode.region` (`settings.quota.zcode.regionGlobal`,
+        `settings.quota.zcode.regionCn`).
+    - Qoder (one switch in the Qoder IDE group, for both Qoder sources) `settings.quota.qoder` and WorkBuddy (the
+      WorkBuddy group) `settings.quota.workbuddy`: off, with `settings.quota.cookies.hint` as the caption. Turning one
+      on asks first: `settings.quota.cookies.confirm.title` with `.message` (the site's name and host), buttons
+      `settings.quota.cookies.confirm.ok` (default) and Cancel.
+    - While a switch is on, a status line under it reads the source's state:
+      - `settings.quota.status.ok` with the time;
+      - `settings.quota.status.noCredential` or `.noBrowser`;
+      - `settings.quota.status.expired` (with the agent's name) or `.denied` (with the host);
+      - `settings.quota.status.failed`;
+      - `settings.quota.status.networkOff` when `networkEnabled` is off;
+      - `settings.quota.status.notRunning` while nothing asks yet because the agent is not running.
+      Problems show in the warning style, the rest in secondary.
+    Storage: `quotaGrokBuild`, `quotaGrokBuildLive`, `quotaDevin`, `quotaAntigravity`, `quotaKimi`, `quotaGemini`,
+    `quotaDroid`, `quotaZcode`, `quotaZcodeRegion` (`global` / `bigmodel-cn`), `quotaQoder`, `quotaWorkBuddy`; the
+    ZCode key only in the secret store.
 - **關於 About** — version, GitHub link, license, privacy statement: read-only, local-only, no network, no telemetry,
   conversation content is never stored or displayed. With the cost feature: `privacy.statement` and the Network group
   with the master switch (section 9, `spec/NETWORK.md`). With traffic measuring: `privacy.traffic` follows
   (section 10). `privacy.perfScore` follows, always (section 12: what the performance score reads, what it keeps and
-  what live reporting may send). With live reporting: `privacy.report` follows, and the texts switch while reporting is
+  what live reporting may send), then `privacy.quota`, always (QUOTAS 8). While remote hosts exist, `privacy.remote` follows it (section 13: the user's own SSH,
+  a read-only helper in `~/.cache/agent-speed` on the host, only numbers come back, nothing about hosts is reported).
+  While the local network server is on or any target exists, `privacy.lan` follows (section 14).
+  With live reporting: `privacy.report` follows, and the texts switch while reporting is
   on (section 11); `privacy.perfScore` stays as it is: it already says that only live reporting with model sharing
   sends the score and the performance statistics.
 
@@ -2602,14 +2996,27 @@ accent color for selection, no extra borders. The pane scrolls when taller than 
      source order: checkbox, colour dot, name, trailing status (`source.notFound` / `source.disabled`) in secondary.
      With all sources on, the rows show checked and disabled. The last checked source cannot be unchecked (help tag
      `orbs.sources.lastOne`).
-   - **`orbs.style`** — five cards in one row (≈ 120 × 112 pt; 3 + 2 rows below 560 pt of width): an animated preview
+   - **`orbs.style`** — six cards in one row (≈ 100 × 112 pt; 3 + 3 rows below 560 pt of width): an animated preview
      (the real renderer at 64 pt, effects Soft, looping cruise → redline → cruise every 8 s, each card 1.6 s later than
      the previous, ≤ 24 fps, only while visible; with Reduce Motion a still frame at the redline) above the style name
-     (`style.*`); the selected card has a 2 pt accent ring and a faint accent fill. Arrow keys move between cards; each
-     card's accessibility label is `orbs.preview.a11y`. Below the cards the selected style's name (semibold) and its
-     description (`style.*.desc`).
+     (`style.*`); the `character` card shows the locked (else the first installed) character's `preview.png`, or a
+     quiet silhouette when none is installed. The selected card has a 2 pt accent ring and a faint accent fill. Arrow
+     keys move between cards; each card's accessibility label is `orbs.preview.a11y`. Below the cards the selected
+     style's name (semibold) and its description (`style.*.desc`).
+   - **`characters.title`** (only for a `character` orb, under the style cards; CHARACTERS 2, 7) — `characters.choice`
+     with `characters.choice.hint`: a pop-up of `characters.auto` and the installed characters. Then one row per
+     character of the catalog, in catalog order, followed by installed ones the catalog does not list: the portrait
+     (the installed `preview.png`, else a silhouette — nothing is fetched for a character that is not downloaded), the
+     accent dot and localized name, `characters.artist` (a link when the pack gives an https URL) and the download size,
+     and on the right `characters.download` (prominent; disabled while network features are off), a progress bar with
+     `characters.cancel` while downloading and `characters.installing` while unpacking, or `characters.update` (when the
+     catalog has a newer `packVersion`) and `characters.remove`. A failed download shows its error under the row
+     (`characters.error.*`). Development packs (`AGENT_SPEED_CHARACTERS`) are marked `characters.development` and cannot
+     be removed. With no rows: `characters.loading`, or `characters.unavailable` with `characters.retry`, or
+     `characters.offline`. Footer: `characters.footer` and `characters.openFolder`. Showing the section refreshes the
+     catalog (at most every 10 minutes).
    - **Size** — `menu.size.small` / `.medium` / `.large` presets (112 / 148 / 196) as a compact segmented control left of
-     a slider (96–240, `minimal` 64–240, step 4) with the value in pt. **Opacity** — slider 40–100 % with the value.
+     a slider (64–240, step 4) with the value in pt. **Opacity** — slider 40–100 % with the value.
    - `orbs.showName` popup — `orbs.showName.auto` with the current automatic result, a separator, `orbs.showName.on`,
      `orbs.showName.off` (2b Name plate); changing it fades the desktop plate in or out live.
    - Switches: `menu.alwaysOnTop`; `menu.clickThrough` with the platform hint (the orb is then controlled from the menu
@@ -2747,7 +3154,8 @@ the USD amount in secondary text: `NT$1,235（US$37.94）`. Test vectors: `spec/
 (`python3 spec/tools/prices.py` checks them with a reference formatter).
 
 The unit is `cost.unitPerSecond` (`%@/s` with the symbol: `US$/s`, `¥/s`). Where a unit can be hidden (menu bar
-`settings.bar.unit` off, `minimal` orbs), the rate carries the symbol in front instead, like an amount: `$0.0042`.
+`settings.bar.unit` off, `minimal` orbs and every orb below 96 pt, section 2a), the rate carries the symbol in front
+instead, like an amount: `$0.0042`.
 
 ### Orb
 
@@ -2772,8 +3180,9 @@ The unit is `cost.unitPerSecond` (`%@/s` with the symbol: `US$/s`, `¥/s`). Wher
      the system double-click interval has passed without a second click, so a double-click still opens the dashboard
      and never toggles; a drag that starts on the unit moves the orb. Hover over the hit area raises the unit text from
      55 % to 85 % with a 0.5 pt underline at 40 % (0.15 s) and shows `orbs.unit.toggleHint` as a tooltip after 0.8 s; the
-     cursor stays the drag cursor elsewhere on the disc and becomes the pointing hand over the unit. In `minimal` (no
-     unit line) the value is the hit area. Click-through orbs ignore clicks: use the menu bar / taskbar orb submenu.
+     cursor stays the drag cursor elsewhere on the disc and becomes the pointing hand over the unit. Without a unit
+     line (`minimal`, and every orb below 96 pt, 2a) the value is the hit area. Click-through orbs ignore clicks: use
+     the menu bar / taskbar orb submenu.
   2. **Context menu**: `orbs.unit` ▸ `orbs.unit.tokens` (`tok/s`) / `orbs.unit.cost` (`US$/s · API 等值`), check on
      the current one; placed after `orbs.sources` (2b item 3). The quick menu's per-orb submenu (2b master switch) has
      the same item.
@@ -4070,3 +4479,173 @@ never anything per request or per tool call (section 11, METRICS 11.10). So:
 Retired with the task score: every `task.*`, `a11y.task.*`, `history.tasks.*` and `a11y.history.tasks.*` string,
 `privacy.taskScore`, `report.section.models.taskScore` and `intel.disclaimer`; the proof states, state chips,
 predictions, the composition bar and the task comparison; `spec/prototypes/task-score/`.
+
+## 13. Remote hosts (遠端主機)
+
+Agents on other machines reached with SSH (`spec/REMOTE.md`) appear next to local ones. Everything here is invisible
+until the first host is added: no host label, picker, section or column exists while `remoteHosts` is empty and the
+history store holds no host rows. Strings: `remote.*`.
+
+### Principles
+
+- **One meter, many machines.** A host's agents count in the same live value, totals, titles and peaks as local
+  agents; the host is a second dimension next to the source, never a separate meter.
+- **Where it runs is a fact, not a badge.** Hosts are named in text (a row's secondary line, a picker), never with a
+  new color: colors stay the sources' (section 1). This Mac is `remote.local` (本機 / 本机 / This Mac / このMac).
+- **Honest status.** A host that cannot be seen says so in words, with the one thing the user can do about it.
+
+### Settings → 遠端主機 Remote Hosts
+
+A tenth tab after 資料來源 (`settings.remote`, SF Symbol `server.rack`; the window's width rule of section 5 grows to
+fit ten tabs in every language). Grouped `Form`:
+
+1. **Hosts** — one row per host, in the order added: status dot (8 pt: connected green `systemGreen`, connecting /
+   installing / seeding a breathing `secondaryLabel` dot, retrying `systemOrange`, needs the user `systemRed`, disabled
+   or network off hollow), name (semibold) and `destination` (secondary, monospaced digits, truncated in the middle),
+   the status line (secondary; below), and a trailing switch (`enabled`). The row's context menu and an ellipsis
+   button: *Edit…*, *Retry now* (only when not connected), *Copy SSH command* (`ssh <destination>`, for the
+   first-connection fingerprint check), *Remove…*. Empty state: `remote.empty` with a short how-it-works line.
+2. **Add Host…** (`remote.add`) below the list, disabled at 8 hosts (tooltip `remote.limit`).
+3. **Footnote** — `remote.footnote`: what is sent (numbers only, never conversation content), that the user's own
+   SSH configuration and keys are used, that a small read-only program is placed in `~/.cache/agent-speed` on the
+   host, and that only Linux (x86_64, ARM64) is supported.
+
+**Status line** (`remote.status.*`): 已連線 · 3 個 agent (`connected`, with today's main sessions on the host);
+連線中… / 正在安裝… / 讀取中 42 % (progress); 無法連線，10 秒後重試 (`unreachable`, counting down); 需要金鑰登入
+(`authFailed`: Agent Speed never asks for passwords — set up a key or agent); 尚未信任這台主機 — 請先在終端機執行
+`ssh devbox` (`hostKeyUnknown`); 不支援的系統 (`unsupportedSystem`, with the reported system); 無法在遠端資料夾執行
+程式 — 請改用其他資料夾 (`notExecutable`); `cannotVerify`, `uploadFailed`, `versionMismatch`, `protocolError`,
+`exited`, `sshMissing` each with one plain sentence; 網路已關閉 (`networkOff`); 已停用 (`disabled`). When the clock
+offset is at least 5 s, the connected line adds `remote.clock.skewed` (遠端時鐘相差 12 秒，已自動校正). While the host
+shows `historyTooLarge` (REMOTE 8.3), a note `remote.status.historyTooLarge` with an orange warning symbol sits under
+the line, whatever the connection status. Hovering the status shows the last error time and, for `exited`, the exit
+status.
+
+**Add / Edit sheet** (420 pt): `destination` text field (placeholder `devbox 或 user@server`, validated as you type
+with REMOTE 2.1, the error under the field), `name` (placeholder = the automatic name), a disclosure *Advanced* with
+`relayFolder` (placeholder `~/.cache/agent-speed`), and *Test Connection* which runs the probe of REMOTE 4.2 step 1 and
+shows its result inline (system and architecture, or the status sentence). Save is the default button; it is
+disabled while a field is invalid. Saving an enabled host connects it at once.
+
+**Remove** — a confirmation alert `remote.remove.confirm` (name), with a checkbox `remote.remove.deleteHistory`
+(off by default) and the informative text `remote.remove.files` (where the relay files stay on the host).
+
+### Orbs and boards
+
+- Both documents gain `hosts`: `"all"` (default, absent = all) or a non-empty array of host ids (`local` and remote
+  ids), stored in settings order (local first). Unknown ids are kept and ignored like unknown sources. An orb or
+  board counts the agents and responses whose host **and** source are both selected (METRICS 6.8 evaluated over
+  (host, source) cells).
+- The orb editor and the board editor show a **Hosts** section under Sources, only while remote hosts exist: an
+  *All Hosts* checkbox and one checkbox per host (local first) with its status dot; the last checked host cannot be
+  unchecked. Context menus gain a *Hosts* submenu next to *Sources* under the same condition.
+- Automatic names (2b) append ` · <host>` when `hosts` is one host, ` · <first> +N` for several; `all` adds nothing.
+- An orb whose selected hosts are all disconnected shows its sources' unavailable state (2b *Unavailable sources*)
+  with `remote.orb.offline` as the reason.
+- Split by source keeps the orb's `hosts`. Merge keeps the target's.
+
+### Menu bar and dashboard
+
+- The menu bar / taskbar widget always shows every host (like every source).
+- **Dashboard → Hosts** — a section between Sources and Agents, only while remote hosts exist: one row per host that
+  is connected or produced output today (local first): status dot, name, live tok/s (right) and today's output
+  tokens (secondary; with today's cost, section 9). A row is a button that opens the Usage History window filtered to
+  that host; hover and focus as Sources rows. A disconnected host's row shows its status word instead of the live
+  value.
+- **Host quotas** (REMOTE 11; user's choice 2026-11-10). A host row in Dashboard → Hosts adds, for each source on
+  that host with a quota, a sub-line with the source's dot and name (11 pt, secondary), then that source's quota lines
+  as in section 4 *Quota lines*, indented under the name.
+  - The host editor (*Edit…*) has the switch `remote.quota.claudeCli` (the host's `quotaClaudeCli`, off) with the
+    caption `remote.quota.claudeCli.hint`. Turning it on asks first, with `remote.quota.claudeCli.confirm.title` and
+    `.message` (the host's name and the settings path on the host).
+  - The bridge's state shows under the switch with the `settings.quota.cli.*` lines.
+  - The 額度 card of a `character` orb that includes hosts lists host sources too, the header reading
+    `<source> · <host>`.
+- **Agents** — a remote agent's secondary line becomes `model · source · host`; local agents are unchanged. The
+  accessibility label adds `remote.a11y.onHost` (host). The score card's facts add the host.
+
+### Usage History window
+
+- A host picker next to the source picker (`remote.history.allHosts`, `remote.local`, then every host with history,
+  removed hosts included under their last name), only while any host history exists. Source and host filters combine.
+  A dashboard host row opens the window on its host (all sources); the picker then also lists that host if it has no
+  history yet. The selected host is named after the source under the title (`Codex · devbox · 2026/10/7 – 11/5`).
+  Monochrome symbols, no color: `square.stack.3d.up` for all hosts, `laptopcomputer` for this Mac, `server.rack` for a
+  host. As the window narrows, the picker caps a long name (truncated in the middle), then shows only its symbol, and
+  at the minimum width with every control present the source picker shows only its dot; the tooltips keep the names.
+- The peak (METRICS 8) is shown only for all hosts and all sources.
+- CSV export adds a trailing `host` column (host name; `local` for this Mac) only while host history exists.
+
+## 14. Local network (區域網路)
+
+The local network feed of `spec/LAN.md`: devices on the user's network read the live speed from this computer, and the
+app sends it to devices the user added. Off by default; subject to the network master switch (NETWORK 8).
+
+### Settings → API → 區域網路
+
+The API pane (section 11) gains, above its groups, a two-segment control `lan.segment.report` (即時上報) /
+`lan.segment.lan` (區域網路), centered, 300 pt wide (macOS `Picker(.segmented)`, Windows the Fluent segmented
+`SelectorBar`, Linux the QML segmented control used elsewhere). The pane shows the chosen segment's groups; the
+window title and toolbar tab stay `settings.report`. The choice is kept while the app runs (not persisted) and starts
+on 即時上報. Switching crossfades the groups (0.2 s; none with Reduce Motion). The 區域網路 segment, top to bottom:
+
+1. **Devices read** (header `lan.server`) — the switch `lan.server.enabled` with the caption `lan.server.hint`; on
+   Windows also `win.lan.firewall` (Windows asks once whether to allow the connection; choose private networks). With
+   the network master switch off the switch is disabled and the caption becomes `settings.network.offHint`. Turning it
+   on creates the access key if there is none (LAN 2.1). While on, these rows follow (they expand in, 0.2 s):
+   - **Status** — a dot and one line: green `lan.server.status.connected` / `.connected.one` with the number of
+     devices (distinct peer addresses with an open stream or an authorized request in the last 10 s), a breathing
+     secondary dot with `lan.server.status.listening` while there are none, orange `lan.server.status.portInUse`
+     (port) while the port is taken, red `lan.server.status.failed` for any other listening error, hollow
+     `lan.server.status.networkOff`.
+   - **Access key** (`lan.key`) — the key in groups of four (`K7Q4-M2X9-PT3D`), 13 pt monospaced medium, selectable.
+     Trailing: an icon button `lan.key.copy` (SF Symbol `doc.on.doc`; for 1.5 s after a copy it shows
+     `checkmark` and the tooltip `lan.key.copied`) and the borderless button `lan.key.regenerate`, which asks
+     `lan.key.regenerate.confirm` with the informative text `lan.key.regenerate.detail` (default button Cancel; the
+     confirming button is `lan.key.regenerate` without its ellipsis). A new
+     key closes the open connections at once (LAN 4.4).
+   - **Address** (`lan.addresses`) — one line per IPv4 address of this computer that is local (LAN 2.3) and not
+     loopback, on an interface that is up, in interface order, at most three: `192.168.1.20:7247`, 13 pt monospaced,
+     secondary, selectable; refreshed when the network changes. None: `lan.addresses.none`. Trailing on each line a
+     pull-down `lan.copy` with `lan.copy.http` (`http://192.168.1.20:7247/v1/live?key=K7Q4-M2X9-PT3D`),
+     `lan.copy.ws` (`ws://…/v1/stream?key=…`) and `lan.copy.tcp` (`192.168.1.20:7247`).
+   - **Port** (`lan.port`) — a 72 pt numeric field, applied on Return or when focus leaves; an invalid value shows
+     `lan.port.invalid` in red under the field and is not applied. Changing it restarts the server (LAN 4.1).
+2. **Send to devices** (header `lan.targets`) — one row per target in the order added, as the host rows of section 13:
+   status dot (green `ok`; orange `unreachable`, `httpStatus`, `failed`; red `notLocal`, `notFound`; breathing
+   secondary while waiting for the first send; hollow `off`, `networkOff`), the name (semibold; the address when the
+   name is empty), the secondary line `UDP · 192.168.1.50:7247` or `HTTP · http://…` (monospaced, truncated in the
+   middle; just `UDP` or `HTTP` when the name is empty, since the title already is the address), the status line and a trailing switch (`enabled`, accessibility label `lan.target.enabled`). The row's
+   context menu and an ellipsis button: `lan.target.edit`, `lan.target.remove` (alert `lan.target.remove.confirm`,
+   confirmed with `remote.remove.button`).
+   Empty: `lan.targets.empty` with `lan.targets.empty.hint`. Below the list `lan.targets.add`, disabled at 8 targets
+   (tooltip `lan.targets.limit`).
+   **Status line** (`lan.target.status.*`): `ok` 已送出 · 剛剛 (with `time.justNow` / `time.secondsAgo` /
+   `time.minutesAgo`, refreshed every second), `waiting`, `notFound`, `notLocal`, `unreachable` (counting down to
+   the next attempt), `httpStatus` (the code), `failed`, `networkOff`, `off`. On macOS the targets group's caption is
+   `mac.lan.localNetwork` (macOS asks once for local network access; where to change it).
+3. **Footnote** — `lan.footnote` (what is sent and what never is, local addresses only, plain text, Bonjour
+   discovery) and a link button `lan.docs` to `https://github.com/zoefix/agent-speed/blob/main/spec/LAN.md`.
+
+**Add / Edit sheet** (420 pt), laid out as the host sheet of section 13: the header (a 30 pt accent tile with the
+SF Symbol `dot.radiowaves.left.and.right`, the title `lan.sheet.add` or `lan.sheet.edit` with the target's name, and
+`lan.sheet.body`), then `lan.target.kind` — a segmented control UDP / HTTP with the caption
+`lan.target.kind.udp.hint` or `lan.target.kind.http.hint`; `lan.target.address` (placeholder
+`lan.target.address.placeholder.udp` / `.http`, validated as typed with a 0.3 s debounce by LAN 5.1: `port` errors
+show `lan.target.address.port`, `https` shows `lan.target.address.https`, anything else `lan.target.address.invalid`;
+a UDP address whose host is `255.255.255.255` or an IPv4 address ending in `.255` shows the info note
+`lan.target.broadcast`); `lan.target.name` (placeholder `lan.target.name.placeholder`); `lan.target.key` (a plain
+text field, caption `lan.target.key.hint`). `lan.target.test` sends the current frame once to the address in the
+fields (the feed builds one if it is not running) and shows the result inline as a status line: `lan.target.test.ok`
+or the status sentence — for `unreachable` the plain `remote.status.unreachable`, since a test does not retry. Save is the default button, disabled while the address is invalid; saving an enabled target
+sends to it from the next tick. The buttons are `history.cancel` and `remote.save` (editing) or `remote.addButton`;
+while a test runs the result line shows `remote.test.running` with a small progress indicator.
+
+### About
+
+While the server is on or any target exists, `privacy.lan` follows `privacy.remote` (section 5, About).
+
+### Accessibility
+
+The segmented control is one group with two options. Status dots are decorative; their status is in the text. The
+copy buttons have the labels `lan.key.copy` and `lan.copy`. The access key is read as the groups it shows.

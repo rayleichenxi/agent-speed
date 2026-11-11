@@ -23,7 +23,15 @@
                 <TextBlock Text="{Binding PrivacyTraffic}" Style="{StaticResource BodyText}" Margin="0,8,0,0" />
                 <!-- What the performance score reads and keeps (DESIGN 12, Privacy and wording), unchanged while live reporting is on. -->
                 <TextBlock Text="{loc:Loc privacy.perfScore}" Style="{StaticResource BodyText}" Margin="0,8,0,0" />
+                <!-- QUOTAS 8: where each quota comes from, always. -->
+                <TextBlock Text="{loc:Loc privacy.quota}" Style="{StaticResource BodyText}" Margin="0,8,0,0" />
                 <TextBlock Text="{Binding PrivacyReport}" Style="{StaticResource BodyText}" Margin="0,8,0,0" />
+                <!-- Remote hosts (DESIGN 13): only once a host is added. -->
+                <TextBlock Text="{loc:Loc privacy.remote}" Style="{StaticResource BodyText}" Margin="0,8,0,0"
+                           Visibility="{Binding HasRemoteHosts, Converter={StaticResource Visible}}" />
+                <!-- The local network feed (DESIGN 14): while its server is on or a target exists. -->
+                <TextBlock Text="{loc:Loc privacy.lan}" Style="{StaticResource BodyText}" Margin="0,8,0,0"
+                           Visibility="{Binding HasLanFeature, Converter={StaticResource Visible}}" />
                 <TextBlock Text="{loc:Loc settings.about.update}" Style="{StaticResource CaptionText}" Margin="0,8,0,0" />
                 <StackPanel Orientation="Horizontal" Margin="-4,12,0,0">
                     <Button Style="{StaticResource LinkButton}" Command="{Binding OpenRepositoryCommand}" Content="{loc:Loc settings.about.github}" />

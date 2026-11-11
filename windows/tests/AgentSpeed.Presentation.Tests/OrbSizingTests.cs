@@ -42,6 +42,15 @@ public class OrbSizingTests
     }
 
     [Fact]
+    public void CharacterUsesItsDoubleFootprintForPlacement()
+    {
+        var display = Laptop();
+        var orb = new OrbDefinition("character") with { Style = OrbStyle.Character };
+        Assert.Equal(208, display.FootprintFor(orb.Size, orb.Style));
+        Assert.Equal(156, display.RadiusFor(orb));
+    }
+
+    [Fact]
     public void UnpluggingAnExternalScreenKeepsDockingAndTheSavedBaseSize()
     {
         var external = new OrbDisplay("external", new RectD(1920, 0, 2560, 1400), 1, false);

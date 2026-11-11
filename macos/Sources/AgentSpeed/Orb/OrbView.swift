@@ -185,11 +185,44 @@ enum OrbContentBuilder {
             bezel: feed.bezel,
             unavailableTitle: feed.unavailableTitleKey.map { l10n($0) },
             money: money.map {
-                // `minimal` has no unit line, so its value carries the symbol (DESIGN 9).
-                OrbMoneyText(number: style == .minimal ? $0.inline : $0.number, value: $0.value, atLeast: $0.atLeast,
-                             unknown: $0.unknown)
+                // Without a unit line (`minimal`, small orbs) the value carries the symbol (DESIGN 9).
+                let unitLine = OrbReadoutLayout.hasUnitLine(style: style, diameter: diameter)
+                return OrbMoneyText(number: unitLine ? $0.number : $0.inline, value: $0.value, atLeast: $0.atLeast,
+                                    unknown: $0.unknown)
             },
-            lines: showsReadout ? feed.lines : nil
+            lines: showsReadout ? feed.lines : nil,
+            character: style == .character ? characterContent(model: model, feed: feed) : nil
+        )
+    }
+
+    /// The character, model and cards of a `character` orb (CHARACTERS 7, 8; DESIGN 2a.6, Readouts).
+    static func characterContent(model: AppModel, feed: OrbFeed) -> OrbCharacterContent {
+        let l10n = model.l10n
+        let pack = feed.characterID.flatMap(model.characters.installed)
+        let vendor = feed.vendors.fastestVendor
+        let readings = feed.characterReadings
+        let readouts = readings?.readouts ?? .default
+        let models = (readings?.models ?? []).map { row in
+            CharacterModelLine(id: row.model, speed: row.speed.map(String.init) ?? CharacterReadoutText.noSpeed,
+                               hasSpeed: row.speed != nil, accent: row.vendor.flatMap(model.characters.accent))
+        }
+        return OrbCharacterContent(
+            pack: pack,
+            modelName: feed.vendors.fastestModel,
+            vendorName: vendor.flatMap { model.priceBook.current.providers[$0]?.name },
+            accent: pack?.manifest.accentRGB.map { RGBColor(red: $0.r, green: $0.g, blue: $0.b) },
+            readouts: readouts,
+            readings: feed.characterReadings,
+            todayLine: feed.todayTokens > 0 ? l10n("boards.today", SpeedFormat.tokens(feed.todayTokens)) : nil,
+            agentsLine: feed.agentCount > 0 ? l10n("agents.count", feed.agentCount) : nil,
+            costGlyph: l10n("cost.glyph"),
+            latency: readings?.latencyMs.map { CharacterReadoutText.latency(ms: $0, language: l10n.language) },
+            models: models,
+            quota: readings.map { readings in
+                readings.quota.isEmpty ? []
+                    : CharacterQuotaText.sources(readings.quota, nowMs: model.quota.clockMs, l10n: l10n)
+            } ?? [],
+            emptyLabel: l10n("character.empty")
         )
     }
 }

@@ -27,16 +27,46 @@ jobs:
           python3 spec/tools/report_reference.py
           python3 spec/tools/execution_modes_reference.py
           python3 spec/tools/test_reporting_extensions.py
+          python3 spec/tools/lan_reference.py --check-fixtures
+          python3 spec/tools/quota_reference.py --check-fixtures
       - name: Validate vehicle art
         run: python3 spec/tools/vehicles.py
       - name: Lint installer
         run: shellcheck install.sh
 
+  relay:
+    name: Remote relay (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-24.04
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build static relay
+        run: linux/relay/build-static.sh ${{ matrix.arch }}
+      - uses: actions/upload-artifact@v7
+        with:
+          name: relay-${{ matrix.arch }}
+          path: linux/relay/dist/agent-speed-relay-linux-${{ matrix.arch }}
+          if-no-files-found: error
+
   macos:
     name: macOS
+    needs: relay
     runs-on: macos-26
     steps:
       - uses: actions/checkout@v5
+      # The tests read the embedded relays as the app bundle does.
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: relay-*
+          path: linux/relay/dist
+          merge-multiple: true
       - name: Select newest Xcode
         run: |
           xcode="$(ls -d /Applications/Xcode*.app | grep -viE 'beta|_rc|release_candidate' | sort -V | tail -1)"
@@ -46,7 +76,10 @@ jobs:
         working-directory: macos
         run: |
           set -o pipefail
-          swift test 2>&1 | tee "$RUNNER_TEMP/test.log" || {
+          # The suites with network round trips (and their timeouts) run after the rest, on their own: with every test
+          # started at once, a small runner can starve them past their timeouts.
+          network='HTTPFetcherTests|LanNetworkTests|Report(Discovery|DiscoveryFailure|EndToEnd|Invite|Profile|StreamEndToEnd)Tests'
+          { swift test --skip "$network" && swift test --filter "$network"; } 2>&1 | tee "$RUNNER_TEMP/test.log" || {
             grep -E '✘ Test [^ ]+ (recorded|failed)|error:' "$RUNNER_TEMP/test.log" | head -10 | while IFS= read -r line; do echo "::error::$line"; done
             exit 1
           }
@@ -63,9 +96,16 @@ jobs:
 
   windows:
     name: Windows
+    needs: relay
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v5
+      # The tests read the embedded relays as the published app does.
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: relay-*
+          path: linux/relay/dist
+          merge-multiple: true
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.x
@@ -92,6 +132,8 @@ jobs:
           }
       - name: Test traffic helper
         run: dotnet test windows/tests/AgentSpeed.TrafficHelper.Tests -c Release
+      - name: Test status line helper
+        run: dotnet test windows/tests/AgentSpeed.StatuslineHelper.Tests -c Release
       - name: Publish
         shell: pwsh
         run: ./windows/scripts/publish.ps1

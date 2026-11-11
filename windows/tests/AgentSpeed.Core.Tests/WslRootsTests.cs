@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Text;
 using AgentSpeed.Core.Monitoring;
+using AgentSpeed.Core.Locations;
 
 namespace AgentSpeed.Core.Tests;
 
@@ -17,15 +18,14 @@ public sealed class WslRootsTests : IDisposable
         var localClaude = _temp.Combine("local", "claude", "projects");
         var extraCodex = _temp.Combine("wsl", "codex", "sessions");
         var extraClaude = _temp.Combine("wsl", "claude", "projects");
-        var configuration = new MonitorConfiguration(new HashSet<SourceKind> { SourceKind.Codex, SourceKind.ClaudeCode },
-            CodexRoot: localCodex, ClaudeRoot: localClaude, WslCodexRoot: extraCodex, WslClaudeRoot: extraClaude);
+        var configuration = Configuration(localCodex, localClaude, extraCodex, extraClaude);
         var locations = SourceLocations.Resolve(configuration);
         Assert.Equal(new[] { localCodex, extraCodex }, locations.FileRoots().Where(x => x.Family == RootFamily.Codex).Select(x => x.Path));
         Assert.Equal(new[] { localClaude, extraClaude }, locations.FileRoots().Where(x => x.Family == RootFamily.Claude).Select(x => x.Path));
-        var duplicate = SourceLocations.Resolve(configuration with { WslCodexRoot = localCodex, WslClaudeRoot = localClaude });
+        var duplicate = SourceLocations.Resolve(Configuration(localCodex, localClaude, localCodex, localClaude));
         Assert.Single(duplicate.FileRoots(), x => x.Family == RootFamily.Codex);
         Assert.Single(duplicate.FileRoots(), x => x.Family == RootFamily.Claude);
-        Assert.NotEqual(configuration, configuration with { WslClaudeRoot = null });
+        Assert.NotEqual(configuration, Configuration(localCodex, localClaude, extraCodex, localClaude));
     }
 
     [Fact]
@@ -38,8 +38,7 @@ public sealed class WslRootsTests : IDisposable
         var extraCodex = _temp.Combine("wsl", "codex", "sessions");
         var extraClaude = _temp.Combine("wsl", "claude", "projects");
         foreach (var root in new[] { localCodex, localClaude, extraCodex, extraClaude }) Directory.CreateDirectory(root);
-        var configuration = new MonitorConfiguration(new HashSet<SourceKind> { SourceKind.Codex, SourceKind.ClaudeCode },
-            CodexRoot: localCodex, ClaudeRoot: localClaude, WslCodexRoot: extraCodex, WslClaudeRoot: extraClaude);
+        var configuration = Configuration(localCodex, localClaude, extraCodex, extraClaude);
         using var core = new MonitorCore(configuration, SourceLocations.Resolve(configuration), start);
         core.Seed(now, start, CancellationToken.None);
         var codex = Path.Combine(extraCodex, "rollout-test.jsonl");
@@ -70,9 +69,7 @@ public sealed class WslRootsTests : IDisposable
         Directory.CreateDirectory(claudeRoot);
         var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         var start = now - 60_000;
-        var configuration = new MonitorConfiguration(new HashSet<SourceKind> { SourceKind.Codex, SourceKind.ClaudeCode },
-            CodexRoot: _temp.Combine("local-codex"), ClaudeRoot: _temp.Combine("local-claude"),
-            WslCodexRoot: codexRoot, WslClaudeRoot: claudeRoot);
+        var configuration = Configuration(_temp.Combine("local-codex"), _temp.Combine("local-claude"), codexRoot, claudeRoot);
         using var core = new MonitorCore(configuration, SourceLocations.Resolve(configuration), start);
         core.Seed(now, start, CancellationToken.None);
         WriteLinux(linux + "/codex/sessions/rollout-test.jsonl", string.Join('\n', new[] {
@@ -86,6 +83,14 @@ public sealed class WslRootsTests : IDisposable
         Assert.Equal(70, snapshot.Today.Output);
         Assert.Equal(2, snapshot.Today.Requests);
     }
+
+    private static MonitorConfiguration Configuration(string codex, string claude, string extraCodex, string extraClaude) =>
+        new(new HashSet<SourceKind> { SourceKind.Codex, SourceKind.ClaudeCode })
+        {
+            Locations = LocationLists.Automatic
+                .With(LocationFolder.Codex, [DataLocation.At(codex), DataLocation.At(extraCodex)])
+                .With(LocationFolder.Claude, [DataLocation.At(claude), DataLocation.At(extraClaude)]),
+        };
 
     private static void WriteLinux(string path, string text)
     {

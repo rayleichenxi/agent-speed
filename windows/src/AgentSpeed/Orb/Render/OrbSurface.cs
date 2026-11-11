@@ -307,6 +307,21 @@ internal sealed class OrbSurface : FrameworkElement, IOrbFrameClient, IOrbSurfac
 
     public bool LinesVisible => false;
 
+    public void SetCharacter(Presentation.Orb.OrbCharacterContent? content)
+    {
+    }
+
+    public void SetCharacterReadings(Presentation.Orb.Lines.OrbLinesSample? performance, Presentation.Cost.LiveMoney? money, bool generating,
+        Presentation.Orb.OrbLatency? latency, IReadOnlyList<Presentation.Orb.OrbModelRow> models)
+    {
+    }
+
+    public void SetCharacterNetwork(Presentation.Orb.Lines.OrbLinesSample? network)
+    {
+    }
+
+    public string? CharacterSentence(Presentation.Localization.Localizer localizer, string currencyName) => null;
+
     public Presentation.Orb.Lines.OrbLinesReading? LinesReading => null;
 
     public void SetHover(bool hovering)

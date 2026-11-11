@@ -8,6 +8,7 @@ REPO_ROOT="$(cd -- "$MACOS_DIR/.." && pwd -P)"
 
 APP_NAME="Agent Speed"
 EXECUTABLE="AgentSpeed"
+HELPER="agent-speed-statusline"
 ZIP_NAME="AgentSpeed-macOS.zip"
 PLIST_TEMPLATE="$MACOS_DIR/Resources/Info.plist"
 ICON_FILE="$REPO_ROOT/assets/icon/AgentSpeed.icns"
@@ -28,6 +29,11 @@ Options:
   --output DIR      Output directory (default: <repo>/dist).
   --binary PATH     Package an existing universal executable instead of
                     running swift build.
+  --helper PATH     With --binary: the universal $HELPER executable
+                    (default: beside the --binary executable).
+  --relay-dir DIR   Folder with agent-speed-relay-linux-x86_64 and
+                    agent-speed-relay-linux-aarch64 (default:
+                    <repo>/linux/relay/dist, built by linux/relay/build-static.sh).
   -h, --help        Show this help.
 
 Outputs:
@@ -55,6 +61,8 @@ VERSION=""
 BUILD_NUMBER=""
 OUTPUT_DIR="$REPO_ROOT/dist"
 PREBUILT_BINARY=""
+PREBUILT_HELPER=""
+RELAY_DIR="$REPO_ROOT/linux/relay/dist"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -66,6 +74,10 @@ while [[ $# -gt 0 ]]; do
         --output=*) OUTPUT_DIR="${1#*=}"; shift ;;
         --binary) need_value "$@"; PREBUILT_BINARY="$2"; shift 2 ;;
         --binary=*) PREBUILT_BINARY="${1#*=}"; shift ;;
+        --helper) need_value "$@"; PREBUILT_HELPER="$2"; shift 2 ;;
+        --helper=*) PREBUILT_HELPER="${1#*=}"; shift ;;
+        --relay-dir) need_value "$@"; RELAY_DIR="$2"; shift 2 ;;
+        --relay-dir=*) RELAY_DIR="${1#*=}"; shift ;;
         -h|--help) usage; exit 0 ;;
         *) die "Unknown argument: $1" "Run with --help for usage." ;;
     esac
@@ -84,7 +96,18 @@ BUILD_NUMBER="${BUILD_NUMBER:-$VERSION}"
     || die "Invalid build number \"$BUILD_NUMBER\"." "Expected up to three numbers separated by dots, e.g. 42 or 1.2.3."
 
 [[ "$(uname -s)" == "Darwin" ]] || die "This script must run on macOS."
-for tool in swift lipo vtool xcrun codesign plutil ditto xattr; do
+
+RELAY_ARCHS=(x86_64 aarch64)
+for arch in "${RELAY_ARCHS[@]}"; do
+    relay="$RELAY_DIR/agent-speed-relay-linux-$arch"
+    [[ -f "$relay" ]] \
+        || die "Missing remote relay $relay." "Build it with linux/relay/build-static.sh $arch, or pass --relay-dir."
+    [[ "$(head -c 4 "$relay" | od -An -tx1 | tr -d ' \n')" == "7f454c46" ]] \
+        || die "$relay is not a Linux executable."
+    LC_ALL=C grep -a -q -x -F "$VERSION" <(strings -a "$relay") \
+        || die "$relay was not built from version $VERSION." "Rebuild it with linux/relay/build-static.sh $arch."
+done
+for tool in swift lipo vtool xcrun codesign plutil ditto xattr strings od; do
     command -v "$tool" >/dev/null 2>&1 || die "Required tool \"$tool\" was not found." "Install Xcode or the Xcode Command Line Tools."
 done
 [[ -f "$PLIST_TEMPLATE" ]] || die "Info.plist template not found at $PLIST_TEMPLATE."
@@ -102,8 +125,11 @@ info "Output:     $OUTPUT_DIR"
 if [[ -n "$PREBUILT_BINARY" ]]; then
     [[ -f "$PREBUILT_BINARY" ]] || die "Executable not found at $PREBUILT_BINARY."
     BINARY="$(cd -- "$(dirname -- "$PREBUILT_BINARY")" && pwd -P)/$(basename -- "$PREBUILT_BINARY")"
-    step "Using prebuilt executable"
+    HELPER_BINARY="${PREBUILT_HELPER:-$(dirname -- "$BINARY")/$HELPER}"
+    [[ -f "$HELPER_BINARY" ]] || die "Status line helper not found at $HELPER_BINARY." "Pass it with --helper PATH."
+    step "Using prebuilt executables"
     info "$BINARY"
+    info "$HELPER_BINARY"
 else
     SWIFT_FLAGS=(-c release --arch arm64 --arch x86_64 --package-path "$MACOS_DIR" --scratch-path "$SCRATCH_PATH")
     step "Building universal release (arm64 + x86_64)"
@@ -112,15 +138,19 @@ else
     BIN_DIR="$(swift build "${SWIFT_FLAGS[@]}" --show-bin-path)" \
         || die "Could not determine the build output directory."
     BINARY="$BIN_DIR/$EXECUTABLE"
+    HELPER_BINARY="$BIN_DIR/$HELPER"
     [[ -f "$BINARY" ]] || die "Built executable not found at $BINARY."
+    [[ -f "$HELPER_BINARY" ]] || die "Built status line helper not found at $HELPER_BINARY."
 fi
 
 step "Checking architectures"
-info "$(lipo -info "$BINARY")"
-ARCHS=" $(lipo -archs "$BINARY" 2>/dev/null || true) "
-for arch in arm64 x86_64; do
-    [[ "$ARCHS" == *" $arch "* ]] \
-        || die "The executable is not universal; it must contain both arm64 and x86_64." "Found:${ARCHS% }"
+for candidate in "$BINARY" "$HELPER_BINARY"; do
+    info "$(lipo -info "$candidate")"
+    ARCHS=" $(lipo -archs "$candidate" 2>/dev/null || true) "
+    for arch in arm64 x86_64; do
+        [[ "$ARCHS" == *" $arch "* ]] \
+            || die "$(basename -- "$candidate") is not universal; it must contain both arm64 and x86_64." "Found:${ARCHS% }"
+    done
 done
 
 # macOS 26+ shows the current system design (Liquid Glass) only to apps stamped with a recent SDK; an executable stamped
@@ -146,10 +176,13 @@ done
 
 step "Assembling $APP_NAME.app"
 rm -rf "$APP_DIR"
-mkdir -p "$APP_DIR/Contents/MacOS" "$APP_DIR/Contents/Resources"
+mkdir -p "$APP_DIR/Contents/MacOS" "$APP_DIR/Contents/Resources" "$APP_DIR/Contents/Helpers"
 
 cp "$BINARY" "$APP_DIR/Contents/MacOS/$EXECUTABLE"
 chmod 755 "$APP_DIR/Contents/MacOS/$EXECUTABLE"
+# The Claude Code status line helper (QUOTAS 5.1); the app copies it to its data folder when the bridge is on.
+cp "$HELPER_BINARY" "$APP_DIR/Contents/Helpers/$HELPER"
+chmod 755 "$APP_DIR/Contents/Helpers/$HELPER"
 
 sed -e "s/__VERSION__/$VERSION/g" -e "s/__BUILD__/$BUILD_NUMBER/g" \
     "$PLIST_TEMPLATE" > "$APP_DIR/Contents/Info.plist"
@@ -160,10 +193,32 @@ plutil -lint -s "$APP_DIR/Contents/Info.plist" || die "The generated Info.plist 
 
 printf 'APPL????' > "$APP_DIR/Contents/PkgInfo"
 cp "$ICON_FILE" "$APP_DIR/Contents/Resources/AgentSpeed.icns"
-info "Contents/MacOS/$EXECUTABLE, Info.plist, PkgInfo, Resources/AgentSpeed.icns"
+info "Contents/MacOS/$EXECUTABLE, Contents/Helpers/$HELPER, Info.plist, PkgInfo, Resources/AgentSpeed.icns"
+
+# The local network permission prompt in the app's languages (DESIGN 14), from the macOS string table.
+python3 - "$MACOS_DIR/Resources/strings.macos.json" "$APP_DIR/Contents/Resources" <<'PY' || die "Could not write InfoPlist.strings."
+import json, pathlib, sys
+texts = json.load(open(sys.argv[1], encoding="utf-8"))["mac.lan.usage"]
+for language, text in texts.items():
+    folder = pathlib.Path(sys.argv[2]) / f"{language}.lproj"
+    folder.mkdir(parents=True, exist_ok=True)
+    escaped = text.replace("\\", "\\\\").replace('"', '\\"')
+    (folder / "InfoPlist.strings").write_text(f'"NSLocalNetworkUsageDescription" = "{escaped}";\n', encoding="utf-8")
+PY
+info "Resources/{en,zh-Hant,zh-Hans,ja}.lproj/InfoPlist.strings"
+
+mkdir -p "$APP_DIR/Contents/Resources/relay"
+for arch in "${RELAY_ARCHS[@]}"; do
+    cp "$RELAY_DIR/agent-speed-relay-linux-$arch" "$APP_DIR/Contents/Resources/relay/"
+    chmod 644 "$APP_DIR/Contents/Resources/relay/agent-speed-relay-linux-$arch"
+done
+info "Resources/relay/agent-speed-relay-linux-{${RELAY_ARCHS[*]// /,}}"
 
 step "Signing (ad hoc)"
 xattr -cr "$APP_DIR" 2>/dev/null || true
+# Nested code first, then the bundle that seals it.
+codesign --force --options runtime --timestamp=none --sign - "$APP_DIR/Contents/Helpers/$HELPER" \
+    || die "codesign failed to sign Contents/Helpers/$HELPER."
 codesign --force --options runtime --timestamp=none --sign - "$APP_DIR" \
     || die "codesign failed to sign $APP_DIR."
 if ! VERIFY_LOG="$(codesign --verify --deep --strict --verbose=2 "$APP_DIR" 2>&1)"; then

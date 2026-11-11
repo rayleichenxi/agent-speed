@@ -1,6 +1,7 @@
 using AgentSpeed.Core;
 using AgentSpeed.Presentation.Boards;
 using AgentSpeed.Presentation.Orb;
+using AgentSpeed.Presentation.Remote;
 using AgentSpeed.Presentation.Settings;
 using AgentSpeed.Presentation.Settings.Boards;
 using AgentSpeed.Presentation.Settings.Orbs;
@@ -42,11 +43,27 @@ internal interface IAppCommands
 
     void SetOrbTraffic(string orbId, OrbTraffic traffic) => UpdateOrbs(d => OrbEditing.SetTraffic(d, orbId, traffic));
 
+    /// <summary>A <c>character</c> orb's character: a pack id, or null for Auto (CHARACTERS 7).</summary>
+    void SetOrbCharacter(string orbId, string? character) => UpdateOrbs(d => OrbEditing.SetCharacter(d, orbId, character));
+
+    /// <summary>One card of a <c>character</c> orb (DESIGN 2a.6, Readouts).</summary>
+    void SetOrbCharacterReadout(string orbId, CharacterReadout readout, bool on) => UpdateOrbs(d => OrbEditing.SetCharacterReadout(d, orbId, readout, on));
+
+    /// <summary>The installed characters for the menus (id, localized name), in catalog order.</summary>
+    IReadOnlyList<Presentation.Menus.MenuCharacter> InstalledCharacters => [];
+
     /// <summary>The orb tracks every source again.</summary>
     void SetOrbAllSources(string orbId) => UpdateOrbs(d => OrbEditing.SetAllSources(d, orbId));
 
     /// <summary>Checks or unchecks one source of the orb (an all-sources orb becomes that source; never the last one).</summary>
     void ToggleOrbSource(string orbId, SourceKind source) => UpdateOrbs(d => OrbEditing.ToggleSource(d, orbId, source));
+
+    /// <summary>The orb tracks every host again (DESIGN 13).</summary>
+    void SetOrbAllHosts(string orbId) => UpdateOrbs(d => OrbEditing.SetHosts(d, orbId, OrbHosts.All));
+
+    /// <summary>Checks or unchecks one host of the orb (an all-hosts orb becomes that host; never the last one).</summary>
+    void ToggleOrbHost(string orbId, string hostId) =>
+        UpdateSettings(s => OrbEditing.ToggleHost(s.Orbs, orbId, hostId, RemoteHostStates.Order(s.RemoteHosts)) is { } next ? s with { Orbs = next } : s);
 
     /// <summary>Sets an orb's diameter (DIPs), clamped to its style's range.</summary>
     void SetOrbSize(string orbId, double size) => UpdateOrbs(d => OrbEditing.SetSize(d, orbId, size));
@@ -99,6 +116,14 @@ internal interface IAppCommands
 
     /// <summary>Checks or unchecks one source of the board (never the last one).</summary>
     void ToggleBoardSource(string boardId, SourceKind source) => UpdateBoards(d => BoardEditing.ToggleSource(d, boardId, source));
+
+    void SetBoardAllHosts(string boardId) => UpdateBoards(d => BoardEditing.SetHosts(d, boardId, OrbHosts.All));
+
+    /// <summary>Checks or unchecks one host of the board (never the last one).</summary>
+    void ToggleBoardHost(string boardId, string hostId) =>
+        UpdateSettings(s => BoardEditing.ToggleHost(s.Boards, boardId, hostId, RemoteHostStates.Order(s.RemoteHosts)) is { } next
+            ? s with { Boards = next }
+            : s);
 
     void SetBoardSize(string boardId, BoardSize size) => UpdateBoards(d => BoardEditing.SetSize(d, boardId, size));
 

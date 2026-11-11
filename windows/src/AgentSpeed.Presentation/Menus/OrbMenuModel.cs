@@ -1,5 +1,6 @@
 using AgentSpeed.Presentation.Localization;
 using AgentSpeed.Presentation.Orb;
+using AgentSpeed.Presentation.Remote;
 using AgentSpeed.Presentation.Settings;
 using AgentSpeed.Presentation.Settings.Orbs;
 using static AgentSpeed.Presentation.Menus.MenuParts;
@@ -18,7 +19,10 @@ public static class OrbMenuModel
     /// <summary>The menu of <paramref name="orbId"/>; null when no such orb exists.</summary>
     /// <param name="sources">Source availability (split, the sources' secondary text and faded dots).</param>
     /// <param name="sourceTraffic">Per-process traffic can be measured now (else the sources choice says it is unavailable).</param>
-    public static MenuLevel? Build(string orbId, AppSettings settings, SourceAvailability sources, Localizer localizer, bool sourceTraffic = true)
+    /// <param name="hosts">Each host's dot and word for the Hosts submenu (DESIGN 13), by id.</param>
+    /// <param name="characters">The installed characters (id, localized name) in catalog order, for a <c>character</c> orb.</param>
+    public static MenuLevel? Build(string orbId, AppSettings settings, SourceAvailability sources, Localizer localizer, bool sourceTraffic = true,
+        IReadOnlyDictionary<string, MenuHostState>? hosts = null, IReadOnlyList<MenuCharacter>? characters = null)
     {
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(localizer);
@@ -38,14 +42,20 @@ public static class OrbMenuModel
             ? new MenuRow(localizer["menu.hideOrb"]) { Action = new MenuAction.SetShowOrbs(false) }
             : new MenuRow(localizer["menu.orb.hide"]) { Action = new MenuAction.SetOrbVisible(id, false) };
 
+        var hostsMenu = HostsMenu(orb.Hosts, new MenuAction.SetOrbAllHosts(id), host => new MenuAction.ToggleOrbHost(id, host), settings, hosts,
+            localizer);
+        var name = OrbNaming.DisplayName(orb, localizer, RemoteHostStates.Choices(settings.RemoteHosts, localizer));
         return new MenuLevel(
         [
-            new MenuRow(OrbNaming.DisplayName(orb, localizer)) { Icon = DotsOf(orb, sources), IsHeader = true, IsEnabled = false },
+            new MenuRow(name) { Icon = DotsOf(orb, sources), IsHeader = true, IsEnabled = false },
             MenuSeparator.Instance,
             StyleMenu(orb, localizer),
+            .. orb.Style == OrbStyle.Character ? [CharacterMenu(orb, characters ?? [], localizer)] : Array.Empty<MenuEntry>(),
             SourcesMenu(orb, sources, localizer),
-            UnitMenu(orb, settings, localizer),
-            TrafficMenu(orb, settings, localizer, sourceTraffic),
+            .. hostsMenu is null ? Array.Empty<MenuEntry>() : [hostsMenu],
+            .. orb.Style == OrbStyle.Character
+                ? [ReadoutsMenu(orb, settings, localizer)]
+                : new MenuEntry[] { UnitMenu(orb, settings, localizer), TrafficMenu(orb, settings, localizer, sourceTraffic) },
             ShowNameToggle(orb, settings, localizer),
             SizeMenu(orb, localizer),
             EffectsMenu(settings.Effects, localizer),
@@ -119,6 +129,50 @@ public static class OrbMenuModel
             Choice("orbs.traffic.intelligence", OrbTraffic.Intelligence),
             Choice("orbs.traffic.off", OrbTraffic.Off),
         ]);
+    }
+
+    /// <summary>
+    /// <c>characters.title</c> ▸ <c>characters.auto</c>, every installed character (checked when locked to it),
+    /// <c>characters.more</c> (the orb's Settings, where the character section sits under the style cards).
+    /// </summary>
+    internal static MenuRow CharacterMenu(OrbDefinition orb, IReadOnlyList<MenuCharacter> characters, Localizer localizer)
+    {
+        var locked = orb.Character is { } id && characters.Any(c => c.Id == id) ? id : null;
+        var rows = new List<MenuEntry> { Toggle(localizer["characters.auto"], locked is null, new MenuAction.SetOrbCharacter(orb.Id, null)) };
+        if (characters.Count > 0)
+        {
+            rows.Add(MenuSeparator.Instance);
+            rows.AddRange(characters.Select(c => (MenuEntry)Toggle(c.Name, c.Id == locked, new MenuAction.SetOrbCharacter(orb.Id, c.Id))));
+        }
+
+        rows.Add(MenuSeparator.Instance);
+        rows.Add(new MenuRow(localizer["characters.more"]) { Action = new MenuAction.OpenOrbSettings(orb.Id) });
+        return Submenu(localizer["characters.title"], [.. rows]);
+    }
+
+    /// <summary>
+    /// <c>character.readouts</c> ▸ a check per card (network disabled while traffic is not measured), the section header
+    /// <c>character.readouts.networkScope</c> and the radio pair sources / machine (disabled while the network card is off).
+    /// </summary>
+    internal static MenuRow ReadoutsMenu(OrbDefinition orb, AppSettings settings, Localizer localizer)
+    {
+        var measuring = settings.Traffic.Enabled;
+        var readouts = orb.CharacterReadouts;
+        var rows = new List<MenuEntry>();
+        foreach (var readout in CharacterReadouts.All)
+        {
+            var on = readouts[readout];
+            rows.Add(Toggle(localizer[CharacterReadouts.TitleKey(readout)], on, new MenuAction.SetOrbCharacterReadout(orb.Id, readout, !on),
+                readout != CharacterReadout.Network || measuring));
+        }
+
+        var scope = measuring && readouts.Network;
+        var machine = orb.Traffic == OrbTraffic.Machine;
+        rows.Add(MenuSeparator.Instance);
+        rows.Add(new MenuRow(localizer["character.readouts.networkScope"]) { IsHeader = true, IsEnabled = false });
+        rows.Add(Toggle(localizer["orbs.traffic.sources"], !machine, new MenuAction.SetOrbTraffic(orb.Id, OrbTraffic.Sources), scope));
+        rows.Add(Toggle(localizer["orbs.traffic.machine"], machine, new MenuAction.SetOrbTraffic(orb.Id, OrbTraffic.Machine), scope));
+        return Submenu(localizer["character.readouts"], [.. rows]);
     }
 
     private static MenuRow StyleMenu(OrbDefinition orb, Localizer localizer) =>

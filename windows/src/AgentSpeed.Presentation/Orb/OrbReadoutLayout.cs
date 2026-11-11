@@ -49,6 +49,9 @@ public sealed record OrbReadoutLayout(
     public const double TitleMinScale = 0.8;
     public const double InfoMinScale = 0.7;
 
+    /// <summary>Smaller orbs draw no unit line (DESIGN 2a, Shared foundation): at the 7 pt floor it would outgrow its gap.</summary>
+    public const double UnitFloor = 96;
+
     public static OrbReadoutLayout Led { get; } =
         new(0.24, 0.012, 0.62, 0.072, 0.104, 0.09, null, 0.062, 0.58, 0.62, 0.92, 0.3785, -0.232, ValueEffects: true);
 
@@ -61,14 +64,27 @@ public sealed record OrbReadoutLayout(
     public static OrbReadoutLayout Minimal { get; } =
         new(0.30, 0.07, 0.66, null, 0, 0.098, null, 0.068, 0.62, 0.67, 0.92, null, -0.25, Rolls: false, TitleCrossfade: true, ValueGlow: false);
 
+    /// <summary>The <c>character</c> fallback without a character (DESIGN 2a.6), in units of D.</summary>
+    public static OrbReadoutLayout Character { get; } =
+        new(0.13, -0.02, 0.36, 0.036, 0.055, 0.048, null, 0.032, 0.34, 0.4, 0.92, null, -0.16);
+
     public static OrbReadoutLayout For(OrbStyle style) => style switch
     {
+        OrbStyle.Character => Character,
         OrbStyle.Needle => Needle,
         OrbStyle.Liquid => Liquid,
         OrbStyle.Reactor => Reactor,
         OrbStyle.Minimal => Minimal,
         _ => Led,
     };
+
+    /// <summary>Whether an orb of this style and diameter has a unit line (else a money value carries its symbol).</summary>
+    public static bool HasUnitLine(OrbStyle style, double size) => style != OrbStyle.Minimal && size >= UnitFloor;
+
+    /// <summary>The layout at diameter <paramref name="size"/>: below <see cref="UnitFloor"/> without the unit line, the title where it was.</summary>
+    public OrbReadoutLayout At(double size) => size >= UnitFloor || UnitSize is null
+        ? this
+        : this with { UnitSize = null, TitleGap = TitleFixed is null ? UnitGap + TitleGap : TitleGap };
 
     /// <summary>Unit baseline below the center (S), or null.</summary>
     public double? UnitBaseline => UnitSize is null ? null : ValueBaseline + UnitGap;

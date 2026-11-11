@@ -114,6 +114,18 @@ enum PreviewRenderer {
         if wants("sources") {
             SourcePreviews.render(model: model, into: directory)
         }
+        if wants("quota") {
+            QuotaPreviews.render(model: model, into: directory)
+        }
+        if wants("quota2") {
+            QuotaVendorPreviews.render(model: model, into: directory)
+        }
+        if wants("remote") {
+            RemotePreviews.render(model: model, into: directory)
+        }
+        if wants("lan") {
+            LanPreviews.render(model: model, into: directory)
+        }
         if wants("cost") {
             CostPreviews.render(model: model, into: directory)
         }

@@ -19,12 +19,41 @@ jobs:
           python3 spec/tools/report_reference.py
           python3 spec/tools/execution_modes_reference.py
           python3 spec/tools/test_reporting_extensions.py
+          python3 spec/tools/lan_reference.py --check-fixtures
+
+  relay:
+    name: Remote relay (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-24.04
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build static relay
+        run: linux/relay/build-static.sh ${{ matrix.arch }}
+      - uses: actions/upload-artifact@v7
+        with:
+          name: relay-${{ matrix.arch }}
+          path: linux/relay/dist/agent-speed-relay-linux-${{ matrix.arch }}
+          if-no-files-found: error
 
   macos:
     name: macOS
+    needs: relay
     runs-on: macos-26
     steps:
       - uses: actions/checkout@v5
+      # The tests read the embedded relays as the app bundle does.
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: relay-*
+          path: linux/relay/dist
+          merge-multiple: true
       - name: Select newest Xcode
         run: |
           xcode="$(ls -d /Applications/Xcode*.app | grep -viE 'beta|_rc|release_candidate' | sort -V | tail -1)"
@@ -32,7 +61,10 @@ jobs:
           echo "::notice::$(xcodebuild -version | tr '\n' ' ')"
       - name: Test core
         working-directory: macos
-        run: swift test
+        run: |
+          # As in ci.yml: the suites with network round trips run after the rest, on their own.
+          network='HTTPFetcherTests|LanNetworkTests|Report(Discovery|DiscoveryFailure|EndToEnd|Invite|Profile|StreamEndToEnd)Tests'
+          swift test --skip "$network" && swift test --filter "$network"
       - name: Test update relaunch
         timeout-minutes: 5
         run: python3 macos/scripts/test-update-relaunch.py
@@ -46,9 +78,16 @@ jobs:
 
   windows:
     name: Windows
+    needs: relay
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v5
+      # The tests read the embedded relays as the published app does.
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: relay-*
+          path: linux/relay/dist
+          merge-multiple: true
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.x
@@ -58,6 +97,8 @@ jobs:
         run: dotnet test windows/tests/AgentSpeed.Presentation.Tests -c Release
       - name: Test traffic helper
         run: dotnet test windows/tests/AgentSpeed.TrafficHelper.Tests -c Release
+      - name: Test status line helper
+        run: dotnet test windows/tests/AgentSpeed.StatuslineHelper.Tests -c Release
       - name: Publish
         shell: pwsh
         run: ./windows/scripts/publish.ps1 -Version $env:GITHUB_REF_NAME.TrimStart('v')
@@ -77,6 +118,7 @@ jobs:
       - uses: actions/checkout@v5
       - uses: actions/download-artifact@v8
         with:
+          pattern: AgentSpeed-*
           path: dist
           merge-multiple: true
       - name: Checksums

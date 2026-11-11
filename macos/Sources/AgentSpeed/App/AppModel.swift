@@ -13,6 +13,8 @@ protocol AppCommands: AnyObject {
     func showHistory(source: SourceKind?)
     /// Opens the Usage History window on `metric` (the dashboard's traffic rows open the traffic chart).
     func showHistory(source: SourceKind?, metric: HistoryChartMetric)
+    /// Opens the Usage History window filtered to one host (`local` or a remote host id; DESIGN 13), all sources.
+    func showHistory(host: String)
     /// The floating orbs' master switch (DESIGN 2b).
     func setOrbsVisible(_ visible: Bool)
     func resetOrbPosition(_ id: String)
@@ -62,17 +64,31 @@ final class AppModel {
     let traffic: TrafficStore
     /// Live reporting (DESIGN 11): off until the user confirms a service.
     let report: ReportController
+    /// The local network feed (DESIGN 14): off until the user turns on the server or adds a target.
+    let lan: LanController
+    /// Character packs for the `character` orb style (CHARACTERS 2): installed ones, the catalog and downloads.
+    let characters: CharacterLibrary
     /// The menu bar intelligence block's thinking line, hidden after its rate has read 0 for 3 s (DESIGN 10).
     let barThinking = StatusItemThinkingHold()
+    /// The subscription quotas (QUOTAS): display only.
+    let quota: QuotaController
 
     /// True while the 20 s effects preview (or the `--demo` loop) drives the store.
     private(set) var isPreviewing = false
-    /// The dashboard popover is open (traffic samples every second while it shows per-source traffic).
-    var isDashboardShown = false
+    /// The dashboard popover is open (traffic samples every second while it shows per-source traffic; quota vendors
+    /// may be asked while it shows, QUOTAS 9.1).
+    var isDashboardShown = false {
+        didSet { if quota.dashboardOpen != isDashboardShown { quota.dashboardOpen = isDashboardShown } }
+    }
 
     @ObservationIgnored weak var commands: AppCommands?
     @ObservationIgnored private(set) var monitor: LiveMonitor?
     @ObservationIgnored private(set) var historyService: HistoryService?
+    /// The remote hosts' connections (REMOTE); live runs only.
+    @ObservationIgnored private(set) var remoteHosts: RemoteHostsController?
+    /// The remote hosts' daily history (REMOTE 8.2, 8.3): the coordinator's history sink (held weakly there) and the
+    /// history service's remote side.
+    @ObservationIgnored let remoteHistory = RemoteHistorySync()
     /// Network traffic measuring (METRICS 10); live runs only.
     @ObservationIgnored private var trafficController: TrafficController?
     @ObservationIgnored private var historyStartTimer: Timer?
@@ -80,8 +96,8 @@ final class AppModel {
     @ObservationIgnored private var demoLoops = false
     @ObservationIgnored private var loops: [ObservationLoop] = []
     @ObservationIgnored private var appliedConfiguration: MonitorConfiguration?
-    @ObservationIgnored private var orbSubsets: Set<SourceSet> = []
-    @ObservationIgnored private var boardSubsets: Set<SourceSet> = []
+    @ObservationIgnored private var orbSubsets: Set<SubsetKey> = []
+    @ObservationIgnored private var boardSubsets: Set<SubsetKey> = []
 
     init(
         store: SpeedStore = SpeedStore(),
@@ -109,6 +125,10 @@ final class AppModel {
         traffic = TrafficStore()
         report = ReportController(settings: settings, store: store, traffic: traffic, priceBook: priceBook,
                                   appData: Self.appDataDirectory)
+        lan = LanController(settings: settings, store: store)
+        quota = QuotaController(settings: settings, store: store, traffic: traffic, data: Self.appDataDirectory)
+        characters = CharacterLibrary.standard(defaults: settings.storage)
+        characters.networkEnabled = { [weak settings] in settings?.networkEnabled ?? false }
         gauge.redline = settings.redline
     }
 
@@ -139,6 +159,10 @@ final class AppModel {
         loops.append(ObservationLoop { [weak self] in
             guard let self else { return }
             Self.applyAppearance(self.settings.appearance)
+        })
+        loops.append(ObservationLoop { [weak self] in
+            guard let self else { return }
+            OrbCanvasView.displaySync = self.settings.displaySync
         })
         loops.append(ObservationLoop { [weak self] in
             guard let self else { return }
@@ -193,9 +217,23 @@ final class AppModel {
         self.monitor = monitor
         appliedConfiguration = settings.monitorConfiguration
         monitor.setSubsets(orbSubsets.union(boardSubsets))
+        // The hosts reach the monitor's feed before it starts, so a Mac without local sources still goes live.
+        let remoteHosts = RemoteHostsController(monitor: monitor)
+        self.remoteHosts = remoteHosts
+        remoteHosts.coordinator.historySink = remoteHistory
+        remoteHosts.coordinator.quotaSink = quota.remoteSink
+        loops.append(ObservationLoop { [weak self] in
+            guard let self else { return }
+            let document = self.settings.remoteHosts
+            let names = document.displayNames()
+            self.remoteHistory.setHosts(document.hosts.map { (id: $0.id, name: names[$0.id] ?? $0.automaticName) })
+        })
+        remoteHosts.start(settings: settings, prices: prices)
         monitor.start()
+        quota.activate()
         report.perfWatchHandler = { [weak monitor] epoch in monitor?.setReportWatch(epoch) }
         report.activate()
+        lan.activate()
         loops.append(ObservationLoop { [weak self] in
             guard let self else { return }
             let configuration = self.settings.monitorConfiguration
@@ -229,16 +267,33 @@ final class AppModel {
     /// (NETWORK 1, 3, 4); a newly accepted table re-prices what no table could price (METRICS 9.7).
     private func activateNetwork() {
         prices.onTableAccepted = { [weak self] _ in self?.historyService?.refresh(showsProgress: false) }
+        var networkWas = settings.networkEnabled
         loops.append(ObservationLoop { [weak self] in
             guard let self else { return }
             let network = self.settings.networkEnabled
             self.prices.update(networkEnabled: network, autoSync: self.settings.syncPrices)
             self.rates.update(networkEnabled: network, currency: self.settings.currency)
             self.updates.networkEnabled = network
+            // Network features back on: a character orb resumes the automatic download (CHARACTERS 2).
+            if network, !networkWas { self.resumeCharacterDownloads() }
+            networkWas = network
         })
         prices.start()
         rates.start()
+        if orbs.orbs.contains(where: { $0.style == .character }) {
+            characters.refreshInBackground()
+            resumeCharacterDownloads()
+        }
     }
+
+    /// While an orb uses the `character` style, fetch every pack not set aside (CHARACTERS 2, *Automatic download*).
+    func resumeCharacterDownloads() {
+        guard orbs.orbs.contains(where: { $0.style == .character }) else { return }
+        characters.downloadAll(preferring: [])
+    }
+
+    /// What the orb runtimes need to choose a character (CHARACTERS 7).
+    var characterInputs: OrbCharacterInputs { characters.inputs(prices: priceBook.current) }
 
     /// Starts the daily history analysis if it is not running yet.
     func startHistory() {
@@ -246,7 +301,7 @@ final class AppModel {
         historyStartTimer?.invalidate()
         historyStartTimer = nil
         let service = HistoryService(store: history, configuration: settings.monitorConfiguration, liveStore: store,
-                                     pricing: priceBook)
+                                     pricing: priceBook, remote: remoteHistory)
         // The stored performance records give the score card its baselines (METRICS 6.11).
         history.perfRecordsHandler = { [weak self] records in self?.monitor?.setPerfHistory(records) }
         historyService = service
@@ -268,22 +323,24 @@ final class AppModel {
         history.clear()
     }
 
-    /// The source sets of the orbs tracking a subset, whose peaks the engine reports (METRICS 6.8).
-    func setOrbSubsets(_ sets: Set<SourceSet>) {
+    /// The subsets of the orbs tracking a subset, whose peaks the engine reports (METRICS 6.8).
+    func setOrbSubsets(_ sets: Set<SubsetKey>) {
         guard sets != orbSubsets else { return }
         orbSubsets = sets
         monitor?.setSubsets(orbSubsets.union(boardSubsets))
     }
 
-    /// The source sets of the boards tracking a subset (METRICS 6.8), reported with the orbs'.
-    func setBoardSubsets(_ sets: Set<SourceSet>) {
+    /// The subsets of the boards tracking a subset (METRICS 6.8), reported with the orbs'.
+    func setBoardSubsets(_ sets: Set<SubsetKey>) {
         guard sets != boardSubsets else { return }
         boardSubsets = sets
         monitor?.setSubsets(orbSubsets.union(boardSubsets))
     }
 
     func shutdown() {
+        quota.shutdown()
         report.shutdown()
+        lan.shutdown()
         trafficController?.stop()
         trafficController = nil
         orbs.shutdown()
@@ -291,6 +348,7 @@ final class AppModel {
         demo?.stop()
         historyStartTimer?.invalidate()
         historyService?.stop()
+        remoteHosts?.stop()
         monitor?.stop()
         loops.forEach { $0.cancel() }
         loops.removeAll()
@@ -343,7 +401,7 @@ enum DemoDriverRatio {
 
 /// Settings window panes (DESIGN section 5).
 enum SettingsPane: String, CaseIterable, Identifiable, Sendable {
-    case general, menuBar, orb, effects, cost, traffic, report, sources, about
+    case general, menuBar, orb, effects, cost, traffic, report, sources, remote, about
 
     var id: String { rawValue }
 
@@ -357,6 +415,7 @@ enum SettingsPane: String, CaseIterable, Identifiable, Sendable {
         case .traffic: "settings.traffic"
         case .report: "settings.report"
         case .sources: "settings.sources"
+        case .remote: "settings.remote"
         case .about: "settings.about"
         }
     }
@@ -367,6 +426,7 @@ enum SettingsPane: String, CaseIterable, Identifiable, Sendable {
         switch self {
         case .orb: "mac.settings.tab.orb"
         case .traffic: "mac.settings.tab.traffic"
+        case .remote: "mac.settings.tab.remote"
         default: titleKey
         }
     }
@@ -381,6 +441,7 @@ enum SettingsPane: String, CaseIterable, Identifiable, Sendable {
         case .traffic: "arrow.up.arrow.down"
         case .report: "dot.radiowaves.left.and.right"
         case .sources: "folder"
+        case .remote: "server.rack"
         case .about: "info.circle"
         }
     }

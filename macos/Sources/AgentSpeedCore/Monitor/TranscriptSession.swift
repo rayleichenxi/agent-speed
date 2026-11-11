@@ -84,9 +84,11 @@ final class TranscriptSession {
     /// Database connections unused this long are closed, and at most `maxOpenDatabases` stay open (METRICS 5.4).
     static let databaseIdleNs: UInt64 = 60_000_000_000
     static let maxOpenDatabases = 16
-    /// Deduplication owner of every OpenCode row; transcript files count up from 0.
-    static let opencodeFileID: FileID = -1
-    static let zcodeFileID: FileID = -2
+    /// Deduplication owners of the database sources by list position (METRICS 2.1): OpenCode −1, −3, …, ZCode −2, −4,
+    /// …; transcript files count up from 0, OpenClaw windows from `.min`.
+    static func opencodeFileID(_ index: Int) -> FileID { -1 - 2 * FileID(index) }
+    static func zcodeFileID(_ index: Int) -> FileID { -2 - 2 * FileID(index) }
+    static let lowestDatabaseFileID: FileID = zcodeFileID(SourceLocations.maxEntries - 1)
 
     let enabledSources: Set<SourceKind>
     let limits: ReadingLimits
@@ -106,26 +108,33 @@ final class TranscriptSession {
     private var unreadablePaths: Set<String> = []
     private var removedMalformedLines = 0
     private(set) var partialHistory = false
-    /// The OpenCode database, when that source is enabled (METRICS 4.5, 5.2).
-    let opencode: OpencodeSource?
-    let zcode: ZcodeSource?
+    /// The newest Codex account limits across every Codex location (QUOTAS 3); local files only.
+    private(set) var codexQuota: QuotaSnapshot?
+    /// OpenCode's databases, when that source is enabled (METRICS 2.1, 4.5, 5.2).
+    let opencode: OpencodeSourceSet?
+    let zcode: ZcodeSourceSet?
     /// OpenClaw's agent databases, when that source is enabled (METRICS 4.14).
     let openclaw: OpenClawSource?
     private var openclawLinks: [String: String] = [:]
     /// Hermes Agent's log folders, when that source is enabled (METRICS 4.15).
     let hermes: HermesSource?
+    /// Devin's CLI databases, when that source is enabled (METRICS 4.17).
+    let devin: DevinSource?
+    /// Qoder IDE's databases, when that source is enabled (METRICS 4.18).
+    let qoder: QoderSource?
+    private var qoderLinks: [String: String] = [:]
     /// Today's start of the last seed or rediscovery, for databases found while running.
     private var todayStartMs: Int64 = 0
-    private let zcodeRoot: String
-    private var zcodeNeedsSeed = false
     private var zcodeLinks: [String: String] = [:]
-    private let opencodeRoot: String
-    private var opencodeNeedsSeed = false
     private var opencodeLinks: [String: String] = [:]
     /// Configured values and WorkBuddy's session-current effort of transcript agents (EXECUTION-MODES, Current values).
     private let modeContext: AgentModeContext
     /// Live reporting's watch epoch (METRICS 11.10 *Watch*); nil while it is off.
     private var reportWatch: Int?
+    /// The remote hosts' part of the engine (REMOTE 7).
+    private(set) var remote = RemoteIngest()
+    /// The remote parent links changed since the engine last took the parents.
+    private var remoteParentsChanged = false
 
     /// Wall-clock milliseconds, for the age rule of completion events (METRICS 6.4); tests pin it.
     private let clock: @Sendable () -> Int64
@@ -149,16 +158,15 @@ final class TranscriptSession {
                  readable: readable,
                  detectionPath: family.isWorkBuddy ? TranscriptLocations.workbuddyDataFolder(ofRoot: path) : nil)
         }
-        opencodeRoot = configuration.resolvedOpencodeRoot
-        opencode = configuration.readsOpencode ? OpencodeSource(root: opencodeRoot, fileID: Self.opencodeFileID) : nil
-        zcodeRoot = configuration.resolvedZcodeRoot
-        zcode = configuration.readsZcode ? ZcodeSource(root: zcodeRoot, fileID: Self.zcodeFileID) : nil
+        opencode = configuration.readsOpencode ? OpencodeSourceSet(roots: configuration.resolvedOpencodeRoots) : nil
+        zcode = configuration.readsZcode ? ZcodeSourceSet(roots: configuration.resolvedZcodeRoots) : nil
         openclaw = configuration.readsOpenclaw
             ? OpenClawSource(roots: configuration.resolvedOpenclawRoots, maxLineBytes: limits.maxLineBytes) : nil
-        let hermesRoot = configuration.resolvedHermesRoot
         hermes = configuration.readsHermes
-            ? HermesSource(root: hermesRoot.path, isSetting: hermesRoot.isSetting,
-                           timeZone: configuration.resolvedHermesTimeZone, limits: limits) : nil
+            ? HermesSource(roots: configuration.resolvedHermesRoots, timeZone: configuration.resolvedHermesTimeZone,
+                           limits: limits) : nil
+        devin = configuration.readsDevin ? DevinSource(roots: configuration.resolvedDevinRoots) : nil
+        qoder = configuration.readsQoder ? QoderSource(roots: configuration.resolvedQoderRoots) : nil
         modeContext = AgentModeContext(roots: roots.filter { $0.enabled && $0.readable }.map { ($0.family, $0.path) },
                                        geminiSettings: configuration.resolvedGeminiSettings)
         refreshAvailability()
@@ -168,17 +176,17 @@ final class TranscriptSession {
 
     var hasAvailableRoot: Bool {
         roots.contains { $0.enabled && $0.detected } || opencode?.isReady == true || zcode?.isReady == true
-            || openclaw?.detected == true || hermes?.detected == true
+            || openclaw?.detected == true || hermes?.detected == true || devin?.detected == true || qoder?.detected == true
     }
 
     var watchedPaths: [String] {
         var paths = roots.filter { $0.enabled && $0.available }.map(\.canonicalPath)
-        if let directory = opencode?.watchedDirectory, opencode?.isReady == true, !paths.contains(directory) {
-            paths.append(directory)
-        }
-        if let directory = zcode?.watchedDirectory, !paths.contains(directory) { paths.append(directory) }
+        for directory in opencode?.watchedDirectories ?? [] where !paths.contains(directory) { paths.append(directory) }
+        for directory in zcode?.watchedDirectories ?? [] where !paths.contains(directory) { paths.append(directory) }
         for directory in openclaw?.watchedDirectories ?? [] where !paths.contains(directory) { paths.append(directory) }
         for directory in hermes?.watchedDirectories ?? [] where !paths.contains(directory) { paths.append(directory) }
+        for directory in devin?.watchedDirectories ?? [] where !paths.contains(directory) { paths.append(directory) }
+        for directory in qoder?.watchedDirectories ?? [] where !paths.contains(directory) { paths.append(directory) }
         return paths
     }
 
@@ -187,40 +195,54 @@ final class TranscriptSession {
         (openclaw?.displayRoot ?? configuration.resolvedOpenclawRoots.first ?? "", openclaw?.detected ?? false)
     }
 
-    var zcodeLocation: (path: String, available: Bool) { (zcodeRoot, zcode?.exists ?? false) }
-
-    /// The Hermes Agent row's path (the home, or the folder of the setting) and whether it exists (METRICS 2).
-    var hermesLocation: (path: String, available: Bool) {
-        (hermes?.root ?? configuration.resolvedHermesRoot.path, hermes?.detected ?? false)
+    /// The ZCode row's path (the first root whose database exists) and whether any database exists (METRICS 2.1).
+    var zcodeLocation: (path: String, available: Bool) {
+        (zcode?.displayRoot ?? configuration.resolvedZcodeRoots.first ?? "", zcode?.exists ?? false)
     }
 
-    /// Root path and availability of the OpenCode source (the folder that contains `opencode.db`).
-    var opencodeLocation: (path: String, available: Bool, status: OpencodeSource.Status?) {
-        (opencodeRoot, opencode?.exists ?? false, opencode?.status)
+    /// The Hermes Agent row's path (the first home or user location that exists) and whether one exists (METRICS 2).
+    var hermesLocation: (path: String, available: Bool) {
+        (hermes?.displayRoot ?? configuration.resolvedHermesRoots.first?.path ?? "", hermes?.detected ?? false)
+    }
+
+    /// The Devin row's path (the first root that names something that exists) and whether one does (METRICS 2.1).
+    var devinLocation: (path: String, available: Bool) {
+        let root = devin?.displayRoot ?? ""
+        return (root.isEmpty ? configuration.resolvedDevinRoots.first?.displayFolder ?? "" : root, devin?.detected ?? false)
+    }
+
+    /// The Qoder IDE row's path (the first root that names a database that exists) and whether one does (METRICS 2.1).
+    var qoderLocation: (path: String, available: Bool) {
+        let root = qoder?.displayRoot ?? ""
+        return (root.isEmpty ? configuration.resolvedQoderRoots.first?.displayFolder ?? "" : root, qoder?.detected ?? false)
+    }
+
+    /// The OpenCode row's path (the first folder whose `opencode.db` exists) and whether any database exists.
+    var opencodeLocation: (path: String, available: Bool) {
+        (opencode?.displayRoot ?? configuration.resolvedOpencodeRoots.first ?? "", opencode?.exists ?? false)
     }
 
     /// Re-checks which roots exist. Returns true when availability changed.
     @discardableResult
     func refreshAvailability() -> Bool {
         var changed = false
-        if let opencode, opencode.refreshAvailability() {
-            changed = true
-            opencodeNeedsSeed = true
-        }
-        if let zcode, zcode.refreshAvailability() {
-            changed = true
-            zcodeNeedsSeed = true
-        }
+        if opencode?.refreshAvailability() == true { changed = true }
+        if zcode?.refreshAvailability() == true { changed = true }
+        var resolvedRoots: Set<String> = []
         for index in roots.indices {
-            let available = roots[index].readable && TranscriptDiscovery.isAvailable(root: roots[index].path)
+            var available = roots[index].readable && TranscriptDiscovery.isAvailable(root: roots[index].path)
             let detected = available || roots[index].detectionPath.map(TranscriptDiscovery.isAvailable(root:)) == true
-            if available != roots[index].available || detected != roots[index].detected { changed = true }
-            roots[index].available = available
-            roots[index].detected = detected
             if available, let resolved = realpath(roots[index].path, nil) {
                 roots[index].canonicalPath = String(cString: resolved)
                 free(resolved)
             }
+            // A root that resolves to the folder of an earlier root of its family is that root: read once (METRICS 2.1).
+            if available, !resolvedRoots.insert(roots[index].family.rawValue + "/" + roots[index].canonicalPath).inserted {
+                available = false
+            }
+            if available != roots[index].available || detected != roots[index].detected { changed = true }
+            roots[index].available = available
+            roots[index].detected = detected
         }
         return changed
     }
@@ -345,20 +367,15 @@ final class TranscriptSession {
         let seededAt = DispatchTime.now().uptimeNanoseconds
         closeIdleDatabases(nowNs: seededAt)
         if let opencode, opencode.exists {
-            summary.filesDiscovered += 1
-            if opencode.isReady {
-                summary.filesRead += 1
-                summary.bytesRead += opencode.databaseSize
-            }
-            seedOpencode(todayStartMs: todayStartMs)
+            summary.filesDiscovered += opencode.existingCount
+            summary.filesRead += opencode.readyCount
+            summary.bytesRead += opencode.databaseBytes
+            apply(opencode.seed(todayStartMs: todayStartMs, deduper: &deduper), live: false)
         }
         if let zcode, zcode.exists {
-            summary.filesDiscovered += 1
-            if zcode.isReady {
-                summary.filesRead += 1
-                summary.bytesRead += zcode.databaseSize
-            }
-            zcodeNeedsSeed = false
+            summary.filesDiscovered += zcode.existingCount
+            summary.filesRead += zcode.readyCount
+            summary.bytesRead += zcode.databaseBytes
             apply(zcode.seed(todayStartMs: todayStartMs, deduper: &deduper), live: false)
         }
         if let openclaw {
@@ -372,6 +389,18 @@ final class TranscriptSession {
             summary.filesDiscovered += hermes.filesDiscovered
             summary.filesRead += hermes.filesRead
             summary.bytesRead += hermes.bytesRead
+        }
+        if let devin {
+            apply(devin.seed(todayStartMs: todayStartMs, deduper: &deduper), live: false)
+            summary.filesDiscovered += devin.filesDiscovered
+            summary.filesRead += devin.filesRead
+            summary.bytesRead += devin.bytesRead
+        }
+        if let qoder {
+            apply(qoder.seed(todayStartMs: todayStartMs, deduper: &deduper), source: .qoder, live: false)
+            summary.filesDiscovered += qoder.filesDiscovered
+            summary.filesRead += qoder.filesRead
+            summary.bytesRead += qoder.bytesRead
         }
         refreshModeContext()
         summary.partialHistory = partialHistory
@@ -416,17 +445,20 @@ final class TranscriptSession {
     @discardableResult
     func handleChanges(atCanonicalPaths paths: Set<String>) -> Bool {
         var changed = false
-        if let opencode, paths.contains(where: opencode.matches(canonicalPath:)) {
-            changed = apply(opencode.refresh(deduper: &deduper), live: true)
+        if let update = opencode?.handleChanges(atCanonicalPaths: paths, deduper: &deduper) {
+            changed = apply(update, live: true)
         }
-        if let zcode, paths.contains(where: zcode.matches(canonicalPath:)) {
-            changed = apply(zcode.refresh(deduper: &deduper), live: true) || changed
-        }
+        if let zcode { changed = apply(zcode.handleChanges(atCanonicalPaths: paths, deduper: &deduper), live: true) || changed }
         if let openclaw {
             changed = apply(openclaw.handleChanges(atCanonicalPaths: paths, todayStartMs: todayStartMs, deduper: &deduper), live: true)
                 || changed
         }
         if let hermes { changed = apply(hermes.handleChanges(atCanonicalPaths: paths, deduper: &deduper), live: true) || changed }
+        if let devin { changed = apply(devin.handleChanges(atCanonicalPaths: paths, deduper: &deduper), live: true) || changed }
+        if let qoder {
+            changed = apply(qoder.handleChanges(atCanonicalPaths: paths, deduper: &deduper), source: .qoder, live: true)
+                || changed
+        }
         var handled: Set<String> = []
         for path in paths.sorted() {
             guard let (localPath, root) = localPath(forCanonical: path), handled.insert(localPath).inserted else { continue }
@@ -473,6 +505,8 @@ final class TranscriptSession {
         if let update = zcode?.refreshIfChanged(deduper: &deduper) { changed = apply(update, live: true) || changed }
         if let openclaw { changed = apply(openclaw.refreshIfChanged(deduper: &deduper), live: true) || changed }
         if let hermes { changed = apply(hermes.poll(nowMs: nowMs, deduper: &deduper), live: true) || changed }
+        if let devin { changed = apply(devin.poll(deduper: &deduper), live: true) || changed }
+        if let qoder { changed = apply(qoder.poll(deduper: &deduper), source: .qoder, live: true) || changed }
         let hot = files.values.filter { nowMs - $0.lastStat.modifiedMs <= Self.hotWindowMs }
         for file in hot.sorted(by: { $0.path < $1.path }) {
             guard let stat = file.family.stat(file.path) else {
@@ -528,25 +562,28 @@ final class TranscriptSession {
             }
         }
         if let opencode {
-            if opencodeNeedsSeed {
-                seedOpencode(todayStartMs: todayStartMs)
+            // A database that appeared, vanished or was replaced is read like at startup; its responses are not live.
+            let (seeded, live) = opencode.rediscover(nowMs: clock(), todayStartMs: todayStartMs, deduper: &deduper)
+            if let seeded {
+                apply(seeded, live: false)
                 changed = true
-            } else {
-                changed = apply(opencode.rediscover(nowMs: clock(), deduper: &deduper), live: true) || changed
             }
+            changed = apply(live, live: true) || changed
         }
         if let zcode {
-            if zcodeNeedsSeed {
-                zcodeNeedsSeed = false
-                changed = apply(zcode.seed(todayStartMs: todayStartMs, deduper: &deduper), live: false) || changed
-            } else if let update = zcode.refreshIfChanged(deduper: &deduper) {
-                changed = apply(update, live: true) || changed
-            }
+            let (seeded, live) = zcode.rediscover(todayStartMs: todayStartMs, deduper: &deduper)
+            changed = apply(seeded, live: false) || changed
+            if let live { changed = apply(live, live: true) || changed }
         }
         if let openclaw {
             changed = apply(openclaw.rediscover(todayStartMs: todayStartMs, deduper: &deduper), live: true) || changed
         }
         if let hermes { changed = apply(hermes.rediscover(deduper: &deduper), live: true) || changed }
+        if let devin { changed = apply(devin.rediscover(todayStartMs: todayStartMs, deduper: &deduper), live: true) || changed }
+        if let qoder {
+            changed = apply(qoder.rediscover(todayStartMs: todayStartMs, deduper: &deduper), source: .qoder, live: true)
+                || changed
+        }
         return refreshModeContext() || changed
     }
 
@@ -722,6 +759,7 @@ final class TranscriptSession {
 
     private func finishRead(of file: TrackedFile, result: FileTailer.ReadResult) {
         file.wasRead = true
+        if let quota = file.parser.codexQuota, quota.observedMs > codexQuota?.observedMs ?? .min { codexQuota = quota }
         if result.oversized || file.parser.hasPartialHistory { partialHistory = true }
         if result.failed {
             unreadablePaths.insert(file.path)
@@ -748,10 +786,12 @@ final class TranscriptSession {
         var parentLinks = self.parentLinks
         if parentLinksAreStale {
             let direct = opencodeLinks.merging(zcodeLinks) { first, _ in first }.merging(openclawLinks) { first, _ in first }
+                .merging(qoderLinks) { first, _ in first }
             parentLinks = AgentParents.resolve(Array(parentMembers.values), direct: direct)
         }
         var parents = parentLinks
         for (id, parent) in openclawLinks { parents[id] = parent }
+        parents.merge(remote.parents) { local, _ in local }
         return (engine.agents.values.sorted { $0.id < $1.id }, parents, engine.storedResponses)
     }
 
@@ -764,13 +804,17 @@ final class TranscriptSession {
         nowMs: Int64,
         todayStartMs: Int64,
         emitsEvents: Bool,
-        subsets: Set<SourceSet> = []
+        subsets: Set<SubsetKey> = []
     ) -> (output: EngineOutput, events: [SpeedEvent]) {
-        if parentLinksAreStale {
-            let direct = opencodeLinks.merging(zcodeLinks) { first, _ in first }.merging(openclawLinks) { first, _ in first }
-            parentLinks = AgentParents.resolve(Array(parentMembers.values), direct: direct)
-            engine.setParents(parentLinks)
+        if parentLinksAreStale || remoteParentsChanged {
+            if parentLinksAreStale {
+                let direct = opencodeLinks.merging(zcodeLinks) { first, _ in first }.merging(openclawLinks) { first, _ in first }
+                    .merging(qoderLinks) { first, _ in first }
+                parentLinks = AgentParents.resolve(Array(parentMembers.values), direct: direct)
+            }
+            engine.setParents(remote.hasHosts ? parentLinks.merging(remote.parents) { local, _ in local } : parentLinks)
             parentLinksAreStale = false
+            remoteParentsChanged = false
         }
         let output = engine.advance(nowMs: nowMs, todayStartMs: todayStartMs, emitsEvents: emitsEvents, subsets: subsets)
         let events = pendingEvents + output.events
@@ -783,12 +827,14 @@ final class TranscriptSession {
 
     var malformedLines: Int {
         files.values.reduce(removedMalformedLines) { $0 + $1.parser.state.malformedLines } + (opencode?.malformedRows ?? 0)
-            + (openclaw?.malformedRows ?? 0) + (hermes?.malformedLines ?? 0)
+            + (openclaw?.malformedRows ?? 0) + (hermes?.malformedLines ?? 0) + (devin?.malformedLines ?? 0)
+            + (qoder?.malformedLines ?? 0)
     }
 
     var unreadableFileCount: Int {
-        unreadablePaths.count + (opencode?.status == .unreadable ? 1 : 0) + (zcode?.status == .unreadable ? 1 : 0)
-            + (openclaw?.unreadableDatabaseCount ?? 0) + (hermes?.unreadableFileCount ?? 0)
+        unreadablePaths.count + (opencode?.unreadableCount ?? 0) + (zcode?.unreadableCount ?? 0)
+            + (openclaw?.unreadableDatabaseCount ?? 0) + (hermes?.unreadableFileCount ?? 0) + (devin?.unreadableCount ?? 0)
+            + (qoder?.unreadableCount ?? 0)
     }
 
     /// Antigravity databases whose connection is open.
@@ -799,23 +845,25 @@ final class TranscriptSession {
     /// Sources with data this version cannot read: OpenCode, or an Antigravity database without its tables.
     var unsupportedSources: [SourceKind] {
         var sources: [SourceKind] = []
-        if opencode?.status == .unsupported { sources.append(.opencode) }
-        if zcode?.status == .unsupported { sources.append(.zcode) }
+        if opencode?.hasUnsupported == true { sources.append(.opencode) }
+        if zcode?.hasUnsupported == true { sources.append(.zcode) }
         if enabledSources.contains(.antigravity), files.values.contains(where: { $0.family.isDatabase && $0.parser.isUnsupported }) {
             sources.append(.antigravity)
         }
         if openclaw?.hasUnsupportedDatabase == true { sources.append(.openclaw) }
+        if devin?.hasUnsupported == true { sources.append(.devin) }
+        if qoder?.hasUnsupported == true { sources.append(.qoder) }
         return sources
     }
 
-    /// Agents of each source with at least one line today; WorkBuddy, Kimi Code CLI, Grok Build, Pi and Factory Droid
-    /// count main sessions only (DESIGN 5).
+    /// Agents of each source with at least one line today; WorkBuddy, Kimi Code CLI, Grok Build, Pi, Factory Droid and
+    /// Qoder CLI count main sessions only (DESIGN 5).
     func sessionCounts(todayStartMs: Int64) -> [SourceKind: Int] {
         var counts: [SourceKind: Int] = [:]
         for file in files.values {
             let state = file.parser.state
             guard let last = state.lastLineMs, last >= todayStartMs, enabledSources.contains(state.source) else { continue }
-            if file.family.isWorkBuddy || [.kimi, .grokBuild, .pi, .droid].contains(file.family), state.isSubagent {
+            if file.family.isWorkBuddy || [.kimi, .grokBuild, .pi, .droid, .qoderCli].contains(file.family), state.isSubagent {
                 continue
             }
             counts[state.source, default: 0] += 1
@@ -826,6 +874,8 @@ final class TranscriptSession {
         if let zcode { counts[.zcode] = zcode.activeSessionCount(todayStartMs: todayStartMs) }
         if let openclaw { counts[.openclaw] = openclaw.activeSessionCount(todayStartMs: todayStartMs) }
         if let hermes { counts[.hermes] = hermes.activeSessionCount(todayStartMs: todayStartMs) }
+        if let devin { counts[.devin] = devin.activeSessionCount(todayStartMs: todayStartMs) }
+        if let qoder { counts[.qoder] = qoder.activeSessionCount(todayStartMs: todayStartMs) }
         return counts
     }
 
@@ -867,12 +917,6 @@ final class TranscriptSession {
     }
 
     // MARK: - OpenCode
-
-    private func seedOpencode(todayStartMs: Int64) {
-        guard let opencode else { return }
-        opencodeNeedsSeed = false
-        apply(opencode.seed(todayStartMs: todayStartMs, deduper: &deduper), live: false)
-    }
 
     @discardableResult
     private func apply(_ update: OpencodeSource.Update, live: Bool) -> Bool {
@@ -959,6 +1003,42 @@ final class TranscriptSession {
             }
         }
         return true
+    }
+
+    /// Devin's and Qoder IDE's databases (METRICS 4.17, 4.18); Qoder's sub-agent sessions name their parent.
+    @discardableResult
+    private func apply(_ update: DevinSource.Update, source: SourceKind = .devin, live: Bool) -> Bool {
+        guard !update.isEmpty else { return false }
+        if source == .qoder, let links = qoder?.parentLinks, links != qoderLinks {
+            qoderLinks = links
+            parentLinksAreStale = true
+        }
+        for entry in update.upserts {
+            deliver(entry.upsert, project: entry.project, live: live && !entry.seeded,
+                    agent: update.agents[entry.upsert.record.agentId])
+        }
+        for id in update.removedAgents { engine.removeAgent(id: id) }
+        for (id, state) in update.agents {
+            if state.lastLineMs != nil, enabledSources.contains(source) {
+                engine.setAgent(EngineAgent(id: id, state: state, parentId: source == .qoder ? parentLinks[id] : nil))
+            } else {
+                engine.removeAgent(id: id)
+            }
+        }
+        return true
+    }
+
+    // MARK: - Remote hosts (REMOTE 7)
+
+    /// Applies the remote feed's changes; true when the engine changed. Live completions become pending events.
+    @discardableResult
+    func applyRemote(_ changes: [RemoteFeedChange]) -> Bool {
+        guard !changes.isEmpty else { return false }
+        let result = remote.apply(changes, to: &engine, enabledSources: enabledSources, watching: reportWatch != nil,
+                                  nowMs: clock)
+        pendingEvents += result.events
+        if result.parentsChanged { remoteParentsChanged = true }
+        return result.changed
     }
 
     // MARK: - Live reporting (METRICS 11.10)

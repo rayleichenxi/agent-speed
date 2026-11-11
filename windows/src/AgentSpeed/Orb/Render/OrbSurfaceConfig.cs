@@ -30,7 +30,7 @@ internal sealed record OrbSurfaceConfig(
     /// <summary>Only floating windows adapt to their monitor; previews keep the requested size.</summary>
     public OrbSurfaceConfig ForDisplay(MonitorInfo? monitor)
     {
-        var size = monitor?.OrbDisplay.DiameterFor(Size, Style) ?? Size;
+        var size = monitor?.OrbDisplay.FootprintFor(Size / OrbStyles.Footprint(Style), Style) ?? Size;
         return size == Size ? this : this with { Size = size };
     }
 }

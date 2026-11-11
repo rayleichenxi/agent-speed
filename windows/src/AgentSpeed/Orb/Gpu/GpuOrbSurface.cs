@@ -54,6 +54,22 @@ internal sealed class GpuOrbSurface : IOrbSurface, IOrbFrameClient, IDisposable
         _automation = automation;
         _orb = new OrbGpuOrb(seed, device.Atlas.ForScale(1));
         device.Recovered += OnRecovered;
+        CharacterGpu.AssetReady += OnCharacterAsset;
+    }
+
+    /// <summary>A character atlas finished decoding: draw a frame so it shows (the frame's fingerprint may not change).</summary>
+    private void OnCharacterAsset(object? sender, EventArgs e)
+    {
+        if (InstrumentStyle != OrbStyle.Character)
+        {
+            return;
+        }
+
+        System.Windows.Application.Current?.Dispatcher.BeginInvoke(() =>
+        {
+            _forcePresent = true;
+            _clock.Kick(this);
+        });
     }
 
     private void OnRecovered(object? sender, EventArgs e)
@@ -265,6 +281,37 @@ internal sealed class GpuOrbSurface : IOrbSurface, IOrbFrameClient, IDisposable
 
     public bool LinesVisible => _orb.LinesVisible(Now());
 
+    public void SetCharacter(Presentation.Orb.OrbCharacterContent? content)
+    {
+        if (_orb.SetCharacter(content))
+        {
+            _forcePresent = true;
+            _clock.Kick(this);
+        }
+    }
+
+    public void SetCharacterReadings(Presentation.Orb.Lines.OrbLinesSample? performance, Presentation.Cost.LiveMoney? money, bool generating,
+        Presentation.Orb.OrbLatency? latency, IReadOnlyList<Presentation.Orb.OrbModelRow> models)
+    {
+        if (_orb.SetCharacterReadings(Now(), performance, money, generating, latency, models))
+        {
+            _clock.Kick(this);
+        }
+    }
+
+    public void SetCharacterNetwork(Presentation.Orb.Lines.OrbLinesSample? network)
+    {
+        if (_orb.SetCharacterNetwork(Now(), network))
+        {
+            _clock.Kick(this);
+        }
+    }
+
+    public string? CharacterSentence(Presentation.Localization.Localizer localizer, string currencyName) =>
+        InstrumentStyle == OrbStyle.Character && _orb.Character is { } content
+            ? OrbCharacterSpeech.Sentence(_orb.CharacterReadings, content.Readouts, Now(), localizer, currencyName, content.Quota)
+            : null;
+
     public Presentation.Orb.Lines.OrbLinesReading? LinesReading => _orb.LinesReading;
 
     public void Pulse(double speed, long outputTokens)
@@ -284,7 +331,7 @@ internal sealed class GpuOrbSurface : IOrbSurface, IOrbFrameClient, IDisposable
 
     /// <summary>
     /// Whether a canvas point (DIP from the window's top-left) is on the unit's hit area (DESIGN 9 Switching): the unit text,
-    /// or the value in <c>minimal</c>, grown to at least 44 × 20 and clipped to the disc.
+    /// or the value without a unit line (<c>minimal</c>, orbs below 96 DIP), grown to at least 44 × 20 and clipped to the disc.
     /// </summary>
     public bool IsOnUnit(double x, double y)
     {
@@ -293,7 +340,7 @@ internal sealed class GpuOrbSurface : IOrbSurface, IOrbFrameClient, IDisposable
             return false;
         }
 
-        var layout = style.Readout;
+        var layout = style.Readout.At(ctx.Size);
         var width = layout.UnitSize is null ? _orb.Readout.ValueWidth : _orb.Readout.UnitWidth;
         if (_orb.UnitOnDial && layout.UnitSize is not null)
         {
@@ -384,6 +431,7 @@ internal sealed class GpuOrbSurface : IOrbSurface, IOrbFrameClient, IDisposable
     public void Dispose()
     {
         _device.Recovered -= OnRecovered;
+        CharacterGpu.AssetReady -= OnCharacterAsset;
         _clock.Unregister(this);
         _surface?.Dispose();
         _surface = null;
@@ -399,6 +447,12 @@ internal sealed class GpuOrbSurface : IOrbSurface, IOrbFrameClient, IDisposable
         _surface ??= new CompositionSurface(Hwnd);
         try
         {
+            if (!_device.CanSubmit)
+            {
+                FrameStats.AddSkip();
+                return Skip();
+            }
+
             var target = _surface.Begin(_device, _pixels, _pixels);
             if (target is not null && OrbGpuRenderer.Draw(_device, _orb.List, target, _pixels, _pixels))
             {
@@ -407,16 +461,7 @@ internal sealed class GpuOrbSurface : IOrbSurface, IOrbFrameClient, IDisposable
                     case PresentResult.Shown:
                         return true;
                     case PresentResult.Busy:
-                        // The compositor has not taken the previous frame yet: the next frame presents instead (asked for
-                        // now only when the orb would otherwise stay static).
-                        FramesBusy++;
-                        _forcePresent = true;
-                        if (_demand == FrameClass.None)
-                        {
-                            _clock.Kick(this);
-                        }
-
-                        return false;
+                        return Skip();
                 }
             }
         }
@@ -428,6 +473,22 @@ internal sealed class GpuOrbSurface : IOrbSurface, IOrbFrameClient, IDisposable
         if (_device.IsLost)
         {
             Recover();
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// The compositor has not taken the previous frame yet, or the GPU is still busy: the next frame presents instead
+    /// (asked for now only when the orb would otherwise stay static).
+    /// </summary>
+    private bool Skip()
+    {
+        FramesBusy++;
+        _forcePresent = true;
+        if (_demand == FrameClass.None)
+        {
+            _clock.Kick(this);
         }
 
         return false;

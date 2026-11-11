@@ -60,17 +60,61 @@ Window {
 
     ListModel { id: sourceModel }
     ListModel { id: agentModel }
+    // DESIGN 13 Dashboard → Hosts, only while remote hosts exist.
+    ListModel { id: hostModel }
+    function applyHosts() {
+        var rows = []
+        var raw = hostsView.dashboard
+        // The quota demo's host joins an empty Hosts section (screenshots).
+        if (raw.length === 0 && root.snap.demo === true) {
+            const demo = quotas.demoHosts || []
+            raw = demo.length > 0 ? [{ key: "local", name: hostsView.localName, dot: "connected", connected: true, live: 1074, liveText: "1074",
+                                       todayText: "492.2k" }] : []
+            for (let e = 0; e < demo.length; ++e)
+                raw.push({ key: demo[e].key, name: demo[e].name, dot: "connected", connected: true, live: 181, liveText: "181", todayText: "87.4k" })
+        }
+        for (var h = 0; h < raw.length; ++h) {
+            var r = raw[h]
+            rows.push({ key: r.key, name: r.name, dot: r.dot, connected: r.connected, word: r.word || "", live: r.live || 0,
+                        liveText: r.liveText || "0", todayText: r.todayText || "0", todayCostText: r.todayCostText || "" })
+        }
+        Sync.sync(hostModel, rows, "key")
+    }
+    Connections {
+        target: hostsView
+        function onDashboardChanged() { root.applyHosts() }
+    }
+    Connections {
+        target: quotas
+        function onChanged() {
+            root.applySnapshot()
+            root.applyHosts()
+        }
+    }
 
     function applySnapshot() {
         var s = appState.snapshot
         var sources = []
         var rawSources = s.sources || []
+        // DESIGN 4: a source with a quota observed within the last 24 hours is listed too, its today values at 0.
+        var listed = quotas.listed || []
         for (var i = 0; i < rawSources.length; ++i) {
             var src = rawSources[i]
-            if (!src.enabled || !(src.live > 0 || src.today > 0)) continue
+            if (!src.enabled || !(src.live > 0 || src.today > 0 || listed.indexOf(src.source) >= 0)) continue
             sources.push({ key: src.source, source: src.source, name: src.name, todayText: src.todayText, live: src.live })
         }
+        // The demo's snapshot names only some sources: the rest of the quota demo joins in source order.
+        if (root.snap.demo === true) {
+            const order = ["codex", "claudeCode", "claudeDesktop", "deepseek", "opencode", "gemini", "omp", "antigravity", "workbuddy",
+                           "workbuddyAi", "zcode", "kimi", "grokBuild", "pi", "openclaw", "hermes", "droid", "devin", "qoder", "qoderCli"]
+            for (let q = 0; q < listed.length; ++q) {
+                if (sources.some(r => r.source === listed[q])) continue
+                sources.push({ key: listed[q], source: listed[q], name: S.tr2(S.rev, "source." + listed[q]), todayText: "0", live: 0 })
+            }
+            sources.sort((a, b) => order.indexOf(a.source) - order.indexOf(b.source))
+        }
         Sync.sync(sourceModel, sources, "key")
+        root.sourceRev++
 
         var raw = s.agents || []
         var shown = dashboardState.agentsExpanded ? raw : raw.slice(0, collapsedRows)
@@ -80,7 +124,7 @@ Window {
             var a = shown[j]
             var detail = a.model ? a.model + " · " + a.sourceName : a.sourceName
             agents.push({
-                key: a.id, source: a.source, project: a.project || a.sourceName, detail: detail, phase: a.phase,
+                key: a.id, source: a.source, project: a.project || a.sourceName, detail: detail, hostName: a.hostName || "", phase: a.phase,
                 live: a.live, depth: a.depth, continues: facts[j].continues, hasChildren: facts[j].hasChildren,
                 rails: facts[j].rails, effort: a.effort || "", effortLevel: a.effortLevel, effortTop: a.effortTop,
                 effortConfigured: a.effortConfigured, speedConfigured: a.speedConfigured, modesA11y: a.modesA11y || "",
@@ -109,6 +153,81 @@ Window {
             if (info) scoreCard.info = info
             else hideCard()
         }
+    }
+
+    // DESIGN 4 Quota lines: the columns every line of a section shares, and each line's age only where it still fits
+    // after the reset (a line that cannot hold both keeps the reset; its tooltip keeps the age).
+    FontMetrics { id: quotaLabelMetrics; font.pixelSize: 11; font.weight: Font.Medium }
+    FontMetrics { id: quotaPercentMetrics; font.pixelSize: 12; font.weight: Font.DemiBold; font.features: Theme.tabular }
+    FontMetrics { id: quotaResetMetrics; font.pixelSize: 11 }
+    function quotaFit(groups, width) {
+        var label = 0, reset = 0
+        var percent = Math.ceil(quotaPercentMetrics.advanceWidth("100%")) + 1
+        for (var g = 0; g < groups.length; ++g)
+            for (var i = 0; i < groups[g].length; ++i) label = Math.max(label, Math.ceil(quotaLabelMetrics.advanceWidth(groups[g][i].label)) + 1)
+        var room = width - label - percent - 88 - 3 * 8
+        var fitted = []
+        for (var k = 0; k < groups.length; ++k) {
+            var out = []
+            for (var j = 0; j < groups[k].length; ++j) {
+                var line = Object.assign({}, groups[k][j])
+                var tail = line.reset
+                if (line.age.length > 0) {
+                    var both = line.reset.length > 0 ? line.reset + " · " + line.age : line.age
+                    if (Math.ceil(quotaResetMetrics.advanceWidth(both)) + 1 > room) {
+                        line.tooltip = line.tooltip.length > 0 ? line.tooltip + "\n" + line.age : line.age
+                        line.age = ""
+                    } else {
+                        tail = both
+                    }
+                }
+                if (tail.length > 0) reset = Math.max(reset, Math.ceil(quotaResetMetrics.advanceWidth(tail)) + 1)
+                out.push(line)
+            }
+            fitted.push(out)
+        }
+        // The bar keeps at least 52 px; the reset column gives way first.
+        reset = Math.min(reset, Math.max(0, width - label - percent - 52 - 3 * 8))
+        return { groups: fitted, label: label, percent: percent, reset: reset }
+    }
+    property int sourceRev: 0
+    readonly property var sourceQuota: {
+        root.sourceRev
+        const keys = []
+        const groups = []
+        for (let i = 0; i < sourceModel.count; ++i) {
+            const key = sourceModel.get(i).source
+            const lines = (quotas.lines || {})[key] || []
+            keys.push(key)
+            groups.push(lines)
+        }
+        const fit = quotaFit(groups, 328 - 22)
+        const map = {}
+        for (let k = 0; k < keys.length; ++k) map[keys[k]] = fit.groups[k]
+        return { lines: map, label: fit.label, percent: fit.percent, reset: fit.reset, rev: quotas.revision }
+    }
+
+    // DESIGN 13 Host quotas: every host's source sub-lines, their lines indented under the source's name, in columns
+    // shared by the section.
+    readonly property var hostQuota: {
+        const byHost = quotas.hostLines || {}
+        const keys = [], groups = [], owners = []
+        for (let i = 0; i < hostModel.count; ++i) {
+            const key = hostModel.get(i).key
+            const sources = byHost[key] || []
+            for (let k = 0; k < sources.length; ++k) {
+                keys.push(key)
+                owners.push(sources[k])
+                groups.push(sources[k].lines)
+            }
+        }
+        const fit = quotaFit(groups, 328 - 22 - 12)
+        const hosts = {}
+        for (let g = 0; g < keys.length; ++g) {
+            if (!hosts[keys[g]]) hosts[keys[g]] = []
+            hosts[keys[g]].push({ source: owners[g].source, name: owners[g].name, spoken: owners[g].spoken, lines: fit.groups[g] })
+        }
+        return { hosts: hosts, label: fit.label, percent: fit.percent, reset: fit.reset, rev: quotas.revision + hostModel.count }
     }
 
     property real capsuleColumn: 0
@@ -227,9 +346,15 @@ Window {
 
     Connections {
         target: appState
-        function onSnapshotChanged() { root.applySnapshot() }
+        function onSnapshotChanged() {
+            root.applySnapshot()
+            if (root.snap.demo === true && hostModel.count === 0) root.applyHosts()
+        }
     }
-    Component.onCompleted: applySnapshot()
+    Component.onCompleted: {
+        applySnapshot()
+        applyHosts()
+    }
 
     Shortcut {
         sequence: "Escape"
@@ -496,10 +621,50 @@ Window {
                         visible: sourceModel.count > 0
                         interactive: false
                         model: sourceModel
-                        delegate: SourceRow { width: sourceList.width }
+                        delegate: SourceRow {
+                            width: sourceList.width
+                            quotaItems: root.sourceQuota.lines[source] || []
+                            quotaSpoken: (quotas.spoken || {})[source] || ""
+                            invite: source === "claudeCode" && quotas.invite
+                            labelWidth: root.sourceQuota.label
+                            percentWidth: root.sourceQuota.percent
+                            resetWidth: root.sourceQuota.reset
+                            onInviteAccepted: quotas.openCliSettings()
+                            onInviteDismissed: prefs.quotaCliInviteDismissed = true
+                        }
                         add: Transition { NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 220 } }
                         remove: Transition { NumberAnimation { property: "opacity"; to: 0; duration: 180 } }
                         displaced: Transition { NumberAnimation { property: "y"; duration: 220; easing.type: Easing.OutCubic } }
+                    }
+
+                    // Hosts (DESIGN 13): between Sources and Agents, while remote hosts exist.
+                    Hairline { visible: hostsSection.visible }
+                    ColumnLayout {
+                        id: hostsSection
+                        visible: (hostsView.shown || (root.snap.demo === true && (quotas.demoHosts || []).length > 0)) && hostModel.count > 0
+                        Layout.fillWidth: true
+                        spacing: 0
+                        SectionHeader {
+                            text: S.tr2(S.rev, "remote.hosts")
+                            trailing: S.tr2(S.rev, "unit.tokS")
+                        }
+                        ListView {
+                            id: hostList
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: contentHeight
+                            interactive: false
+                            model: hostModel
+                            delegate: HostRow {
+                                width: hostList.width
+                                quotaSources: root.hostQuota.hosts[key] || []
+                                labelWidth: root.hostQuota.label
+                                percentWidth: root.hostQuota.percent
+                                resetWidth: root.hostQuota.reset
+                            }
+                            add: Transition { NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 220 } }
+                            remove: Transition { NumberAnimation { property: "opacity"; to: 0; duration: 180 } }
+                            displaced: Transition { NumberAnimation { property: "y"; duration: 220; easing.type: Easing.OutCubic } }
+                        }
                     }
 
                     Hairline {}

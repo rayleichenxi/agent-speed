@@ -42,7 +42,9 @@ public enum OrbEditing {
             titleTheme: template.titleTheme,
             unit: template.unit,
             traffic: template.traffic,
-            showName: template.showName
+            showName: template.showName,
+            character: template.character,
+            characterReadouts: template.characterReadouts
         )
         return inserting(orb, after: template.id, in: doc)
     }
@@ -149,13 +151,36 @@ public enum OrbEditing {
         update(id, in: doc) { $0.sources = selection }
     }
 
-    /// Changes the style and clamps the size to its range.
+    /// The hosts an orb counts (DESIGN 13).
+    public static func setHosts(_ selection: OrbHostSelection, of id: String, in doc: OrbsDocument) -> OrbsDocument {
+        update(id, in: doc) { $0.hosts = selection }
+    }
+
+    /// A host removed from the settings leaves every orb's selection; one left without hosts tracks all (REMOTE 2.4).
+    public static func removingHost(_ hostId: String, from doc: OrbsDocument) -> OrbsDocument {
+        var next = doc
+        for index in next.orbs.indices { next.orbs[index].hosts = next.orbs[index].hosts.removing(hostId) }
+        return next
+    }
+
+    /// Changes the style; the size stays, since every style shares one range.
     public static func setStyle(_ style: OrbStyleKind, of id: String, in doc: OrbsDocument) -> OrbsDocument {
-        update(id, in: doc) { $0 = $0.withStyle(style) }
+        update(id, in: doc) { $0.style = style }
+    }
+
+    /// A pack id, or nil to follow the fastest model vendor (CHARACTERS 7).
+    public static func setCharacter(_ character: String?, of id: String, in doc: OrbsDocument) -> OrbsDocument {
+        update(id, in: doc) { $0.character = OrbConfig.cleanCharacter(character) }
+    }
+
+    /// One card of the `character` style (DESIGN 2a.6, Readouts).
+    public static func setCharacterReadout(_ readout: CharacterReadout, _ on: Bool, of id: String,
+                                           in doc: OrbsDocument) -> OrbsDocument {
+        update(id, in: doc) { $0.characterReadouts[readout] = on }
     }
 
     public static func setSize(_ size: Double, of id: String, in doc: OrbsDocument) -> OrbsDocument {
-        update(id, in: doc) { $0.size = $0.style.clampSize(size) }
+        update(id, in: doc) { $0.size = OrbSizes.clamp(size) }
     }
 
     public static func setOpacity(_ opacity: Double, of id: String, in doc: OrbsDocument) -> OrbsDocument {

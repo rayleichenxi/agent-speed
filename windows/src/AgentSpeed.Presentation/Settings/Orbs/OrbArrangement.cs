@@ -10,7 +10,9 @@ public readonly record struct OrbDisplay(string Key, RectD Work, double Scale, b
 {
     public double DiameterFor(double size, OrbStyle style) => OrbSizing.Diameter(size, style, OrbSizeFactor);
 
-    public double RadiusFor(OrbDefinition orb) => DiameterFor(orb.Size, orb.Style) / 2 * OrbGeometry.ValidScale(Scale);
+    public double FootprintFor(double size, OrbStyle style) => OrbSizing.Footprint(size, style, OrbSizeFactor);
+
+    public double RadiusFor(OrbDefinition orb) => FootprintFor(orb.Size, orb.Style) / 2 * OrbGeometry.ValidScale(Scale);
 }
 
 /// <summary>Where an orb's disc is: the display key, the center and the radius in physical pixels.</summary>

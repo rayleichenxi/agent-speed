@@ -1,4 +1,5 @@
 #include <QAccessible>
+#include <QDateTime>
 #include <QApplication>
 #include <QQmlApplicationEngine>
 #include <QQmlEngine>
@@ -20,15 +21,25 @@
 #include "catalog.hpp"
 #include "flyout.hpp"
 #include "history_service.hpp"
+#include "lan/lan_controller.hpp"
 #include "graphics.hpp"
 #include "monitor_worker.hpp"
 #include "network_service.hpp"
 #include "orb/orb_accessible.hpp"
 #include "orb/orb_window.hpp"
+#include "characters/character_library.hpp"
+#include "orbs/character_demo.hpp"
 #include "orbs/orb_manager.hpp"
 #include "orb/preview.hpp"
 #include "hero/hero_item.hpp"
 #include "preferences.hpp"
+#include "agentspeed/quota/codex.hpp"
+#include "quota/quota_service.hpp"
+#include "quota/quota_view.hpp"
+#include "remote_hosts_view.hpp"
+#include "remote_service.hpp"
+#include "remote_trace.hpp"
+#include "source_locations_view.hpp"
 #include "report/report_controller.hpp"
 #include "strings.hpp"
 #include "title_themes.hpp"
@@ -36,10 +47,10 @@
 
 namespace {
 
-// The settings pane between 網路流量 and 資料來源 (DESIGN 11).
+// The settings pane between 網路流量 and 資料來源 (DESIGN 11); 遠端主機 follows 資料來源 (DESIGN 13).
 constexpr int kApiPage = 5;
 constexpr int kSourcesPage = 6;
-constexpr int kAboutPage = 7;
+constexpr int kAboutPage = 8;
 
 
 std::vector<BoardSpec> boardSpecs(const BoardStore* store) {
@@ -57,6 +68,12 @@ std::vector<BoardSpec> boardSpecs(const BoardStore* store) {
                 if (const auto kind = agentspeed::sourceFromId(s.toStdString())) kinds.push_back(*kind);
             spec.sources = kinds;
         }
+        const auto hosts = b.value(QStringLiteral("hosts"));
+        if (hosts.typeId() == QMetaType::QVariantList || hosts.typeId() == QMetaType::QStringList) {
+            std::vector<std::string> ids;
+            for (const auto& id : hosts.toStringList()) ids.push_back(id.toStdString());
+            if (!ids.empty()) spec.hosts = ids;
+        }
         specs.push_back(spec);
     }
     return specs;
@@ -64,6 +81,8 @@ std::vector<BoardSpec> boardSpecs(const BoardStore* store) {
 
 const BoardStore* gBoards = nullptr;
 const OrbsStore* gOrbs = nullptr;
+std::shared_ptr<agentspeed::remote::Feed> gRemoteFeed;
+std::shared_ptr<agentspeed::quota::CodexCollector> gCodexQuota;
 
 WorkerOptions optionsFrom(const Preferences& prefs, const Catalog& catalog, const Strings& strings,
                           const std::shared_ptr<agentspeed::pricing::PriceBook>& prices) {
@@ -82,6 +101,8 @@ WorkerOptions optionsFrom(const Preferences& prefs, const Catalog& catalog, cons
     options.totalMetric = prefs.metric() == QLatin1String("total");
     options.boards = boardSpecs(gBoards);
     if (gOrbs) options.orbs = orbSpecs(*gOrbs);
+    options.remoteFeed = gRemoteFeed;
+    options.codexQuota = gCodexQuota;
     return options;
 }
 
@@ -131,12 +152,24 @@ int main(int argc, char* argv[]) {
     gOrbs = &orbStore;
     auto prices = std::make_shared<agentspeed::pricing::PriceBook>();
     Catalog catalog(strings, prices);
+    // REMOTE: the remote hosts over the user's ssh, their live side fed to the monitor worker.
+    RemoteService remote(prefs, prices);
+    remote.setSelectionStores(&orbStore, &boardStore);
+    gRemoteFeed = remote.feed();
+    gCodexQuota = std::make_shared<agentspeed::quota::CodexCollector>();
 
     QThread thread;
     thread.setObjectName(QStringLiteral("monitor"));
     auto* worker = new MonitorWorker(&strings, demo, optionsFrom(prefs, catalog, strings, prices));
     const auto pushOptions = [&](bool reconfigure) { worker->setOptions(optionsFrom(prefs, catalog, strings, prices), reconfigure); };
-    QObject::connect(&prefs, &Preferences::sourcesChanged, &app, [=] { pushOptions(true); });
+    // METRICS 2.1: a list that still reads the same folders keeps the running monitor.
+    auto readSources = std::make_shared<agentspeed::MonitorConfig>(prefs.monitorConfig());
+    QObject::connect(&prefs, &Preferences::sourcesChanged, &app, [=, &prefs] {
+        auto next = prefs.monitorConfig();
+        const bool reconfigure = !next.readsSame(*readSources);
+        *readSources = std::move(next);
+        pushOptions(reconfigure);
+    });
     for (auto signal : {&Preferences::currencyChanged, &Preferences::subscriptionsChanged, &Preferences::includeSubscriptionsChanged,
                         &Preferences::trafficChanged, &Preferences::redlineChanged, &Preferences::metricChanged}) {
         QObject::connect(&prefs, signal, &app, [=] { pushOptions(false); });
@@ -174,6 +207,9 @@ int main(int argc, char* argv[]) {
     QObject::connect(historyWorker, &HistoryWorker::perfReady, &historyModel, &HistoryModel::applyPerf);
     QObject::connect(historyWorker, &HistoryWorker::progress, &historyModel, &HistoryModel::applyProgress);
     QObject::connect(historyWorker, &HistoryWorker::detailsReady, &historyModel, &HistoryModel::applyDetails);
+    QObject::connect(historyWorker, &HistoryWorker::hostsReady, &historyModel, &HistoryModel::applyHosts);
+    QObject::connect(historyWorker, &HistoryWorker::remoteTooLarge, &historyModel, &HistoryModel::applyTooLarge);
+    remote.attachHistory(historyWorker);
     qRegisterMetaType<TrafficRows>();
     QObject::connect(worker, &MonitorWorker::trafficSave, historyWorker, &HistoryWorker::saveTraffic);
     QObject::connect(
@@ -207,11 +243,34 @@ int main(int argc, char* argv[]) {
     TrayIcon tray(strings, demo);
     QObject::connect(&strings, &Strings::changed, &tray, &TrayIcon::retranslate);
     OrbManager orbs(strings, prefs, orbStore);
+    // CHARACTERS 2: the installed character packs, the catalog and the downloads, under the master switch.
+    CharacterLibrary characters(CharacterLibrary::standardStore(QStringLiteral(AGENTSPEED_VERSION)),
+                                std::make_unique<NetworkCharacterTransport>(QByteArrayLiteral("AgentSpeed/" AGENTSPEED_VERSION " (Linux)")),
+                                &strings);
+    characters.networkEnabled = [&prefs] { return prefs.networkEnabled(); };
+    orbs.setCharacters(&characters);
+    QObject::connect(&prefs, &Preferences::networkEnabledChanged, &characters, [&] {
+        characters.networkChanged();
+        if (prefs.networkEnabled()) orbs.resumeCharacterDownloads();
+    });
     orb::PreviewItem::setUnit(strings.t(QStringLiteral("unit.tokS")));
     qmlRegisterType<orb::PreviewItem>("AgentSpeed.Orb", 1, 0, "OrbPreview");
     HeroItem::setContext(&themes, &strings);
     qmlRegisterType<HeroItem>("AgentSpeed.Orb", 1, 0, "HeroOrb");
 
+    // QUOTAS: the quotas as the dashboard, Settings and the orbs show them (outlives the engine). AGENT_SPEED_QUOTA_DEMO
+    // shows fixed quotas of every route in demo mode (screenshots).
+    QuotaView quotas(strings);
+    if (demo && qEnvironmentVariableIsSet("AGENT_SPEED_QUOTA_DEMO")) quotas.loadDemo(QDateTime::currentMSecsSinceEpoch());
+    orbs.setQuotas(&quotas);
+    QuotaService quotaService(prefs, quotas, remote, gCodexQuota);
+    // DESIGN 13: the hosts as the settings, pickers, dashboard and history show them (outlives the engine).
+    RemoteHostsView hostsView(remote, prefs, state, historyModel, strings);
+    // DESIGN 5 資料來源: every source's location list.
+    SourceLocationsView locations(prefs);
+    // DESIGN 14: the local network feed, fed by every engine tick (demo mode included), under the master switch; it
+    // outlives the QML engine that reads it.
+    LanController lan(prefs, strings);
     QQmlApplicationEngine engine;
     const bool popup = tray.available() || !snapshotPath.isEmpty();
     engine.setInitialProperties({{QStringLiteral("flyout"), popup}});
@@ -221,15 +280,23 @@ int main(int argc, char* argv[]) {
     engine.rootContext()->setContextProperty(QStringLiteral("prefs"), &prefs);
     engine.rootContext()->setContextProperty(QStringLiteral("catalog"), &catalog);
     engine.rootContext()->setContextProperty(QStringLiteral("orbs"), &orbs);
+    engine.rootContext()->setContextProperty(QStringLiteral("characters"), &characters);
     engine.rootContext()->setContextProperty(QStringLiteral("themes"), &themes);
     engine.rootContext()->setContextProperty(QStringLiteral("boardStore"), &boardStore);
     orbs.setTitles(&themes);
     engine.rootContext()->setContextProperty(QStringLiteral("history"), &historyModel);
+    engine.rootContext()->setContextProperty(QStringLiteral("remote"), &remote);
+    engine.rootContext()->setContextProperty(QStringLiteral("hostsView"), &hostsView);
+    engine.rootContext()->setContextProperty(QStringLiteral("locations"), &locations);
+    engine.rootContext()->setContextProperty(QStringLiteral("quotas"), &quotas);
+    orbs.setHostsView(&hostsView);
+    installRemoteTrace(state, historyModel);
     // NETWORK 1–4 and UPDATES: price sync, exchange rates and the update check, under the master switch.
     NetworkService network(prefs, strings, catalog, prices, QStandardPaths::writableLocation(QStandardPaths::AppDataLocation));
     engine.rootContext()->setContextProperty(QStringLiteral("network"), &network);
     QObject::connect(&network, &NetworkService::tableAdded, &app, [&] {
         worker->requestReprice();
+        remote.pricesChanged();
         QMetaObject::invokeMethod(historyWorker, "analyze", Qt::QueuedConnection);
     });
     QObject::connect(&catalog, &Catalog::changed, &app, [=] { pushOptions(false); });
@@ -238,7 +305,13 @@ int main(int argc, char* argv[]) {
     ReportController report(prefs, strings, prices, QStandardPaths::writableLocation(QStandardPaths::AppDataLocation));
     engine.rootContext()->setContextProperty(QStringLiteral("report"), &report);
     QObject::connect(worker, &MonitorWorker::reportTick, &report, &ReportController::onTick);
-    report.setWatchSink([worker](bool on, qint64 responses, qint64 calls) { worker->setReportWatch(on, responses, calls); });
+    engine.rootContext()->setContextProperty(QStringLiteral("lan"), &lan);
+    QObject::connect(worker, &MonitorWorker::lanTick, &lan, &LanController::onTick);
+    QObject::connect(&app, &QCoreApplication::aboutToQuit, &lan, &LanController::shutdown);
+    report.setWatchSink([worker, &remote](bool on, qint64 responses, qint64 calls) {
+        worker->setReportWatch(on, responses, calls);
+        remote.setWatch(on);
+    });
     // DESIGN 2c: the boards, their windows fed by every snapshot.
     BoardWindows boardWindows(boardStore, engine);
     engine.rootContext()->setContextProperty(QStringLiteral("boardWindows"), &boardWindows);
@@ -263,7 +336,8 @@ int main(int argc, char* argv[]) {
     QObject::connect(window, SIGNAL(sourcesRequested()), &tray, SIGNAL(sourcesRequested()));
     QQmlComponent historyComponent(&engine, QStringLiteral("AgentSpeed"), QStringLiteral("HistoryWindow"));
     QObject* historyWindow = nullptr;
-    const auto openHistory = [&](const QString& source) {
+    // `host` (DESIGN 13): a dashboard host row opens the window on that host, all sources.
+    const auto openHistory = [&](const QString& source, const QString& host = QString()) {
         if (!historyWindow) {
             historyWindow = historyComponent.create(engine.rootContext());
             if (!historyWindow) {
@@ -271,11 +345,12 @@ int main(int argc, char* argv[]) {
                 return;
             }
         }
-        QMetaObject::invokeMethod(historyWindow, "present", Q_ARG(QVariant, source));
+        QMetaObject::invokeMethod(historyWindow, "present", Q_ARG(QVariant, source), Q_ARG(QVariant, host));
     };
     QObject::connect(window, SIGNAL(historyRequested()), &tray, SIGNAL(historyRequested()));
     QObject::connect(&tray, &TrayIcon::historyRequested, &app, [&] { openHistory(QString()); });
     QObject::connect(&state, &AppState::historyRequested, &app, [&](const QString& source) { openHistory(source); });
+    QObject::connect(&state, &AppState::hostHistoryRequested, &app, [&](const QString& host) { openHistory(QStringLiteral("all"), host); });
     QObject::connect(&tray, &TrayIcon::settingsRequested, &app, [&] { openSettings(-1); });
     QObject::connect(&tray, &TrayIcon::sourcesRequested, &app, [&] { openSettings(kSourcesPage); });
     QObject::connect(&tray, &TrayIcon::aboutRequested, &app, [&] { openSettings(kAboutPage); });
@@ -333,6 +408,10 @@ int main(int argc, char* argv[]) {
         tray.notify(strings.fmt(QStringLiteral("update.available.title"), {version}), strings.t(QStringLiteral("update.notification.body")));
     });
     Flyout flyout(window, popup);
+    // QUOTAS 9.1: while the dashboard is open, the vendors may be asked for agents that are not running.
+    QObject::connect(window, &QWindow::visibleChanged, &quotaService, [&](bool visible) { quotaService.setDashboardOpen(visible); });
+    // DESIGN 4: the invitation's link opens 資料來源, where the confirmation asks.
+    QObject::connect(&quotas, &QuotaView::cliSettingsRequested, &app, [&] { openSettings(kSourcesPage); });
     QObject::connect(&state, &AppState::snapshotChanged, &tray, [&] {
         const auto snap = state.snapshot();
         const auto live = snap.value(QStringLiteral("liveText")).toString();
@@ -371,6 +450,11 @@ int main(int argc, char* argv[]) {
     QObject::connect(&orbs, &OrbManager::dashboardRequested, &flyout, &Flyout::toggle);
     QObject::connect(&orbs, &OrbManager::quitRequested, &app, quitApp);
     QObject::connect(&orbs, &OrbManager::settingsRequested, &app, [&] { openSettings(1); });
+    tray.orbExtras = [&orbs](QMenu* menu, const QString& id, const QVariantMap& orb) {
+        if (orb.value(QStringLiteral("style")).toString() != QLatin1String("character")) return;
+        orbs.addCharacterMenu(menu, id);
+        orbs.addReadoutsMenu(menu, id);
+    };
     const auto syncOrbMenu = [&] { tray.setOrbs(orbs.shown(), orbs.list()); };
     QObject::connect(&orbs, &OrbManager::listChanged, &tray, syncOrbMenu);
     QObject::connect(&orbs, &OrbManager::shownChanged, &tray, syncOrbMenu);
@@ -383,7 +467,12 @@ int main(int argc, char* argv[]) {
     syncOrbMenu();
     const auto arguments = app.arguments();
     network.start();
+    if (orbs.anyCharacterOrb()) {
+        characters.refreshInBackground();
+        orbs.resumeCharacterDownloads();
+    }
     report.start();
+    lan.start();
     // Development aid: --report-selftest=<http://127.0.0.1:port> reports to a local reference server.
     for (const auto& arg : arguments) {
         if (arg.startsWith(QStringLiteral("--report-selftest=")) && !report.startSelfTest(arg.mid(18))) qWarning("report selftest: loopback http only");
@@ -407,8 +496,33 @@ int main(int argc, char* argv[]) {
     // --orb-style=<key> its instrument (led, needle, liquid, reactor, minimal); --orb-size=<pt> its diameter.
     for (const auto& arg : arguments) {
         if (arg.startsWith(QStringLiteral("--orb-traffic="))) orbs.set(orbStore.orbs().front().id, QStringLiteral("traffic"), arg.mid(14));
-        if (arg.startsWith(QStringLiteral("--orb-style="))) orbs.set(orbStore.orbs().front().id, QStringLiteral("style"), arg.mid(12));
+        // AGENT_SPEED_ORB_CHARACTER locks the first orb to a character (as the macOS frame harness).
+        if (arg.startsWith(QStringLiteral("--orb-style=")) && qEnvironmentVariableIsSet("AGENT_SPEED_ORB_CHARACTER")) {
+            orbs.setCharacter(orbStore.orbs().front().id, qEnvironmentVariable("AGENT_SPEED_ORB_CHARACTER"));
+        }
+        // AGENT_SPEED_ORB_READOUTS: demo readings for character orbs, and the cards it switches on the first orb.
+        if (arg.startsWith(QStringLiteral("--orb-style=")) && character_demo::enabled()) {
+            const auto switches = character_demo::switches();
+            for (auto it = switches.begin(); it != switches.end(); ++it) {
+                orbs.setCharacterReadout(orbStore.orbs().front().id, it.key(), it.value().toBool());
+            }
+        }
+        // AGENT_SPEED_ORB_STYLE_DELAY (ms) switches the style later, once the orb shows live agents.
+        if (arg.startsWith(QStringLiteral("--orb-style="))) {
+            const QString key = arg.mid(12);
+            const int delay = qEnvironmentVariableIntValue("AGENT_SPEED_ORB_STYLE_DELAY");
+            QTimer::singleShot(std::max(0, delay), &orbs, [&orbs, &orbStore, key] { orbs.set(orbStore.orbs().front().id, QStringLiteral("style"), key); });
+        }
         if (arg.startsWith(QStringLiteral("--orb-size="))) orbs.set(orbStore.orbs().front().id, QStringLiteral("size"), arg.mid(11).toInt());
+        // --orb-hosts=<all|id[,id…]> sets the first orb's hosts (DESIGN 13).
+        if (arg.startsWith(QStringLiteral("--orb-hosts="))) {
+            const auto value = arg.mid(12);
+            orbs.setHosts(orbStore.orbs().front().id, value == QLatin1String("all") ? QVariant(value) : QVariant(value.split(QLatin1Char(','))));
+        }
+        // --orb-sources=<key[,key…]> sets the first orb's sources (METRICS 1 keys).
+        if (arg.startsWith(QStringLiteral("--orb-sources="))) {
+            for (const auto& key : arg.mid(14).split(QLatin1Char(','), Qt::SkipEmptyParts)) orbs.setSource(orbStore.orbs().front().id, key, true);
+        }
         // --orb-do=<add|duplicate|split|merge|undo> runs that action on the first orb after 3 s.
         if (arg.startsWith(QStringLiteral("--orb-do="))) {
             const QString action = arg.mid(9);
@@ -422,7 +536,8 @@ int main(int argc, char* argv[]) {
             });
         }
     }
-    // Development aid: --orb-snapshots=<prefix> saves the orb every 4 s, 16 times, then quits.
+    // Development aid: --orb-snapshots=<prefix> saves the orb every 4 s, 16 times, then quits;
+    // AGENT_SPEED_ORB_SHOT_MS and AGENT_SPEED_ORB_SHOTS change the interval and the count (a frame sequence).
     QString orbShots;
     for (const auto& arg : app.arguments()) {
         if (arg.startsWith(QStringLiteral("--orb-snapshots="))) orbShots = arg.mid(16);
@@ -433,9 +548,11 @@ int main(int argc, char* argv[]) {
         orbs.forceDark(app.arguments().contains(QStringLiteral("--orb-dark")));
         QObject::connect(&orbShotTimer, &QTimer::timeout, &app, [&] {
             if (auto* first = orbs.first()) first->snapshot().save(orbShots + QStringLiteral("-%1.png").arg(orbShot, 2, 10, QLatin1Char('0')));
-            if (++orbShot >= 16) QApplication::quit();
+            const int count = qEnvironmentVariableIntValue("AGENT_SPEED_ORB_SHOTS");
+            if (++orbShot >= (count > 0 ? count : 16)) QApplication::quit();
         });
-        orbShotTimer.start(4000);
+        const int interval = qEnvironmentVariableIntValue("AGENT_SPEED_ORB_SHOT_MS");
+        orbShotTimer.start(interval > 0 ? interval : 4000);
     }
     // Development aid: --plate-snapshots=<prefix> widens the first orb's plate to its chip after 3 s and saves the plate
     // every 50 ms for 0.8 s, then quits.
@@ -463,17 +580,32 @@ int main(int argc, char* argv[]) {
     for (const auto& arg : app.arguments()) {
         if (arg.startsWith(QStringLiteral("--history-snapshot="))) {
             historyShot = arg.mid(19);
+        } else if (arg.startsWith(QStringLiteral("--history-"))) {
+            // The window's own aids (--history-range=, --history-host=, …) open it on every source.
+            openHistory(QString());
         } else if (arg.startsWith(QStringLiteral("--history"))) {
             openHistory(arg.contains(QLatin1Char('=')) ? arg.section(QLatin1Char('='), 1) : QString());
         } else if (arg.startsWith(QStringLiteral("--settings-snapshot="))) {
             settingsShot = arg.mid(20);
         } else if (arg.startsWith(QStringLiteral("--settings"))) {
             openSettings(arg.contains(QLatin1Char('=')) ? arg.section(QLatin1Char('='), 1).toInt() : 0);
+        } else if (arg.startsWith(QStringLiteral("--sources-pick="))) {
+            // --sources-pick=<list>:<path> adds a location as a folder pick would; a refusal shows its dialog.
+            const auto value = arg.mid(15);
+            const auto colon = value.indexOf(QLatin1Char(':'));
+            if (colon > 0) {
+                QTimer::singleShot(1500, &app, [&locations, list = value.left(colon), path = value.mid(colon + 1)] { locations.add(list, path); });
+            }
         }
     }
+    // AGENT_SPEED_SHOT_DELAY (ms) waits longer before a snapshot (a connection to settle); AGENT_SPEED_SHOT_WIDTH renders
+    // the settings or history window at that width.
+    const int shotDelay = qEnvironmentVariableIntValue("AGENT_SPEED_SHOT_DELAY");
+    const int shotWidth = qEnvironmentVariableIntValue("AGENT_SPEED_SHOT_WIDTH");
     if (!historyShot.isEmpty()) {
         if (!historyWindow) openHistory(QString());
-        QTimer::singleShot(12000, &app, [&] {
+        if (auto* quick = qobject_cast<QQuickWindow*>(historyWindow); quick && shotWidth > 0) quick->resize(shotWidth, quick->height());
+        QTimer::singleShot(shotDelay > 0 ? shotDelay : 12000, &app, [&] {
             if (auto* quick = qobject_cast<QQuickWindow*>(historyWindow)) {
                 // AGENT_SPEED_SHOT_HEIGHT renders a taller window, so the sections below the fold are in the image.
                 if (const int tall = qEnvironmentVariableIntValue("AGENT_SPEED_SHOT_HEIGHT"); tall > 0) {
@@ -490,6 +622,7 @@ int main(int argc, char* argv[]) {
         if (const int tall = qEnvironmentVariableIntValue("AGENT_SPEED_SHOT_HEIGHT"); tall > 0) {
             if (auto* quick = qobject_cast<QQuickWindow*>(settingsWindow)) quick->resize(quick->width(), tall);
         }
+        if (auto* quick = qobject_cast<QQuickWindow*>(settingsWindow); quick && shotWidth > 0) quick->resize(shotWidth, quick->height());
         // AGENT_SPEED_SHOT_SCROLL scrolls the visible page down this many points first.
         if (const int scroll = qEnvironmentVariableIntValue("AGENT_SPEED_SHOT_SCROLL"); scroll > 0) {
             QTimer::singleShot(1500, &app, [&, scroll] {
@@ -503,13 +636,22 @@ int main(int argc, char* argv[]) {
                 }
             });
         }
-        QTimer::singleShot(3500, &app, [&] {
+        QTimer::singleShot(shotDelay > 0 ? shotDelay : 3500, &app, [&] {
             if (auto* quick = qobject_cast<QQuickWindow*>(settingsWindow)) quick->grabWindow().save(settingsShot);
             QApplication::quit();
         });
     }
     if (!snapshotPath.isEmpty()) {
-        QTimer::singleShot(3000, &app, [&] {
+        QTimer::singleShot(shotDelay > 0 ? shotDelay : 3000, &app, [&] {
+            // AGENT_SPEED_SHOT_SCROLL scrolls the panel down this many points first.
+            if (const int scroll = qEnvironmentVariableIntValue("AGENT_SPEED_SHOT_SCROLL"); scroll > 0) {
+                for (auto* item : window->findChildren<QQuickItem*>()) {
+                    if (!item->isVisible() || !item->inherits("QQuickFlickable")) continue;
+                    const double room = item->property("contentHeight").toDouble() - item->height();
+                    if (room > 0) item->setProperty("contentY", std::min<double>(scroll, room));
+                }
+                QCoreApplication::processEvents();
+            }
             window->grabWindow().save(snapshotPath);
             QApplication::quit();
         });
@@ -523,16 +665,27 @@ int main(int argc, char* argv[]) {
             row = spec.mid(colon + 1).toInt();
             spec = spec.left(colon);
         }
-        QTimer::singleShot(2500, &app, [&, row] {
+        QTimer::singleShot(shotDelay > 0 ? std::max(500, shotDelay - 1000) : 2500, &app, [&, row] {
             window->show();
             QMetaObject::invokeMethod(window, "showCardFor", Q_ARG(QVariant, row));
         });
-        QTimer::singleShot(3500, &app, [&, spec] {
+        QTimer::singleShot(shotDelay > 0 ? shotDelay : 3500, &app, [&, spec] {
             if (auto* card = qobject_cast<QQuickWindow*>(window->property("card").value<QObject*>())) card->grabWindow().save(spec);
             QApplication::quit();
         });
     }
 
+    // Development aid: --orb-menu-snapshot=<prefix> saves the first orb's context menu and its Hosts, Size, Style and
+    // character submenus (<prefix>-menu.png, -hosts.png, -size.png, -style.png, …), then quits.
+    for (const auto& arg : arguments) {
+        if (!arg.startsWith(QStringLiteral("--orb-menu-snapshot="))) continue;
+        QTimer::singleShot(2500, &app, [&, prefix = arg.mid(20)] {
+            for (const auto& [name, picture] : orbs.menuPictures(orbs.firstId())) picture.save(prefix + QLatin1Char('-') + name + QStringLiteral(".png"));
+            QApplication::quit();
+        });
+    }
+    // Development aid: --board-add adds a board when there is none (the editor and its Hosts rows show).
+    if (arguments.contains(QStringLiteral("--board-add")) && boardStore.boards().isEmpty()) boardStore.add();
     // Development aid: --board-snapshot=<file.png>[:style[:size]] adds a board, saves its window and quits.
     for (const auto& arg : arguments) {
         if (!arg.startsWith(QStringLiteral("--board-snapshot="))) continue;
@@ -549,7 +702,11 @@ int main(int argc, char* argv[]) {
 
     thread.start();
     historyThread.start();
+    quotaService.start();
     const int code = app.exec();
+    quotaService.stop();
+    // Quitting closes every relay's stdin and ends every ssh (REMOTE 4.4).
+    remote.stop();
     // Today's traffic is saved at quit (METRICS 10.9), before both threads stop.
     TrafficRows lastTraffic;
     QMetaObject::invokeMethod(worker, [&] { lastTraffic = worker->trafficToday(); }, Qt::BlockingQueuedConnection);

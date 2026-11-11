@@ -624,6 +624,7 @@ internal sealed partial class HistoryStore : IDisposable
             connection.Execute(ModesSchema);
             connection.Execute(UnpricedSchema);
             connection.Execute(PerfRecordsSchema);
+            CreateRemoteTables(connection);
             return new HistoryStore(connection);
         }
         catch
@@ -726,6 +727,9 @@ internal static class SourceNames
         SourceKind.OpenClaw => "openclaw",
         SourceKind.Hermes => "hermes",
         SourceKind.Droid => "droid",
+        SourceKind.Devin => "devin",
+        SourceKind.Qoder => "qoder",
+        SourceKind.QoderCli => "qoderCli",
         _ => throw new ArgumentOutOfRangeException(nameof(source)),
     };
 
@@ -748,6 +752,9 @@ internal static class SourceNames
         "openclaw" => SourceKind.OpenClaw,
         "hermes" => SourceKind.Hermes,
         "droid" => SourceKind.Droid,
+        "devin" => SourceKind.Devin,
+        "qoder" => SourceKind.Qoder,
+        "qoderCli" => SourceKind.QoderCli,
         _ => null,
     };
 }

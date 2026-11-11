@@ -1,3 +1,4 @@
+import AgentSpeedCore
 import Foundation
 
 /// One floating orb (DESIGN 2b, Data model). Decoding is tolerant: missing fields take their defaults and
@@ -31,6 +32,15 @@ public struct OrbConfig: Equatable, Hashable, Identifiable, Sendable {
     public var traffic: OrbTraffic
     /// nil follows the global `orbNames`; true / false shows or hides this orb's name plate (DESIGN 2b, Name plate).
     public var showName: Bool?
+    /// The hosts it tracks (DESIGN 13); absent in the document = all.
+    public var hosts: OrbHostSelection
+    /// The `character` style's character: a pack id, or nil to follow the fastest model vendor (CHARACTERS 7).
+    public var character: String?
+    /// The cards the `character` style floats beside her (DESIGN 2a.6, Readouts).
+    public var characterReadouts: CharacterReadouts
+
+    /// The diameter of the disc the orb occupies: its size × the style's footprint (DESIGN 2a.6).
+    public var footprintDiameter: Double { size * style.footprint }
 
     public init(
         id: String,
@@ -49,13 +59,16 @@ public struct OrbConfig: Equatable, Hashable, Identifiable, Sendable {
         titleTheme: String? = nil,
         unit: OrbUnit = .tokens,
         traffic: OrbTraffic = .sources,
-        showName: Bool? = nil
+        showName: Bool? = nil,
+        hosts: OrbHostSelection = .all,
+        character: String? = nil,
+        characterReadouts: CharacterReadouts = .default
     ) {
         self.id = id
         self.name = Self.cleanName(name)
         self.sources = sources
         self.style = style
-        self.size = style.clampSize(size)
+        self.size = OrbSizes.clamp(size)
         self.opacity = Self.cleanOpacity(opacity)
         self.alwaysOnTop = alwaysOnTop
         self.clickThrough = clickThrough
@@ -68,19 +81,14 @@ public struct OrbConfig: Equatable, Hashable, Identifiable, Sendable {
         self.unit = unit
         self.traffic = traffic
         self.showName = showName
+        self.hosts = hosts
+        self.character = Self.cleanCharacter(character)
+        self.characterReadouts = characterReadouts
     }
 
     /// The orb of a fresh install: all sources, `led`, 148 pt, at the default position.
     public static func makeDefault(id: String) -> OrbConfig {
         OrbConfig(id: id)
-    }
-
-    /// The same orb in another style; the size is clamped to the new style's range.
-    public func withStyle(_ style: OrbStyleKind) -> OrbConfig {
-        var copy = self
-        copy.style = style
-        copy.size = style.clampSize(size)
-        return copy
     }
 
     /// Trimmed and limited to 32 characters; empty means automatic (nil).
@@ -99,6 +107,12 @@ public struct OrbConfig: Equatable, Hashable, Identifiable, Sendable {
         return trimmed
     }
 
+    /// A pack id (lowercase letters, digits and dashes, CHARACTERS 1); anything else means automatic (nil).
+    public static func cleanCharacter(_ id: String?) -> String? {
+        guard let trimmed = id?.trimmingCharacters(in: .whitespacesAndNewlines), CharacterID.isValid(trimmed) else { return nil }
+        return trimmed
+    }
+
     static func cleanRedline(_ value: Double?) -> Double? {
         guard let value, value.isFinite, value > 0 else { return nil }
         return value
@@ -108,7 +122,7 @@ public struct OrbConfig: Equatable, Hashable, Identifiable, Sendable {
 extension OrbConfig: Codable {
     enum CodingKeys: String, CodingKey {
         case id, name, sources, style, size, opacity, alwaysOnTop, clickThrough, fadeWhenIdle, allSpaces, visible
-        case redlineOutput, redlineTotal, titleTheme, unit, traffic, showName
+        case redlineOutput, redlineTotal, titleTheme, unit, traffic, showName, hosts, character, characterReadouts
     }
 
     public init(from decoder: Decoder) throws {
@@ -137,7 +151,10 @@ extension OrbConfig: Codable {
             titleTheme: value(String.self, .titleTheme),
             unit: value(OrbUnit.self, .unit) ?? .tokens,
             traffic: Self.decodeTraffic(container),
-            showName: value(Bool.self, .showName)
+            showName: value(Bool.self, .showName),
+            hosts: value(OrbHostSelection.self, .hosts) ?? .all,
+            character: value(String.self, .character),
+            characterReadouts: value(CharacterReadouts.self, .characterReadouts) ?? .default
         )
     }
 
@@ -166,5 +183,8 @@ extension OrbConfig: Codable {
         try container.encode(unit, forKey: .unit)
         try container.encode(traffic, forKey: .traffic)
         try container.encode(showName, forKey: .showName)
+        if !hosts.isAll { try container.encode(hosts, forKey: .hosts) }
+        if let character { try container.encode(character, forKey: .character) }
+        if characterReadouts != .default { try container.encode(characterReadouts, forKey: .characterReadouts) }
     }
 }

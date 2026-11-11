@@ -29,7 +29,9 @@ struct LiveMonitorTests {
             piRoot: directory.file("missing-pi"),
             openclawRoot: directory.file("missing-openclaw"),
             hermesRoot: directory.file("missing-hermes"),
-            droidRoot: directory.file("missing-droid")
+            droidRoot: directory.file("missing-droid"),
+            qoderRoot: directory.file("missing-qoder"),
+            qoderCliRoot: directory.file("missing-qoder-cli")
         ))
         monitor.start()
         defer { monitor.stop() }
@@ -226,13 +228,13 @@ struct LiveMonitorTests {
         let store = SpeedStore()
         let monitor = LiveMonitor(store: store)
         var configuration = monitor.configuration
-        configuration.codexRoot = LiveMonitor.defaultCodexRoot
+        configuration.setLocation(LiveMonitor.defaultCodexRoot, for: .codex)
         #expect(!configuration.requiresRescan(comparedTo: monitor.configuration))
-        configuration.dshRoot = LiveMonitor.defaultDshRoot
+        configuration.setLocation(LiveMonitor.defaultDshRoot, for: .dsh)
         #expect(!configuration.requiresRescan(comparedTo: monitor.configuration))
-        configuration.dshRoot = URL(fileURLWithPath: "/elsewhere/sessions", isDirectory: true)
+        configuration.setLocation(URL(fileURLWithPath: "/elsewhere/sessions", isDirectory: true), for: .dsh)
         #expect(configuration.requiresRescan(comparedTo: monitor.configuration))
-        configuration.dshRoot = nil
+        configuration.locations.reset(.dsh)
         configuration.enabledSources = [.codex]
         #expect(configuration.requiresRescan(comparedTo: monitor.configuration))
     }

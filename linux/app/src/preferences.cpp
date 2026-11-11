@@ -1,5 +1,7 @@
 #include "preferences.hpp"
 
+#include "agentspeed/quota/sources.hpp"
+
 #include <QDir>
 #include <QFile>
 #include <QStandardPaths>
@@ -15,7 +17,9 @@ const QStringList kLanguages = {QStringLiteral("system"), QStringLiteral("zh-Han
 
 }  // namespace
 
-Preferences::Preferences(QObject* parent) : QObject(parent) {}
+Preferences::Preferences(QObject* parent) : QObject(parent) {
+    connect(this, &Preferences::quotaChanged, this, [this] { ++quotaRevision_; });
+}
 
 template <typename T>
 void Preferences::store(const char* key, const T& value, void (Preferences::*signal)()) {
@@ -84,10 +88,42 @@ void Preferences::setIncludeSubscriptions(bool value) {
 }
 
 QStringList Preferences::disabledSources() const { return settings_.value(QStringLiteral("sources/disabled")).toStringList(); }
-QVariantMap Preferences::folders() const { return settings_.value(QStringLiteral("sources/folders")).toMap(); }
+
+agentspeed::LocationLists Preferences::sourceLocations() const {
+    const auto stored = settings_.value(QStringLiteral("sourceLocations"));
+    if (stored.isValid()) {
+        if (auto lists = agentspeed::LocationLists::fromDocument(stored.toString().toStdString())) return std::move(*lists);
+    }
+    std::map<agentspeed::RootFamily, std::string> legacy;
+    const auto folders = settings_.value(QStringLiteral("sources/folders")).toMap();
+    for (auto it = folders.begin(); it != folders.end(); ++it) {
+        const auto kind = agentspeed::sourceFromId(it.key().toStdString());
+        const auto path = it.value().toString().trimmed();
+        if (kind && !path.isEmpty()) legacy.emplace(agentspeed::familyOf(*kind), path.toStdString());
+    }
+    return agentspeed::LocationLists::fromLegacy(legacy);
+}
+
+void Preferences::setSourceLocations(const agentspeed::LocationLists& lists) {
+    if (settings_.contains(QStringLiteral("sourceLocations")) && lists == sourceLocations()) return;
+    settings_.setValue(QStringLiteral("sourceLocations"), QString::fromStdString(lists.document()));
+    emit sourcesChanged();
+}
 
 bool Preferences::networkEnabled() const { return settings_.value(QStringLiteral("network/enabled"), true).toBool(); }
 void Preferences::setNetworkEnabled(bool value) { store("network/enabled", value, &Preferences::networkEnabledChanged); }
+
+QString Preferences::remoteHosts() const { return settings_.value(QStringLiteral("remoteHosts")).toString(); }
+void Preferences::setRemoteHosts(const QString& json) {
+    store("remoteHosts", json, &Preferences::remoteHostsChanged);
+    settings_.sync();
+}
+
+QString Preferences::lan() const { return settings_.value(QStringLiteral("lan")).toString(); }
+void Preferences::setLan(const QString& json) {
+    store("lan", json, &Preferences::lanChanged);
+    settings_.sync();
+}
 
 bool Preferences::syncPrices() const { return settings_.value(QStringLiteral("network/syncPrices"), true).toBool(); }
 void Preferences::setSyncPrices(bool value) { store("network/syncPrices", value, &Preferences::syncPricesChanged); }
@@ -103,6 +139,54 @@ void Preferences::setTrafficUnit(const QString& value) { store("traffic/unit", v
 bool Preferences::autoCheckUpdates() const { return settings_.value(QStringLiteral("network/autoCheckUpdates"), true).toBool(); }
 void Preferences::setAutoCheckUpdates(bool value) { store("network/autoCheckUpdates", value, &Preferences::autoCheckUpdatesChanged); }
 
+namespace {
+
+std::optional<bool> quotaDefault(const QString& key) {
+    if (key == QLatin1String("quotaGrokBuildLive")) return false;
+    for (const auto& route : agentspeed::quota::sourceRoutes()) {
+        if (key.toStdString() == route.switchKey) return route.defaultOn;
+    }
+    return std::nullopt;
+}
+
+}  // namespace
+
+bool Preferences::quotaSwitch(const QString& key) const {
+    const auto fallback = quotaDefault(key);
+    if (!fallback) return false;
+    return settings_.value(QStringLiteral("quota/") + key, *fallback).toBool();
+}
+
+void Preferences::setQuotaSwitch(const QString& key, bool on) {
+    if (!quotaDefault(key) || quotaSwitch(key) == on) return;
+    settings_.setValue(QStringLiteral("quota/") + key, on);
+    emit quotaChanged();
+}
+
+bool Preferences::quotaCliInviteDismissed() const {
+    return settings_.value(QStringLiteral("quota/quotaCliInvite")).toString() == QLatin1String("dismissed");
+}
+
+void Preferences::setQuotaCliInviteDismissed(bool value) {
+    if (value == quotaCliInviteDismissed()) return;
+    if (value) {
+        settings_.setValue(QStringLiteral("quota/quotaCliInvite"), QStringLiteral("dismissed"));
+    } else {
+        settings_.remove(QStringLiteral("quota/quotaCliInvite"));
+    }
+    emit quotaChanged();
+}
+
+QString Preferences::quotaZcodeRegion() const {
+    return settings_.value(QStringLiteral("quota/quotaZcodeRegion")).toString() == QLatin1String("bigmodel-cn") ? QStringLiteral("bigmodel-cn")
+                                                                                                            : QStringLiteral("global");
+}
+
+void Preferences::setQuotaZcodeRegion(const QString& value) {
+    if (value != QLatin1String("global") && value != QLatin1String("bigmodel-cn")) return;
+    store("quota/quotaZcodeRegion", value, &Preferences::quotaChanged);
+}
+
 bool Preferences::sourceEnabled(const QString& source) const { return !disabledSources().contains(source); }
 
 void Preferences::setSourceEnabled(const QString& source, bool enabled) {
@@ -114,19 +198,6 @@ void Preferences::setSourceEnabled(const QString& source, bool enabled) {
         disabled.append(source);
     }
     settings_.setValue(QStringLiteral("sources/disabled"), disabled);
-    emit sourcesChanged();
-}
-
-void Preferences::setFolder(const QString& source, const QString& path) {
-    auto map = folders();
-    const auto trimmed = path.trimmed();
-    if (trimmed.isEmpty() ? !map.contains(source) : map.value(source).toString() == trimmed) return;
-    if (trimmed.isEmpty()) {
-        map.remove(source);
-    } else {
-        map.insert(source, trimmed);
-    }
-    settings_.setValue(QStringLiteral("sources/folders"), map);
     emit sourcesChanged();
 }
 
@@ -145,34 +216,11 @@ void Preferences::setSubscribed(const QString& source, bool value) {
 
 agentspeed::MonitorConfig Preferences::monitorConfig() const {
     using agentspeed::SourceKind;
-    agentspeed::RootSettings roots;
-    const auto map = folders();
-    const auto folder = [&](SourceKind kind) -> std::optional<std::string> {
-        const auto value = map.value(QString::fromUtf8(agentspeed::sourceId(kind))).toString();
-        if (value.isEmpty()) return std::nullopt;
-        return value.toStdString();
-    };
-    roots.codex = folder(SourceKind::Codex);
-    roots.claude = folder(SourceKind::ClaudeCode);
-    roots.dsh = folder(SourceKind::Deepseek);
-    roots.openCode = folder(SourceKind::OpenCode);
-    roots.gemini = folder(SourceKind::Gemini);
-    roots.omp = folder(SourceKind::Omp);
-    roots.antigravity = folder(SourceKind::Antigravity);
-    roots.workBuddy = folder(SourceKind::WorkBuddy);
-    roots.workBuddyAi = folder(SourceKind::WorkBuddyAi);
-    roots.zcode = folder(SourceKind::ZCode);
-    roots.kimi = folder(SourceKind::Kimi);
-    roots.grokBuild = folder(SourceKind::GrokBuild);
-    roots.pi = folder(SourceKind::Pi);
-    roots.openClaw = folder(SourceKind::OpenClaw);
-    roots.hermes = folder(SourceKind::Hermes);
-    roots.droid = folder(SourceKind::Droid);
     auto enabled = agentspeed::MonitorConfig::allSources();
     for (const auto& id : disabledSources()) {
         if (const auto kind = agentspeed::sourceFromId(id.toStdString())) enabled.erase(*kind);
     }
     // Claude Code and Claude Desktop share one root and one switch.
     if (!enabled.contains(SourceKind::ClaudeCode)) enabled.erase(SourceKind::ClaudeDesktop);
-    return agentspeed::MonitorConfig::fromEnvironment(roots, enabled);
+    return agentspeed::MonitorConfig::fromEnvironment(sourceLocations(), enabled);
 }

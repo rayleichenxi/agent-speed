@@ -12,9 +12,15 @@ import AppKit
 /// - `levels-<level>`: the row at the redline (12 s from 25 s);
 /// - `hero-<style>[-light][-<level>][-rm]`: one style at 240 pt climbing to the redline (16 s from 22 s);
 /// - `still-<style>-<seconds>[-light]`: a single PNG of one style at a moment of the tour;
+/// - `strip-<seconds>[-light][-s<size>]`: a single PNG of the five styles side by side at a moment of the tour, at
+///   148 pt or the given size (the smallest orbs of DESIGN 2a);
 /// - `fx-<tok/s>[-light][-<level>][-rm][-peak][-zap][-s<size>]`: a single PNG of `led` at R = 2000 tok/s after 6 s at
-///   that speed, for side-by-side review with the v1.4 prototype's still frames (`OrbFrameHarness+Led`).
-/// `AGENT_SPEED_ORB_FPS` (30) and `AGENT_SPEED_ORB_SECONDS` limit the clips.
+///   that speed, for side-by-side review with the v1.4 prototype's still frames (`OrbFrameHarness+Led`);
+/// - `character[-light][-t<seconds>][-s<size>][-still]`: the `character` style over the tour (`-still`: one PNG at
+///   `-t`), with the cards of `CharacterDemoReadings`.
+/// `AGENT_SPEED_ORB_FPS` (30) and `AGENT_SPEED_ORB_SECONDS` limit the clips; `AGENT_SPEED_ORB_LANGUAGE` (`zh-Hant`)
+/// sets the language. `AGENT_SPEED_ORB_SPEED` holds the tour at that many tok/s; `AGENT_SPEED_ORB_SECONDS` then sets the
+/// clip's length.
 @MainActor
 enum OrbFrameHarness {
     struct Clip {
@@ -22,7 +28,10 @@ enum OrbFrameHarness {
             case row
             case hero(OrbStyleKind)
             case still(OrbStyleKind, Double)
+            case strip(Double)
             case fx(LedStill)
+            /// The `character` style alone over the tour (or from `-t<seconds>`), its disc 2 S.
+            case character
         }
 
         let name: String
@@ -32,6 +41,8 @@ enum OrbFrameHarness {
         let reduceMotion: Bool
         let start: Double
         let duration: Double
+        /// The row's diameter (`-s<size>`).
+        let size: CGFloat
 
         init?(_ name: String) {
             let parts = name.split(separator: "-").map(String.init)
@@ -40,6 +51,7 @@ enum OrbFrameHarness {
             dark = !parts.contains("light")
             level = parts.contains("max") ? .max : parts.contains("soft") ? .soft : parts.contains("off") ? .off : .standard
             reduceMotion = parts.contains("rm")
+            size = parts.dropFirst().compactMap { $0.hasPrefix("s") ? Double($0.dropFirst()) : nil }.first.map { CGFloat($0) } ?? 148
             switch first {
             case "row":
                 kind = .row
@@ -59,11 +71,20 @@ enum OrbFrameHarness {
                 kind = .still(style, at)
                 start = at
                 duration = 0
+            case "strip":
+                guard parts.count > 1, let at = Double(parts[1]) else { return nil }
+                kind = .strip(at)
+                start = at
+                duration = 0
             case "fx":
                 guard let still = LedStill(parts) else { return nil }
                 kind = .fx(still)
                 start = 0
                 duration = 0
+            case "character":
+                kind = .character
+                start = parts.dropFirst().compactMap { $0.hasPrefix("t") ? Double($0.dropFirst()) : nil }.first ?? 0
+                duration = parts.contains("still") ? 0 : OrbTour.length - start
             default:
                 return nil
             }
@@ -84,8 +105,9 @@ enum OrbFrameHarness {
             settings: AppSettings(defaults: defaults),
             updates: UpdateController(configuration: .current(environment: [:]), store: UpdateStore(defaults: defaults))
         )
-        model.settings.language = .zhHant
-        model.l10n.apply(.zhHant)
+        let language = environment["AGENT_SPEED_ORB_LANGUAGE"].flatMap(LanguagePreference.init(rawValue:)) ?? .zhHant
+        model.settings.language = language
+        model.l10n.apply(language)
         // The designer's scenarios are written for R = 400 tok/s.
         model.settings.redlineOutput = 400
         var report = ""
@@ -100,9 +122,11 @@ enum OrbFrameHarness {
             try? FileManager.default.removeItem(at: frames)
             try? FileManager.default.createDirectory(at: frames, withIntermediateDirectories: true)
             let started = Date()
-            let count = record(clip, model: model, fps: fps, seconds: min(limit ?? .infinity, clip.duration), into: frames, directory: directory)
+            let held = environment["AGENT_SPEED_ORB_SPEED"] != nil && clip.duration > 0
+            let seconds = held ? limit ?? clip.duration : min(limit ?? .infinity, clip.duration)
+            let count = record(clip, model: model, fps: fps, seconds: seconds, into: frames, directory: directory)
             report += String(format: "%@: %d frames in %.1f s\n", clip.name, count, Date().timeIntervalSince(started))
-            if case .still = clip.kind {
+            if clip.duration == 0 {
                 try? FileManager.default.removeItem(at: frames)
                 continue
             }
@@ -123,6 +147,8 @@ enum OrbFrameHarness {
     private static func record(_ clip: Clip, model: AppModel, fps: Double, seconds: Double, into frames: URL, directory: URL) -> Int {
         let size: CGSize
         var cells: [Cell] = []
+        var castAt: (Double) -> Void = { _ in }
+        var demoAt: () -> Void = {}
         func stage(_ style: OrbStyleKind, _ diameter: CGFloat) -> OrbPreviewStage {
             let stage = OrbPreviewStage(model: model, style: style, diameter: diameter, dark: clip.dark, level: clip.level,
                                         reduceMotion: clip.reduceMotion)
@@ -130,8 +156,8 @@ enum OrbFrameHarness {
             return stage
         }
         switch clip.kind {
-        case .row:
-            let s: CGFloat = 148
+        case .row, .strip:
+            let s = clip.size
             let width = max(1.5 * s, 170)
             size = CGSize(width: width * 5, height: 1.5 * s + 46)
             for (index, style) in OrbStyleKind.allCases.enumerated() {
@@ -140,6 +166,38 @@ enum OrbFrameHarness {
             }
         case .fx:
             return 0
+        case .character:
+            CharacterAssets.shared.synchronous = true
+            let disc = 2 * clip.size
+            size = CGSize(width: disc * 1.5, height: disc * 1.5)
+            let character = stage(.character, disc)
+            // `AGENT_SPEED_ORB_CHARACTER` picks the pack (a comma list changes character every
+            // `AGENT_SPEED_ORB_CHARACTER_EVERY` seconds, 8 by default) and `AGENT_SPEED_ORB_MODEL` the model chip.
+            let environment = ProcessInfo.processInfo.environment
+            let installed = model.characters.installed
+            let wanted = (environment["AGENT_SPEED_ORB_CHARACTER"] ?? "").split(separator: ",").map(String.init)
+            let packs = wanted.compactMap { id in installed.first { $0.id == id } }
+            let cast = packs.isEmpty ? Array(installed.prefix(1)) : packs
+            let every = environment["AGENT_SPEED_ORB_CHARACTER_EVERY"].flatMap(Double.init) ?? 8
+            let modelName = environment["AGENT_SPEED_ORB_MODEL"]
+            castAt = { time in
+                guard !cast.isEmpty else { return }
+                let pack = cast[Int(time / every) % cast.count]
+                guard character.feed.characterID != pack.id else { return }
+                let vendor = pack.manifest.vendors.first ?? "anthropic"
+                character.feed.characterID = pack.id
+                character.feed.vendors = VendorReading(rates: [vendor: 1],
+                                                       fastestModel: modelName ?? pack.manifest.name.en,
+                                                       fastestVendor: vendor)
+            }
+            castAt(0)
+            var readings = CharacterDemoReadings(environment: environment, prices: model.priceBook.current)
+            demoAt = {
+                if let next = readings.update(value: character.value, time: character.time, display: model.cost) {
+                    character.feed.characterReadings = next
+                }
+            }
+            cells.append(Cell(stage: character, center: CGPoint(x: disc * 0.75, y: disc * 0.75), label: nil))
         case .hero(let style), .still(let style, _):
             let big: CGFloat = 240
             size = CGSize(width: big * 1.8, height: big * 1.6)
@@ -147,19 +205,27 @@ enum OrbFrameHarness {
         }
         defer { cells.forEach { $0.stage.stop() } }
 
+        let tourHover = switch clip.kind {
+        case .row: clip.start == 0
+        case .strip: true
+        default: false
+        }
         var random = OrbRandom(seed: 99)
         var tourTime = 0.0
         let dt = 1.0 / 60
+        let hold = ProcessInfo.processInfo.environment["AGENT_SPEED_ORB_SPEED"].flatMap(Double.init)
         func advance() {
             tourTime += dt
+            castAt(tourTime)
+            demoAt()
             let reference = cells[0].stage
             var fire: (Double, Int)?
             if reference.gauge.tier != .idle, random.next() < (0.3 + 1.5 * reference.gauge.heat(at: reference.time)) * dt {
                 fire = (reference.value * random.range(0.5...1.3), Int(random.range(80...6000)))
             }
             for cell in cells {
-                if case .row = clip.kind, clip.start == 0 { cell.stage.hovered = tourTime >= 50.5 && tourTime < 52.6 }
-                cell.stage.step(dt) { _ in OrbTour.value(at: tourTime.truncatingRemainder(dividingBy: OrbTour.length)) }
+                if tourHover { cell.stage.hovered = tourTime >= 50.5 && tourTime < 52.6 }
+                cell.stage.step(dt) { _ in hold ?? OrbTour.value(at: tourTime.truncatingRemainder(dividingBy: OrbTour.length)) }
                 if let fire { cell.stage.animatorPulse(speed: fire.0, output: fire.1) }
                 cell.stage.newPeakRule(tourTime: tourTime)
             }
@@ -172,7 +238,7 @@ enum OrbFrameHarness {
             if total > 0 { for _ in 0..<stepsPerFrame { advance() } }
             guard let image = compose(cells, size: size, dark: clip.dark) else { continue }
             let url: URL
-            if case .still = clip.kind {
+            if clip.duration == 0 {
                 url = directory.appendingPathComponent("\(clip.name).png")
             } else {
                 url = frames.appendingPathComponent(String(format: "f%05d.png", index))

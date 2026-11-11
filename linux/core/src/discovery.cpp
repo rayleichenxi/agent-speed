@@ -208,7 +208,9 @@ bool isTranscriptName(std::string_view name, RootFamily family) {
         case RootFamily::OpenCode:
         case RootFamily::ZCode:
         case RootFamily::OpenClaw:
-        case RootFamily::Hermes: return false;
+        case RootFamily::Hermes:
+        case RootFamily::Devin:
+        case RootFamily::Qoder: return false;
         case RootFamily::Kimi: return name == "wire.jsonl";
         case RootFamily::GrokBuild: return name == "updates.jsonl";
         case RootFamily::Omp:
@@ -217,7 +219,8 @@ bool isTranscriptName(std::string_view name, RootFamily family) {
         case RootFamily::WorkBuddy:
         case RootFamily::WorkBuddyAi: return isWorkBuddyName(name);
         case RootFamily::Droid: return droid::isTranscriptName(name);
-        case RootFamily::Claude: break;
+        case RootFamily::Claude:
+        case RootFamily::QoderCli: break;
     }
     return fsx::endsWithNoCase(name, ".jsonl");
 }
@@ -229,7 +232,9 @@ std::vector<DiscoveredFile> enumerate(const std::string& root, RootFamily family
         case RootFamily::OpenCode:
         case RootFamily::ZCode:
         case RootFamily::OpenClaw:
-        case RootFamily::Hermes: return {};
+        case RootFamily::Hermes:
+        case RootFamily::Devin:
+        case RootFamily::Qoder: return {};
         case RootFamily::Omp:
         case RootFamily::Pi: {
             const bool flat = family == RootFamily::Pi;
@@ -301,7 +306,9 @@ bool isAcceptablePath(const std::string& root, const std::string& path, RootFami
         case RootFamily::OpenCode:
         case RootFamily::ZCode:
         case RootFamily::OpenClaw:
-        case RootFamily::Hermes: return false;
+        case RootFamily::Hermes:
+        case RootFamily::Devin:
+        case RootFamily::Qoder: return false;
         default: break;
     }
     return isTranscriptName(name, family) && insideWithin(root, path, kMaxDepth + 1);

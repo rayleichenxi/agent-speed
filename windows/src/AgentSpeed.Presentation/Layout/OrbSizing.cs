@@ -24,6 +24,13 @@ public static class OrbSizing
     }
 
     /// <summary>The adapted diameter in DIP, bounded by the style's existing readability limits.</summary>
-    public static double Diameter(double size, OrbStyle style, double factor) =>
-        OrbStyles.ClampSize(style, size * (double.IsFinite(factor) ? Math.Clamp(factor, MinimumFactor, 1) : 1));
+    public static double Diameter(double size, OrbStyle style, double factor)
+    {
+        var baseline = OrbStyles.ClampSize(size);
+        var minimum = style is OrbStyle.Minimal or OrbStyle.Character ? OrbStyles.MinSize : Math.Min(baseline, 96);
+        return Math.Max(minimum, OrbStyles.ClampSize(baseline * (double.IsFinite(factor) ? Math.Clamp(factor, MinimumFactor, 1) : 1)));
+    }
+
+    public static double Footprint(double size, OrbStyle style, double factor) =>
+        OrbStyles.FootprintDiameter(style, Diameter(size, style, factor));
 }

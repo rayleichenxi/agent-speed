@@ -55,7 +55,7 @@ internal sealed record OrbUndo(OrbUndoKind Kind, OrbsDocument Before, string Anc
 /// editing operations (add, duplicate, split, merge, remove, undo). The dashboard and the taskbar keep showing all
 /// sources.
 /// </summary>
-internal sealed class OrbManager : IDisposable
+internal sealed partial class OrbManager : IDisposable
 {
     private static readonly TimeSpan UndoTime = TimeSpan.FromSeconds(8);
     private static readonly TimeSpan ChipTime = TimeSpan.FromSeconds(2);
@@ -249,7 +249,7 @@ internal sealed class OrbManager : IDisposable
             {
                 entry = CreateEntry(orb);
                 var isNew = _started && previous is not null && previous.Find(orb.Id) is null;
-                entry.Feed.Configure(orb.TrackedSources, settings.Metric, orb.EffectiveRedline(settings.Metric, settings), NowMs(), isNew);
+                entry.Feed.Configure(orb.TrackedSources, settings.Metric, orb.EffectiveRedline(settings.Metric, settings), NowMs(), isNew, orb.TrackedHosts);
                 created.Add(orb.Id);
                 if (isNew)
                 {
@@ -259,7 +259,7 @@ internal sealed class OrbManager : IDisposable
             else
             {
                 var sourcesChanged = entry.Definition.TrackedSources != orb.TrackedSources;
-                entry.Feed.Configure(orb.TrackedSources, settings.Metric, orb.EffectiveRedline(settings.Metric, settings), NowMs());
+                entry.Feed.Configure(orb.TrackedSources, settings.Metric, orb.EffectiveRedline(settings.Metric, settings), NowMs(), hosts: orb.TrackedHosts);
                 if (sourcesChanged)
                 {
                     resourced.Add(orb.Id);
@@ -300,6 +300,7 @@ internal sealed class OrbManager : IDisposable
         UpdateTraffic(_traffic);
         Update(_speed.Snapshot);
         ResolvePlates();
+        NoteCharacterStyles(previous, visible);
 
         // After the plates are laid out for the new sources: the chip (or the plate folding it) shows the new content.
         foreach (var id in resourced)
@@ -322,8 +323,9 @@ internal sealed class OrbManager : IDisposable
         {
             var feed = entry.Feed;
             feed.Previewing = _speed.IsPreviewing;
+            feed.Character = entry.Definition.Style == OrbStyle.Character;
             var fired = feed.Update(snapshot, now);
-            if (entry.Definition.Traffic == OrbTraffic.Intelligence)
+            if (entry.Definition.Traffic == OrbTraffic.Intelligence && !feed.Character)
             {
                 FeedLines(entry);
             }
@@ -351,7 +353,11 @@ internal sealed class OrbManager : IDisposable
         _traffic = traffic;
         foreach (var entry in _entries.Values)
         {
-            if (entry.Definition.Traffic != OrbTraffic.Intelligence)
+            if (entry.Definition.Style == OrbStyle.Character)
+            {
+                FeedCharacterNetwork(entry);
+            }
+            else if (entry.Definition.Traffic != OrbTraffic.Intelligence)
             {
                 FeedLines(entry);
             }
@@ -533,7 +539,7 @@ internal sealed class OrbManager : IDisposable
         }
 
         var anchor = removed.Orbs.FirstOrDefault(o => o.Visible)?.Id ?? removed.Orbs[0].Id;
-        var name = before.Find(id) is { } gone ? OrbNaming.DisplayName(gone, _loc) : string.Empty;
+        var name = before.Find(id) is { } gone ? OrbNaming.DisplayName(gone, _loc, HostChoices) : string.Empty;
         void Finish()
         {
             Commit(removed);
@@ -717,7 +723,7 @@ internal sealed class OrbManager : IDisposable
         var texts = Texts(ThemeOf(orb), orb.Unit == OrbUnit.Cost && Cost is { } cost ? cost.UnitPerSecond : null);
         var sources = orb.TrackedSources is { } set ? set.ToArray() : null;
         var unavailable = UnavailableOf(entry);
-        var config = new OrbSurfaceConfig(orb.Style, orb.Size, _theme.IsDark ? OrbAppearance.Dark : OrbAppearance.Light, effects,
+        var config = new OrbSurfaceConfig(orb.Style, orb.Footprint, _theme.IsDark ? OrbAppearance.Dark : OrbAppearance.Light, effects,
             _theme.HighContrast, !_theme.TransparencyEnabled, orb.Opacity, settings.ResponsePulses, settings.CelebratePeaks,
             orb.EffectiveRedline(settings.Metric, settings), texts, sources, unavailable);
         var options = new OrbWindowOptions(orb.AlwaysOnTop, orb.ClickThrough, orb.FadeWhenIdle, entry.Feed.IsUnavailable, _theme.ReduceMotion);
@@ -778,12 +784,19 @@ internal sealed class OrbManager : IDisposable
         string? unavailableTitle = null;
         if (reading.State != SubsetState.Available)
         {
-            unavailableTitle = _loc[reading.State == SubsetState.AllDisabled ? "source.disabled" : "source.notFound"];
+            unavailableTitle = _loc[UnavailableKey(reading.State)];
         }
 
-        // Money (DESIGN 9): the value and hover line change; heat, tiers and titles keep following tokens.
+        // Money (DESIGN 9): the value and hover line change; heat, tiers and titles keep following tokens. Without a unit
+        // line (`minimal`, orbs below 96 DIP) the value carries the symbol.
         var money = unavailableTitle is null ? feed.Money : null;
+        if (money is not null && !OrbReadoutLayout.HasUnitLine(orb.Style, orb.Size))
+        {
+            money = money with { Number = money.Inline };
+        }
+
         surface.Scene.SetMoney(money);
+        PushCharacter(entry);
         var info = money?.HoverLine ?? _loc.Format("today.summary", SpeedFormat.Tokens(reading.Today.Output), reading.Agents.Count);
         var threadStats = unavailableTitle is null
             ? _loc.Format("win.orb.threads", feed.ActiveThreads, feed.AveragePerThread is { } average ? SpeedFormat.Speed(average) : "—")
@@ -794,7 +807,7 @@ internal sealed class OrbManager : IDisposable
         entry.Window.SetDimmed(unavailableTitle is not null);
         entry.Window.NoteActivity(feed.Tier != SpeedTier.Idle);
 
-        var name = OrbNaming.DisplayName(orb, _loc);
+        var name = OrbNaming.DisplayName(orb, _loc, HostChoices);
         string accessible;
         if (unavailableTitle is not null)
         {
@@ -820,10 +833,15 @@ internal sealed class OrbManager : IDisposable
                 feed.AveragePerThread is { } accessibleAverage ? SpeedFormat.Speed(accessibleAverage) : "—");
         }
 
-        var lines = unavailableTitle is null && surface.LinesVisible ? surface.LinesReading : null;
+        var lines = unavailableTitle is null && surface.LinesVisible && orb.Style != OrbStyle.Character ? surface.LinesReading : null;
         if (lines is { } shown)
         {
             accessible += DisplayText.SpokenSeparator(_loc) + shown.Spoken(_clock.Now);
+        }
+        else if (unavailableTitle is null && orb.Style == OrbStyle.Character
+            && surface.CharacterSentence(_loc, Cost?.CurrencyName ?? "USD") is { } cards)
+        {
+            accessible += DisplayText.SpokenSeparator(_loc) + cards;
         }
 
         entry.Window.SetDiscHint(lines?.Content.Detail);
@@ -1190,6 +1208,17 @@ internal sealed class OrbManager : IDisposable
         _chip.Opacity = 1;
     }
 
+    /// <summary>Why an orb shows its unavailable state: its sources are off, not found, or every selected host is offline (DESIGN 13).</summary>
+    private static string UnavailableKey(SubsetState state) => state switch
+    {
+        SubsetState.AllDisabled => "source.disabled",
+        SubsetState.HostsOffline => "remote.orb.offline",
+        _ => "source.notFound",
+    };
+
+    /// <summary>This computer and the remote hosts for the automatic names; empty without remote hosts.</summary>
+    private IReadOnlyList<OrbHostChoice> HostChoices => Presentation.Remote.RemoteHostStates.Choices(Settings.RemoteHosts, _loc);
+
     private bool ChipApplies(Entry entry) => entry.Definition.TrackedSources is not null || Settings.Orbs.Orbs.Length > 1;
 
     private string ChipText(OrbDefinition orb, SubsetReading reading)
@@ -1199,11 +1228,10 @@ internal sealed class OrbManager : IDisposable
             return _loc["orbs.sources.all"];
         }
 
-        var name = OrbNaming.DisplayName(orb, _loc);
+        var name = OrbNaming.DisplayName(orb, _loc, HostChoices);
         if (reading.State != SubsetState.Available)
         {
-            var status = _loc[reading.State == SubsetState.AllDisabled ? "source.disabled" : "source.notFound"];
-            return $"{name} · {status}";
+            return $"{name} · {_loc[UnavailableKey(reading.State)]}";
         }
 
         return set.Count <= 2 ? name : $"{OrbNaming.SourceName(set.First(), _loc)} +{set.Count - 1}";

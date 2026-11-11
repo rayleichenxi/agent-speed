@@ -44,10 +44,20 @@ curl -fsSL https://raw.githubusercontent.com/zoefix/agent-speed/main/install.sh 
 加上 `--purge` / `-Purge` 会同时删除设置。Windows 也可以在「设置 → 应用」中卸载。
 </details>
 
+## AI 娘
+
+<p align="center"><img src="docs/images/characters.webp" width="900" alt="17 位 AI 娘的合照，每家模型一位"></p>
+
+在悬浮窗上右键，选「**样式 → 角色**」，桌面上就会站着一位 AI 娘，跟着 agent 的速度起舞：越快动作越大。共 17 位，每家模型一位：Claude、DeepSeek、Gemini、GLM、GPT、Grok、混元、JEV、Kimi、Llama、MiniMax、Mistral、Perplexity、Qwen、RWKV、Seed、文心。悬浮窗会换成当前最快的模型那一位，也可以固定一位。速度、性能、网络速度、费用和今日用量化成卡片浮在她身旁，不会被她挡住。第一次切换时，角色会从本项目的 Releases 下载，每一位都先核对大小与 SHA-256 才安装。
+
+<p align="center"><img src="docs/images/character-orbs.webp" width="900" alt="三个角色悬浮窗，身旁浮着速度、性能、网速、费用和今日卡片"></p>
+
+<p align="center"><sub>画师：ZipZipPipe（经授权使用）。DeepSeek 娘原创角色：上善无形（CC BY-NC-SA 4.0）。</sub></p>
+
 ## 功能
 
 - **悬浮窗**——烟熏玻璃质感的仪表，36 格 LED 表盘。速度一路攀升时，称号也跟着升级——从「步行」「自行车」到「高铁」「战斗机」，冲到红线就是「火箭」；表盘沿着热度光谱点亮、彗星绕圈疾驰、火花四溅、余烬升腾，每完成一次回应就释放一道冲击波；打破今日纪录还会庆祝。
-- **五种悬浮窗样式，想开几个就开几个**——「LED 仪表」「指针转速表」「能量液球」「反应堆」「极简圆环」。每个悬浮窗都能自由组合来源（全部、单个工具，或 Claude Code＋Codex），下方的玻璃名牌在任何壁纸上都清晰易读。
+- **六种悬浮窗样式，想开几个就开几个**——「LED 仪表」「指针转速表」「能量液球」「反应堆」「极简圆环」，以及「角色」：下载的 AI 娘会跟着最快模型的速度舞动。每个悬浮窗都能自由组合来源（全部、单个工具，或 Claude Code＋Codex），下方的玻璃名牌在任何壁纸上都清晰易读。
 - **菜单栏／任务栏**——精简的仪表与数字，宽度固定不跳动；可显示 tok/s、金额，或 tok/s 加上实时花费与今日总额，也能加上网络速度。Windows 版直接嵌在任务栏里、时钟旁边。
 - **面板**——圆形仪表里有一台跟着速度称号变化的发光线条载具：从步行、蹬着自行车出发，一路换到红线时的火箭；另有实时曲线、各来源速度、所有正在工作的 agent（含子 agent）及其状态、今日统计。点一下来源就能打开它的用量历史。
 - **性能分数**——为每个 agent 当下的组合跑分：1000 是参考水平，没有上限，越高越快。综合输出吞吐、首段延迟、思考速度、工具节奏、工具耗时、工具成功率和缓存命中，并和同一个模型在你电脑上前 14 天的表现相比，告诉你现在比平常快还是慢。悬浮窗、排行看板、菜单栏／任务栏和面板都能看到（鼠标移上去就有完整分析），用量历史还有每个模型的每日趋势。
@@ -55,6 +65,8 @@ curl -fsSL https://raw.githubusercontent.com/zoefix/agent-speed/main/install.sh 
 - **网络流量**——各 agent 或整台电脑的上传／下载速度，以两行小字显示在悬浮窗上，菜单栏／任务栏与面板也能看到，用量历史记录每天的流量。Windows 若要看各 agent 的流量，需要安装一次可选的小型辅助服务（需管理员同意）。
 - **称号主题**——九套速度称号：「交通工具」「动物」「蒲福风级」「宇宙」「修真境界」「武学境界」「魔法位阶」「游戏段位」「工程师生涯」，也能自定义最多 8 组。选择交通工具以外的主题时，面板圆圈会显示发光的称号徽章。
 - **用量历史**——从最早的记录开始，每天的输出与输入 token、请求数、平均速度与峰值、费用与网络流量，可按来源，以今天、昨天或任意日期区间绘成图表，并查看各模型的速度、导出 CSV。只保存每日汇总，即使工具删除了旧记录，历史也不会消失。
+- **远程主机（可选）**——在本机同时看见通过 SSH 在远程 Linux 服务器上工作的 agent：沿用你自己的 SSH 配置与密钥，自动在远程放置一个只读的小程序，只传回 token 数、时间和模型，从不传送对话内容；悬浮窗、看板、面板和用量历史都能按主机分开看或合并看。
+- **局域网（可选）**——把实时速度显示在自制的桌面屏幕、智能家居或脚本上：局域网设备带上访问码，就能通过 HTTP、WebSocket 或 TCP 读取；也可以让应用通过 UDP（含广播）或 HTTP POST 主动发送到你添加的设备。只有速度数字，只在局域网内；详见[开发者文档](spec/LAN.md)。
 - **实时上报（可选）**——默认关闭；想参与的话，可以用你取的用户名，把实时数字分享给你选择的 API，例如 [Codex Radar](https://codexradar.com/) 的速蹬天梯。从不发送对话内容、文件或项目名称，详见[隐私](#隐私)。
 - **执行模式**——依据可靠记录显示 Standard／Fast／Ultrafast，以及各 agent 的加速卡、模型变体或路由选择，区分默认设置与未知；历史可单独导出模式 CSV，沿用既有测速公式。
 - **头像与多设备（可选 API 扩展）**——预览、更换、移除头像，通过一次性配对码由原设备批准后合并身份；每台设备保留自己的密钥，解绑不影响已入账历史。接收端须支持[新版 API 结构](spec/report-schema.json)。
@@ -85,7 +97,7 @@ Agent Speed 只读取 agent 本来就写在你电脑上的记录：
 | OpenCode（命令行与桌面版） | `~/.local/share/opencode/opencode.db`（或 `$XDG_DATA_HOME/opencode`） |
 | Gemini CLI | `~/.gemini/tmp`（或 `$GEMINI_CLI_HOME/.gemini/tmp`） |
 | omp（oh-my-pi） | `~/.omp/agent/sessions`，以及 `~/.omp/profiles` 里的每个配置文件（或 `$PI_CODING_AGENT_DIR/sessions`） |
-| Antigravity（`agy` 命令行、桌面版、IDE 与扩展） | `~/.gemini/antigravity-cli`、`~/.gemini/antigravity`、`~/.gemini/antigravity-ide`（其中的 `conversations` 文件夹） |
+| Antigravity（`agy` 命令行、桌面版、IDE 与扩展） | `~/.gemini/antigravity-cli`、`~/.gemini/antigravity`、`~/.gemini/antigravity-ide`（其中的 `conversations` 文件夹）；Windows 还会发现 `~/.t3/userdata/providers/antigravity/*/antigravity-acp` 存储目录 |
 | WorkBuddy（腾讯，国内版） | `~/.workbuddy/projects` |
 | WorkBuddy AI（国际版） | `~/.workbuddy-ai/projects` |
 | ZCode | `~/.zcode/cli/db/db.sqlite`（或 `$ZCODE_DATA_BASE_DIR/.zcode/cli/db`） |
@@ -105,6 +117,10 @@ Claude Desktop 普通聊天对话不会保存在本机，因此无法统计；Wo
 只读、只在本机运行，没有遥测、无需账号。Agent Speed 只会自动发出三种网络请求，而且都不会发送任何关于你的数据：向 GitHub Releases 检查更新、每天从本项目下载公开的模型价格表（GitHub，以 jsDelivr 为备用），以及仅在你选择以美元以外的货币显示费用时，每天下载公开汇率（open.er-api.com，以 fawazahmed0 currency API 和 Frankfurter 为备用）。每位用户下载的都是同一份文件，因此服务器无从得知你的货币、模型或用量。设置里的一个开关即可关闭所有网络连接，此时费用改用应用内置的价格表和汇率。Agent Speed 从不保存或显示对话内容，只显示 token 数量、模型名称、项目文件夹名称等信息。用量历史只保存每日汇总（含每日的 API 等值费用）和各模型每天的性能统计，存放在你电脑上的一个小型数据库（`~/Library/Application Support/AgentSpeed`、`%LOCALAPPDATA%\AgentSpeed`），可在设置中清除。更新在安装前会用该版本发布的 SHA-256 校验和验证；校验和与版本一同发布，因此能拦截损坏或被篡改的下载文件，但无法防范仓库本身被入侵。价格表是按严格规则校验的纯数据，没有数字签名。
 
 网络流量：Agent Speed 只在本机计算各程序收发的字节数，从不读取内容、网址或连接对象；只有在你开启实时上报（见下文）时，才会把 agent 的字节数发送给你选择的服务。在 Windows 上，要显示各 agent 的流量需要安装可选的辅助服务；它以权限受限的“本地服务”账户运行，只统计每个程序的字节数，安装和卸载各需要一次管理员确认（[详细说明](spec/WINDOWS-SERVICE.md)）。
+
+远程主机（可选）：对你在设置中添加的每台 Linux 主机，Agent Speed 会用系统自带的 `ssh` 和你自己的 SSH 配置连接（从不保存或询问密码），首次连接时把与本版本一致的只读小程序放到远程的 `~/.cache/agent-speed`，以 SHA-256 核对后运行。它用与本机相同的规则读取那台主机上的记录，只传回 token 数、时间、模型、项目文件夹名称与每日汇总，从不传送对话内容；它不建立任何网络连接，只写入自己的文件夹（用量历史缓存与时区文件）。网络总开关关闭时不会连接。
+
+局域网（可选）：只在你于“设置 → API → 局域网”开启后运行。局域网内带上访问码的设备可以从一个端口读取实时速度（Bonjour 名称 `_agentspeed._tcp`），应用也会把速度发送到你添加的地址；仅限局域网地址，从不经过代理服务器。发送的只有输出速度、估算比例、工作中的 session 数、一分钟的速度曲线和这台电脑的名称，从不包含对话内容、模型、项目、路径或费用；数据在局域网内以明文传输。网络总开关关闭时，端口会关闭，也不会发送任何数据。
 
 推理强度与加速：大多数 agent 会把这两项写进上面的记录。其他情况下，Agent Speed 会以只读方式多读几个字段，绝不读取对话内容。三个数据库：OpenClaw 的 `trajectory_runtime_events`（只取 `trace.metadata` 行，由查询条件筛选，其中也只保留 think level 与 fast mode；压缩的行只在内存中解开，用完即丢）、WorkBuddy 的 `workbuddy.db`（只读 `sessions.id` 与 `sessions.thought_level`）、Hermes Agent 的 `state.db`（只读该会话的 `model_config.reasoning_config`）。打开这些文件时不会创建 `-wal` 或 `-shm`，Hermes 的数据库也只会短暂打开。配置文件各读一项：Codex `config.toml`（`service_tier`）、Gemini CLI `~/.gemini/settings.json`（匹配该 agent 模型的 override 中的 `thinkingLevel` 或 `thinkingBudget`）、Antigravity `~/.gemini/config/config.json`（`vertexServiceTier`）、WorkBuddy `settings.json`（`reasoningEffort`）、Hermes Agent `config.yaml`（`agent.reasoning_effort`、`agent.service_tier`）。只存在于配置文件的值会加上“配置值”标记，因为 agent 不一定实际使用它；这类值不会计入历史或统计，也不会上报。哪里都没有记录的值就保持未知，绝不猜测。
 
@@ -144,7 +160,7 @@ dotnet test windows/tests/AgentSpeed.Presentation.Tests
 ```sh
 cmake -S linux -B build -G Ninja -DAGENTSPEED_BUILD_TESTS=ON -DAGENTSPEED_BUILD_APP=ON
 cmake --build build && ctest --test-dir build
-linux/packaging/package.sh build dist 1.6.1   # → AppImage 与 .deb
+linux/packaging/package.sh build dist 1.7.1   # → AppImage 与 .deb
 ```
 </details>
 

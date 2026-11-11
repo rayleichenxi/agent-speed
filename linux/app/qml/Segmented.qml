@@ -5,9 +5,13 @@ Item {
     id: control
     property var options: []
     property var value
+    // Horizontal room around each label (narrow windows use less).
+    property int segmentPadding: 22
+    // A fixed total width shared equally by the segments (0: each as wide as its label).
+    property real fixedWidth: 0
     signal activated(var value)
     implicitHeight: 28
-    implicitWidth: strip.implicitWidth + 4
+    implicitWidth: fixedWidth > 0 ? fixedWidth : strip.implicitWidth + 4
     activeFocusOnTab: true
     Accessible.role: Accessible.PageTabList
 
@@ -50,13 +54,17 @@ Item {
             Item {
                 required property var modelData
                 required property int index
-                width: Math.max(44, caption.implicitWidth + 22)
+                width: control.fixedWidth > 0 ? (control.fixedWidth - 4) / control.options.length
+                                              : Math.max(control.segmentPadding * 2, caption.implicitWidth + control.segmentPadding)
                 height: strip.height
                 Accessible.role: Accessible.PageTab
                 Accessible.name: modelData.label
                 Text {
                     id: caption
                     anchors.centerIn: parent
+                    width: control.fixedWidth > 0 ? Math.min(implicitWidth, parent.width - 8) : implicitWidth
+                    horizontalAlignment: Text.AlignHCenter
+                    elide: Text.ElideRight
                     text: modelData.label
                     color: control.index === index ? Theme.ink : Theme.ink2
                     font.pixelSize: 12

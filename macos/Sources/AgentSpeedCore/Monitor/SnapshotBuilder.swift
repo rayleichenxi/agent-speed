@@ -10,12 +10,19 @@ struct SnapshotContext: Sendable {
         var configuredModes: ExecutionModes = .empty
     }
 
+    /// Over every host: a source is available when it is on this computer or on a connected host (DESIGN 13).
     var sources: [SourceKind: SourceInfo]
+    /// This computer's part of `sources`.
+    var localSources: [SourceKind: SourceInfo]
     var warnings: [MonitorWarning]
     var todayStartMs: Int64
+    var remote = RemoteIngest()
+    /// Display only: never reported, sent to the local network or to remote hosts (QUOTAS 1).
+    var codexQuota: QuotaSnapshot?
 
     init(sources: [SourceKind: SourceInfo], warnings: [MonitorWarning] = [], todayStartMs: Int64) {
         self.sources = sources
+        localSources = sources
         self.warnings = warnings
         self.todayStartMs = todayStartMs
     }
@@ -37,6 +44,12 @@ struct SnapshotContext: Sendable {
             } else if kind == .openclaw {
                 let location = session.openclawLocation
                 sources[kind] = SourceInfo(enabled: enabled, rootPath: location.path, available: location.available, sessionCount: counts[kind] ?? 0)
+            } else if kind == .devin {
+                let location = session.devinLocation
+                sources[kind] = SourceInfo(enabled: enabled, rootPath: location.path, available: location.available, sessionCount: counts[kind] ?? 0)
+            } else if kind == .qoder {
+                let location = session.qoderLocation
+                sources[kind] = SourceInfo(enabled: enabled, rootPath: location.path, available: location.available, sessionCount: counts[kind] ?? 0)
             } else if kind == .hermes {
                 let location = session.hermesLocation
                 sources[kind] = SourceInfo(enabled: enabled, rootPath: location.path, available: location.available, sessionCount: counts[kind] ?? 0)
@@ -44,6 +57,15 @@ struct SnapshotContext: Sendable {
                 sources[kind] = SourceInfo(enabled: enabled, rootPath: "", available: false, sessionCount: 0)
             }
             sources[kind]?.configuredModes = session.configuredModes(of: kind)
+        }
+        localSources = sources
+        remote = session.remote
+        codexQuota = session.codexQuota
+        for host in remote.hosts where remote.isConnected(host.id) {
+            for state in remote.reports[host.id]?.sources ?? [] where sources[state.source]?.enabled == true {
+                if state.available { sources[state.source]?.available = true }
+                sources[state.source]?.sessionCount += state.sessions
+            }
         }
         self.sources = sources
         var warnings: [MonitorWarning] = []
@@ -81,7 +103,8 @@ enum SnapshotBuilder {
                 modes: row.agent.modes,
                 intelligence: row.intelligence,
                 perf: row.perf,
-                signals: row.signals
+                signals: row.signals,
+                host: row.agent.host
             )
             agent.sessionModes = row.agent.sessionModes
             agent.configuredModes = row.agent.configuredModes
@@ -107,7 +130,7 @@ enum SnapshotBuilder {
                 unpricedFacts: output.todayUnpricedFacts[kind] ?? []
             )
         }
-        return SpeedSnapshot(
+        var snapshot = SpeedSnapshot(
             timestamp: date(output.nowMs),
             state: .running,
             live: output.live,
@@ -130,6 +153,11 @@ enum SnapshotBuilder {
             intelligence: output.intelligence,
             report: output.report
         )
+        if !context.remote.hosts.isEmpty {
+            (snapshot.hosts, snapshot.hostSources) = hosts(output, context: context)
+        }
+        snapshot.codexQuota = context.codexQuota
+        return snapshot
     }
 
     /// Models with unpriced responses, most first, then by name.
@@ -161,6 +189,7 @@ enum SnapshotBuilder {
         }
         snapshot.warnings = context.warnings
         snapshot.dayStart = date(context.todayStartMs)
+        snapshot.codexQuota = context.codexQuota
         return snapshot
     }
 

@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using AgentSpeed.Core.Locations;
 
 namespace AgentSpeed.Core.Tests;
 
@@ -76,7 +77,10 @@ public sealed class LiveMonitorTests : IDisposable
     public async Task ReportsNoSourcesWhenNoRootExists()
     {
         var probe = await HubProbe.CreateAsync();
-        using var monitor = new LiveMonitor(probe.Hub, Configuration());
+        var locations = LocationLists.Automatic;
+        foreach (var folder in LocationFolders.All)
+            locations = locations.With(folder, [DataLocation.At(_temp.Combine("missing", folder.ToString()))]);
+        using var monitor = new LiveMonitor(probe.Hub, Configuration() with { Locations = locations });
 
         monitor.Start();
         var snapshot = await probe.WaitForAsync(s => s.State.Kind == MonitorStateKind.NoSources);
@@ -163,7 +167,9 @@ public sealed class LiveMonitorTests : IDisposable
         _temp.Combine("home", ".workbuddy"),
         _temp.Combine("home", ".workbuddy-ai"),
         HermesRoot: _temp.Combine("home", ".hermes"),
-        DroidRoot: _temp.Combine("home", ".factory"));
+        DroidRoot: _temp.Combine("home", ".factory"),
+        QoderRoot: _temp.Combine("home", "Qoder"),
+        QoderCliRoot: _temp.Combine("home", ".qoder"));
 
     private sealed class HubProbe
     {

@@ -24,6 +24,9 @@
 #include <cmath>
 
 #include "appearance.hpp"
+#include "characters/character_library.hpp"
+#include "orb/character/character_assets.hpp"
+#include "orb/character/character_style.hpp"
 #include "format.hpp"
 #include "heat.hpp"
 #include "source_colors.hpp"
@@ -120,7 +123,32 @@ led::Effects OrbWindow::effects() const { return led::Effects::make(effectsLevel
 
 bool OrbWindow::insideDisc(QPointF local) const {
     const QPointF d = local - center();
+    if (isCharacter()) return agentspeed::character::footprint::characterContains(d.x(), d.y(), footprint(), 0.03 * hover_.value * footprint() / 2);
     return std::hypot(d.x(), d.y()) <= diameter_ / 2 * (1 + 0.03 * hover_.value);
+}
+
+void OrbWindow::setCharacters(CharacterLibrary* characters) {
+    characters_ = characters;
+    if (characters_) connect(&CharacterAssets::shared(), &CharacterAssets::ready, this, [this] { requestFrame(); });
+}
+
+bool OrbWindow::intelEnabled() const {
+    if (isCharacter()) return characterReadouts_.intelligence || characterReadouts_.thinking || characterReadouts_.latency;
+    return traffic_ == QLatin1String("intelligence");
+}
+
+// A `character` orb's network card follows `traffic` for its scope: `machine`, else the orb's agents (DESIGN 2a.6).
+QString OrbWindow::networkScope() const {
+    if (!isCharacter()) return traffic_;
+    if (!characterReadouts_.network) return QStringLiteral("off");
+    return traffic_ == QLatin1String("machine") ? QStringLiteral("machine") : QStringLiteral("sources");
+}
+
+void OrbWindow::resizeToFootprint(QPointF discCenter) {
+    resize(qCeil(side()), qCeil(side()));
+    setPosition((discCenter - center()).toPoint());
+    bodyDirty_ = true;
+    applyShape();
 }
 
 void OrbWindow::applyFlags() {
@@ -137,8 +165,16 @@ void OrbWindow::applyFlags() {
 }
 
 void OrbWindow::applyShape() {
-    if (!clickThrough_) x11::setInputDisc(this, center(), diameter_ / 2);
-    if (blur_) x11::setBlurDisc(this, center(), diameter_ / 2 - 0.5);
+    if (!clickThrough_) {
+        if (isCharacter()) {
+            const auto box = agentspeed::character::footprint::characterBounds(footprint());
+            x11::setInputRect(this, QRectF(center().x() + box.x, center().y() + box.y, box.width, box.height));
+        } else {
+            x11::setInputDisc(this, center(), diameter_ / 2);
+        }
+    }
+    // No blur behind a character (an empty region would blur the whole window, so a speck stays).
+    if (blur_) x11::setBlurDisc(this, isCharacter() ? QPointF(1, 1) : center(), isCharacter() ? 0.5 : diameter_ / 2 - 0.5);
     x11::skipTaskbar(this);
 }
 
@@ -173,6 +209,9 @@ void OrbWindow::setShown(bool visible) {
 
 void OrbWindow::apply(const OrbConfig& config, const QString& name, int redline) {
     name_ = name;
+    const bool readoutsChanged = config.characterReadouts != characterReadouts_ || config.character != characterLock_;
+    characterLock_ = config.character;
+    characterReadouts_ = config.characterReadouts;
     setStyle(config.style);
     setDiameter(config.size);
     if (config.alwaysOnTop != alwaysOnTop_ || config.clickThrough != clickThrough_) {
@@ -182,7 +221,6 @@ void OrbWindow::apply(const OrbConfig& config, const QString& name, int redline)
     }
     opacity_ = config.opacity;
     fadeWhenIdle_ = config.fadeWhenIdle;
-    if (!fadeWhenIdle_) idleFaded_ = false;
     const QStringList sources = config.sources.value_or(QStringList());
     const QString theme = config.titleTheme.value_or(QString());
     const bool changed = sources != sources_ || config.unit != unit_ || theme != theme_ || config.traffic != traffic_ ||
@@ -194,9 +232,19 @@ void OrbWindow::apply(const OrbConfig& config, const QString& name, int redline)
     traffic_ = config.traffic;
     gauge_.setRedline(redline);
     applyOpacity();
+    updateFade();
     updateLabel();
     if (unitChanged) announceUnit();
-    if (changed) requestFrame();
+    if (changed || readoutsChanged) requestFrame();
+}
+
+void OrbWindow::setQuota(const QVariantList& items) {
+    auto next = CharacterQuota::of(items, strings_);
+    if (*next.sources == *characterQuota_.sources && next.spoken == characterQuota_.spoken) return;
+    characterQuota_ = std::move(next);
+    if (!isCharacter()) return;
+    updateLabel();
+    requestFrame();
 }
 
 // DESIGN 9 Accessibility: a unit change is announced once (`a11y.unitChanged`).
@@ -229,22 +277,23 @@ void OrbWindow::setHighlighted(bool on) {
     requestFrame();
 }
 
-// The orb's opacity, × 55 % while every source is unavailable, × 45 % after 60 s idle when it fades (DESIGN 2, 2b).
+// The orb's opacity, × 55 % while every source is unavailable, × the fade when idle (DESIGN 2, 2b).
 void OrbWindow::applyOpacity() {
-    double opacity = opacity_ * (unavailable_.isEmpty() ? 1.0 : 0.55);
-    if (idleFaded_ && !hovered_) opacity *= 0.45;
-    if (std::abs(QWindow::opacity() - opacity) > 0.005) setOpacity(opacity);
+    const double opacity = opacity_ * (unavailable_.isEmpty() ? 1.0 : 0.55) * fadeMotion_.factor();
+    if (std::abs(QWindow::opacity() - opacity) > 0.0005) setOpacity(opacity);
+}
+
+// Fade when idle (DESIGN 2): the orb's tier idle for 60 s; activity, hover or a drag brings it back at once.
+void OrbWindow::updateFade() {
+    if (idleFade_.update(fadeWhenIdle_, gauge_.tier() == Tier::Idle, hovered_ || dragging_, now())) fadeMotion_.setFaded(idleFade_.faded());
 }
 
 void OrbWindow::setDiameter(double diameter) {
-    diameter = std::clamp(diameter, styleKind_ == StyleKind::Minimal ? 64.0 : 96.0, 240.0);
+    diameter = std::clamp(diameter, 64.0, 240.0);
     if (std::abs(diameter - diameter_) < 0.01) return;
     const QPointF discCenter = QPointF(position()) + center();
     diameter_ = diameter;
-    resize(qCeil(side()), qCeil(side()));
-    setPosition((discCenter - center()).toPoint());
-    bodyDirty_ = true;
-    applyShape();
+    resizeToFootprint(discCenter);
     requestFrame();
 }
 
@@ -270,20 +319,26 @@ void OrbWindow::setTitles(const TitleThemes* titles) {
     if (titles_) connect(titles_, &TitleThemes::changed, this, [this] { requestFrame(); });
 }
 
-// The outgoing and incoming instruments crossfade for 0.25 s (DESIGN 2a, Style change); a size below 96 pt only
-// `minimal` allows grows back.
+// The outgoing and incoming instruments crossfade for 0.25 s (DESIGN 2a, Style change); every style shares one size
+// range, so the size stays.
 void OrbWindow::setStyle(const QString& key) {
     const StyleKind kind = styleFromKey(key);
     if (kind == styleKind_) return;
     const double t = now();
+    const QPointF discCenter = QPointF(position()) + center();
+    const double footprintBefore = footprint();
     outgoing_ = std::move(style_);
     style_ = Style::make(kind);
     styleKind_ = kind;
+    // Changing to or from `character` resizes the orb like a size change; the crossfade would span two sizes.
+    if (std::abs(footprint() - footprintBefore) > 0.01) {
+        outgoing_.reset();
+        resizeToFootprint(discCenter);
+    }
     styleChangedAt_ = t;
     bodyDirty_ = true;
     bodyCrossfade_ = true;
     resumeStyle_ = true;
-    if (kind != StyleKind::Minimal && diameter_ < 96) setDiameter(96);
     requestFrame();
 }
 
@@ -309,7 +364,7 @@ double ramp(double value, double target, double dt, double seconds) {
 // DESIGN 10 Intelligence readout: visible while 智力 has a value or an agent generates, fading out 10 s after neither;
 // 思考 hides 3 s after it reads 0 and the 智力 line glides to the single-line position.
 void OrbWindow::stepIntel(double time, double dt) {
-    const bool enabled = traffic_ == QLatin1String("intelligence");
+    const bool enabled = intelEnabled();
     if (enabled && (intelForm_ != 0 || intelGenerating_)) intelLastActive_ = time;
     const double target = enabled && time - intelLastActive_ < 10 ? 1 : 0;
     intelOpacity_ = ramp(intelOpacity_, target, dt, target > intelOpacity_ ? 0.25 : 0.6);
@@ -321,6 +376,9 @@ void OrbWindow::stepIntel(double time, double dt) {
     glide_ = ramp(glide_, 1 - shown, dt, 0.3);
     const double netTarget = netAvailable_ && time - netLastActive_ < 10 ? 1 : 0;
     netOpacity_ = ramp(netOpacity_, netTarget, dt, netTarget > netOpacity_ ? 0.25 : 0.6);
+    const double costTarget = isCharacter() && !costCardNumber_.isEmpty() && time - costLastActive_ < 10 ? 1 : 0;
+    costOpacity_ = ramp(costOpacity_, costTarget, dt, costTarget > costOpacity_ ? 0.25 : 0.6);
+    characterReadings_.step(time, dt);
     unitHoverAmount_ = ramp(unitHoverAmount_, unitHover_ ? 1 : 0, dt, 0.15);
 }
 
@@ -343,7 +401,7 @@ IntelReadout OrbWindow::intelContent(double time) const {
     in.glide = smoothstep(glide_);
     qint64 value = intelShown_;
     in.form = intelForm_;
-    if (value < 0 && intelLast_ >= 0 && intelOpacity_ > 0 && traffic_ == QLatin1String("intelligence") && time - intelLastActive_ >= 10) {
+    if (value < 0 && intelLast_ >= 0 && intelOpacity_ > 0 && intelEnabled() && time - intelLastActive_ >= 10) {
         value = intelLast_;  // the quiet fade keeps the last score
         in.form = 2;
     }
@@ -356,15 +414,17 @@ IntelReadout OrbWindow::intelContent(double time) const {
 }
 
 bool OrbWindow::intelBusy(double time) const {
-    const bool enabled = traffic_ == QLatin1String("intelligence");
+    const bool enabled = intelEnabled();
     const double target = enabled && time - intelLastActive_ < 10 ? 1 : 0;
     const bool zero = thinkingText_.isEmpty() || thinkingText_ == QLatin1String("0");
     const double shown = zero && thinkingZeroSince_ >= 0 && time - thinkingZeroSince_ >= 3 ? 0 : 1;
     const double netTarget = netAvailable_ && time - netLastActive_ < 10 ? 1 : 0;
-    return std::abs(netOpacity_ - netTarget) > 0.001 || std::abs(unitHoverAmount_ - (unitHover_ ? 1 : 0)) > 0.001 ||
+    const double costTarget = isCharacter() && !costCardNumber_.isEmpty() && time - costLastActive_ < 10 ? 1 : 0;
+    return std::abs(netOpacity_ - netTarget) > 0.001 || std::abs(costOpacity_ - costTarget) > 0.001 || std::abs(unitHoverAmount_ - (unitHover_ ? 1 : 0)) > 0.001 ||
            std::abs(intelOpacity_ - target) > 0.001 || std::abs(thinkingOpacity_ - shown) > 0.001 ||
            std::abs(glide_ - (1 - shown)) > 0.001 ||
-           (time - countStart_ >= 0 && time - countStart_ < countDuration_) || (time - numberFadeStart_ >= 0 && time - numberFadeStart_ < 0.15);
+           (time - countStart_ >= 0 && time - countStart_ < countDuration_) || (time - numberFadeStart_ >= 0 && time - numberFadeStart_ < 0.15) ||
+           (isCharacter() && characterReadings_.busy(time));
 }
 
 double OrbWindow::nextIntelWake(double time) const {
@@ -373,7 +433,9 @@ double OrbWindow::nextIntelWake(double time) const {
         if (at > time && (wake < 0 || at < wake)) wake = at;
     };
     if (netOpacity_ > 0) consider(netLastActive_ + 10);
-    if (traffic_ != QLatin1String("intelligence")) return wake;
+    if (costOpacity_ > 0) consider(costLastActive_ + 10);
+    if (isCharacter()) consider(characterReadings_.nextWake(time));
+    if (!intelEnabled()) return wake;
     if (intelOpacity_ > 0) consider(intelLastActive_ + 10);
     if (thinkingZeroSince_ >= 0 && thinkingOpacity_ > 0) consider(thinkingZeroSince_ + 3);
     return wake;
@@ -393,13 +455,8 @@ void OrbWindow::applySnapshot(const QVariantMap& snap) {
         if (!row.value(QStringLiteral("status")).toString().isEmpty()) unavailableSources_.push_back(row.value(QStringLiteral("source")).toString());
     }
     gauge_.update(unavailable_.isEmpty() ? snap.value(QStringLiteral("liveOutput")).toDouble() : 0.0, t);
-    // Fade when idle: after 60 s without a live value, back at once on activity.
-    if (gauge_.tier() != Tier::Idle || lastActive_ < -1e8) lastActive_ = t;
-    const bool faded = fadeWhenIdle_ && gauge_.tier() == Tier::Idle && t - lastActive_ >= 60;
-    if (faded != idleFaded_ || dimChanged) {
-        idleFaded_ = faded;
-        applyOpacity();
-    }
+    updateFade();
+    if (dimChanged) applyOpacity();
     const auto e = effects();
     bool events = false;
     for (const auto& item : snap.value(QStringLiteral("completions")).toList()) {
@@ -427,11 +484,15 @@ void OrbWindow::applySnapshot(const QVariantMap& snap) {
     if (!unavailable_.isEmpty()) {
         valueText_ = QStringLiteral("–");
         info_.clear();
-    } else if (unit_ == QLatin1String("cost")) {
+    } else if (unit_ == QLatin1String("cost") && !isCharacter()) {
         // DESIGN 9 Orb: the live cost rate of the orb's sources; – when nothing is priced, 0 for subscriptions only.
         const bool unknown = snap.value(QStringLiteral("costUnknown")).toBool();
         const bool subscriptions = snap.value(QStringLiteral("costSubscriptionOnly")).toBool();
-        valueText_ = unknown ? QStringLiteral("–") : subscriptions ? QStringLiteral("0") : snap.value(QStringLiteral("costNumber")).toString();
+        // Without a unit line (`minimal`, orbs below 96 pt) the value carries the symbol.
+        const bool unitLine = styleKind_ != StyleKind::Minimal && diameter_ >= ReadoutLayout::kUnitFloor;
+        valueText_ = unknown         ? QStringLiteral("–")
+                     : subscriptions ? QStringLiteral("0")
+                                     : snap.value(unitLine ? QStringLiteral("costNumber") : QStringLiteral("costInline")).toString();
         atLeast_ = !unknown && !subscriptions && snap.value(QStringLiteral("costPartial")).toBool() && valueText_ != QLatin1String("0");
         if (subscriptions) {
             info_ = strings_.t(QStringLiteral("cost.subscriptionOnly"));
@@ -502,14 +563,15 @@ void OrbWindow::applySnapshot(const QVariantMap& snap) {
     intelWords_ = set.value(QStringLiteral("words")).toString();
     intelGenerating_ = set.value(QStringLiteral("generating")).toBool();
     thinkingText_ = set.value(QStringLiteral("thinkingText")).toString();
-    if (traffic_ == QLatin1String("intelligence")) {
+    if (intelEnabled()) {
         key += QString::number(intelForm_) + QString::number(shown) + (intelProvisional_ ? QStringLiteral("p") : QString()) + thinkingText_ +
                (intelGenerating_ ? QStringLiteral("g") : QString());
     }
     // The network readout: the orb's sources (every enabled source while there is one orb) or this computer.
     const auto traffic = snap.value(QStringLiteral("traffic")).toMap();
-    const bool machine = traffic_ == QLatin1String("machine");
-    const bool network = traffic.value(QStringLiteral("enabled")).toBool() && (machine || traffic_ == QLatin1String("sources"));
+    const QString scope = networkScope();
+    const bool machine = scope == QLatin1String("machine");
+    const bool network = traffic.value(QStringLiteral("enabled")).toBool() && (machine || scope == QLatin1String("sources"));
     netAvailable_ = network && (machine ? traffic.value(QStringLiteral("machine")).toBool() : traffic.value(QStringLiteral("agentsKnown")).toBool());
     if (netAvailable_) {
         const double rx = traffic.value(machine ? QStringLiteral("machineRx") : QStringLiteral("agentsRx")).toDouble();
@@ -519,6 +581,12 @@ void OrbWindow::applySnapshot(const QVariantMap& snap) {
         if (rx + tx >= 1000) netLastActive_ = t;
         key += netDown_ + netUp_;
     }
+    if (isCharacter()) {
+        updateCharacter(snap, t);
+        characterReadings_.apply(set, t, strings_);
+        key += characterPack_ ? QString::fromStdString(characterPack_->id()) : QString();
+        key += costCardNumber_ + characterModel_ + todayText_ + characterReadings_.key();
+    }
     const bool changed = key != contentKey_ || static_cast<int>(gauge_.tier()) != tierBefore ||
                          gauge_.title() != titleBefore || !gauge_.isSettled();
     contentKey_ = key;
@@ -527,6 +595,45 @@ void OrbWindow::applySnapshot(const QVariantMap& snap) {
     } else {
         schedule();
     }
+}
+
+// CHARACTERS 7 and DESIGN 2a.6: which character this orb shows (locked, else the fastest live vendor with a pack,
+// held 3 s), and the facts its cards float.
+void OrbWindow::updateCharacter(const QVariantMap& snap, double time) {
+    std::map<std::string, double> rates;
+    const auto vendorRates = snap.value(QStringLiteral("vendorRates")).toMap();
+    for (auto it = vendorRates.begin(); it != vendorRates.end(); ++it) rates[it.key().toStdString()] = it.value().toDouble();
+    std::shared_ptr<const agentspeed::character::Pack> pack;
+    if (characters_) {
+        std::optional<std::string> locked;
+        if (characterLock_) locked = characterLock_->toStdString();
+        if (const auto id = characterSelection_.update(locked, rates, characters_->packs(), time)) {
+            pack = characters_->load(QString::fromStdString(*id));
+        }
+    }
+    characterPack_ = pack;
+    if (const QString model = snap.value(QStringLiteral("fastestModel")).toString(); !model.isEmpty()) characterModel_ = model;
+    const QString today = snap.value(QStringLiteral("todayOutputText")).toString();
+    todayText_ = today.isEmpty() || today == QLatin1String("0") ? QString() : today;
+    agentCount_ = static_cast<int>(snap.value(QStringLiteral("agents")).toList().size());
+    // The cost card: loud while money flows, or while a generating set has no price (shown as –).
+    const bool unknown = snap.value(QStringLiteral("costUnknown")).toBool();
+    const bool subscriptions = snap.value(QStringLiteral("costSubscriptionOnly")).toBool();
+    const QString number = snap.value(QStringLiteral("costNumber")).toString();
+    const bool flowing = !subscriptions && std::any_of(number.begin(), number.end(), [](QChar c) { return c.isDigit() && c != QLatin1Char('0'); });
+    if (unknown && !agents_.empty()) {
+        costCardNumber_ = QStringLiteral("–");
+        costCardUnknown_ = true;
+        costLastActive_ = time;
+    } else if (flowing) {
+        costCardNumber_ = number;
+        costCardUnknown_ = false;
+        costLastActive_ = time;
+    } else if (costOpacity_ <= 0.001) {
+        costCardNumber_.clear();
+    }
+    costCardAtLeast_ = flowing && snap.value(QStringLiteral("costPartial")).toBool();
+    costCardUnit_ = fill(strings_.t(QStringLiteral("cost.unitPerSecond")), {snap.value(QStringLiteral("costSymbol")).toString()});
 }
 
 std::optional<double> OrbWindow::signOfLife(double time) const {
@@ -550,9 +657,9 @@ Frame OrbWindow::makeFrame(double time, double dt) {
     Frame f;
     f.time = time;
     f.dt = dt;
-    f.s = diameter_;
+    f.s = footprint();
     f.center = center();
-    f.unit = diameter_ / 148;
+    f.unit = f.s / 148;
     f.dark = dark();
     f.tokens = Tokens::forDark(f.dark);
     f.effects = effects();
@@ -651,6 +758,11 @@ QImage OrbWindow::snapshot() {
 }
 
 void OrbWindow::renderFrame() {
+    // Development aid: AGENT_SPEED_ORB_PROFILE=1 prints, every 5 s, the frames drawn and the CPU time of building
+    // the scene (springs, the character, the cards) and of submitting it.
+    static const bool profile = qEnvironmentVariableIntValue("AGENT_SPEED_ORB_PROFILE") > 0;
+    QElapsedTimer profileTimer;
+    if (profile) profileTimer.start();
     const double t = now();
     const bool resumed = resumePending_;
     resumePending_ = false;
@@ -702,7 +814,10 @@ void OrbWindow::renderFrame() {
     content.rolls = e.level > 0 && diameter_ >= 80;
     content.unit = unit_ == QLatin1String("cost") ? fill(strings_.t(QStringLiteral("cost.unitPerSecond")), {costSymbol_}) : strings_.t(QStringLiteral("unit.tokS"));
     content.unitHover = unitHoverAmount_;
-    content.title = unavailable_.isEmpty() ? titleText(gauge_.title()) : strings_.t(QStringLiteral("source.") + unavailable_);
+    // DESIGN 13: an orb whose selected hosts are all offline says so.
+    content.title = unavailable_.isEmpty()                         ? titleText(gauge_.title())
+                    : unavailable_ == QLatin1String("hostsOffline") ? strings_.t(QStringLiteral("remote.orb.offline"))
+                                                                    : strings_.t(QStringLiteral("source.") + unavailable_);
     content.previousTitle = titleText(gauge_.previousTitle());
     content.titleChangedAt = gauge_.titleChangedAt();
     content.titleHeat = f.heat;
@@ -752,11 +867,76 @@ void OrbWindow::renderFrame() {
     highlight_ = highlighted_ ? std::min(1.0, highlight_ + dt / 0.15) : std::max(0.0, highlight_ - dt / 0.15);
     addHighlight(scene_, f);
 
+    const qint64 built = profile ? profileTimer.nsecsElapsed() : 0;
     renderer_.render(scene_, QSizeF(side(), side()), dpr, center());
+    if (profile) {
+        static int frames = 0;
+        static qint64 buildNs = 0, renderNs = 0;
+        static double since = t;
+        ++frames;
+        buildNs += built;
+        renderNs += profileTimer.nsecsElapsed() - built;
+        if (t - since >= 5) {
+            qInfo("orb %s: %.1f fps, build %.3f ms, submit %.3f ms per frame", qPrintable(styleKey(styleKind_)), frames / (t - since),
+                  static_cast<double>(buildNs) / 1e6 / frames, static_cast<double>(renderNs) / 1e6 / frames);
+            frames = 0;
+            buildNs = renderNs = 0;
+            since = t;
+        }
+    }
     schedule();
 }
 
 void OrbWindow::drawStyle(Style& style, Frame f, const ReadoutContent& content, const MeasureText& measure) {
+    if (auto* character = dynamic_cast<CharacterStyle*>(&style)) {
+        CharacterContent c;
+        c.pack = characterPack_;
+        c.noneInstalled = !characters_ || !characters_->hasInstalled();
+        c.emptyLabel = strings_.t(QStringLiteral("character.empty"));
+        c.readouts = characterReadouts_;
+        c.modelName = characterModel_;
+        if (c.modelName.isEmpty() && characterPack_ && characters_) c.modelName = characters_->displayName(QString::fromStdString(characterPack_->id()));
+        c.title = content.title;
+        c.unit = strings_.t(QStringLiteral("unit.tokS"));
+        c.peakLabel = content.peakLabel;
+        c.unavailable = !unavailable_.isEmpty();
+        c.staticValue = c.unavailable ? QStringLiteral("–") : QString();
+        c.value = gauge_.value();
+        c.level = c.unavailable ? 0 : std::clamp(gauge_.title() + 1, 0, 13);
+        c.agents = agents_;
+        c.intel = content.intel;
+        c.net = content.net;
+        c.costGlyph = strings_.t(QStringLiteral("cost.glyph"));
+        c.costNumber = costCardNumber_;
+        c.costUnit = costCardUnit_;
+        c.costAtLeast = costCardAtLeast_;
+        c.costUnknown = costCardUnknown_;
+        c.costOpacity = costOpacity_;
+        c.todayLine = todayText_.isEmpty() ? QString() : fill(strings_.t(QStringLiteral("boards.today")), {todayText_});
+        c.agentsLine = agentCount_ > 0 ? fill(strings_.t(QStringLiteral("agents.count")), {QString::number(agentCount_)}) : QString();
+        if (const auto& latency = characterReadings_.latency(); latency && characterReadouts_.latency) {
+            c.latencyGlyph = latency->glyph;
+            c.latencyNumber = latency->number;
+            c.latencyUnit = latency->unit;
+            c.latencyOpacity = characterReadings_.latencyOpacity();
+        }
+        // The rows go along even while the card is switched off, so it fades out with them.
+        for (const auto& m : characterReadings_.models()) {
+            agentspeed::character::ModelRow row;
+            row.model = m.model.toStdString();
+            if (m.speed >= 0) row.speed = m.speed;
+            if (const QColor accent(characters_ ? characters_->vendorAccent(m.vendor) : QString()); accent.isValid()) {
+                row.accent = static_cast<std::uint32_t>(accent.rgb() & 0xFFFFFFu);
+            }
+            c.models.push_back(std::move(row));
+        }
+        c.modelsOpacity = characterReadouts_.models ? characterReadings_.modelsOpacity() : 0;
+        c.modelsMore = strings_.t(QStringLiteral("character.models.more"));
+        c.speedUnit = strings_.t(QStringLiteral("unit.tokS"));
+        c.quota = characterQuota_.sources;
+        character->setContent(c);
+        character->setBackingScale(devicePixelRatio());
+    }
     const auto& placement = style.linePlacement();
     if (f.s >= 64) {
         f.linesFit = linesFit(f, placement, content, measure);
@@ -798,15 +978,16 @@ void OrbWindow::setHovered(bool hovered) {
     hovered_ = hovered;
     hoverChangedAt_ = now();
     setCursor(hovered ? Qt::OpenHandCursor : Qt::ArrowCursor);
-    applyOpacity();
+    updateFade();
     emit hoverChanged(id_, hovered);
     requestFrame();
 }
 
-// The unit line (the value in `minimal`), grown to at least 44 × 20 pt: a single click toggles tok/s and money.
+// The unit line (the value without one: `minimal`, orbs below 96 pt), grown to at least 44 × 20 pt: a single click
+// toggles tok/s and money.
 bool OrbWindow::onUnit(QPointF local) const {
-    const auto& layout = style_->readoutLayout();
     const double s = diameter_;
+    const auto layout = style_->readoutLayout().at(s);
     const QPointF c = center();
     QRectF area;
     if (layout.unitSize > 0) {
@@ -1037,7 +1218,7 @@ void OrbWindow::settle() {
 // DESIGN 2b Source bezel: a subset orb's rim in equal arcs of its source colors from 12 o'clock with 4° gaps, dashed
 // for an unavailable source.
 void OrbWindow::addBezel(Scene& scene, const Frame& f) const {
-    if (sources_.isEmpty()) return;
+    if (sources_.isEmpty() || isCharacter()) return;
     const double width = std::max(1.0, 0.0105 * f.s);
     const double radius = f.s / 2 - width / 2;
     const int count = static_cast<int>(sources_.size());
@@ -1065,6 +1246,15 @@ void OrbWindow::addBezel(Scene& scene, const Frame& f) const {
 void OrbWindow::addHighlight(Scene& scene, const Frame& f) const {
     if (highlight_ <= 0.01) return;
     const Rgba accent = f.dark ? Rgba::hex(0x5B8CFF) : Rgba::hex(0x2F6BFF);
+    if (isCharacter()) {
+        // The Settings highlight rings her capsule (DESIGN 2a.6).
+        const auto box = agentspeed::character::footprint::characterBounds(f.s);
+        const QPointF c(f.center.x(), f.center.y() + box.y + box.height / 2);
+        const double r = box.width / 2 + 5;
+        scene.add(Instance::roundedRect(c, r + 1, box.height / 2 + 6, 0, r + 1, accent.withAlpha(0.6 * highlight_)), Blend::Over);
+        scene.add(Instance::roundedRect(c, r - 1, box.height / 2 + 4, 0, r - 1, Rgba{0, 0, 0, 0}), Blend::Over);
+        return;
+    }
     scene.add(Instance::ring(f.center, f.s / 2 + 5, 2, accent.withAlpha(0.6 * highlight_)), Blend::Over);
 }
 
@@ -1075,10 +1265,13 @@ void OrbWindow::updateLabel() {
     const auto language = strings_.language();
     const QString separator = language == QLatin1String("ja") ? QStringLiteral("、") : language == QLatin1String("en") ? QStringLiteral(", ") : QStringLiteral("，");
     // The money unit reads the number as shown with the currency's name; nothing priced reads as unknown (DESIGN 9).
-    const bool money = unit_ == QLatin1String("cost");
+    // A `character` orb keeps tok/s: its cost has a card of its own (DESIGN 2a.6).
+    const bool money = unit_ == QLatin1String("cost") && !isCharacter();
     const QString amount = atLeast_ ? fill(strings_.t(QStringLiteral("a11y.orb.costAtLeast")), {valueText_}) : valueText_;
     const QString currency = strings_.t(QStringLiteral("currency.") + (currency_.isEmpty() ? QStringLiteral("USD") : currency_));
-    if (!unavailable_.isEmpty()) {
+    if (unavailable_ == QLatin1String("hostsOffline")) {
+        label = (name_.isEmpty() ? QString() : name_ + separator) + strings_.t(QStringLiteral("remote.orb.offline"));
+    } else if (!unavailable_.isEmpty()) {
         label = fill(strings_.t(QStringLiteral("a11y.orb.unavailable")), {name_});
     } else if (money && valueText_ == QStringLiteral("–")) {
         const QString unknown = fill(strings_.t(QStringLiteral("a11y.orb.costUnknown")), {title});
@@ -1092,8 +1285,10 @@ void OrbWindow::updateLabel() {
         label = fill(strings_.t(QStringLiteral("a11y.orb.named")), {name_, valueText_, title});
     }
     // DESIGN 10 Accessibility: while the performance readout is visible, its words join the label.
-    if (unavailable_.isEmpty() && traffic_ == QLatin1String("intelligence") && intelOpacity_ > 0.5) {
-        const bool thinking = thinkingOpacity_ > 0.5;
+    if (unavailable_.isEmpty() && intelEnabled() && intelOpacity_ > 0.5) {
+        // A `character` orb reads its cards that show, in the column's order (DESIGN 2a.6 Readouts).
+        const bool thinking = isCharacter() ? characterReadouts_.thinking && (!characterReadouts_.intelligence || thinkingOpacity_ > 0.5)
+                                            : thinkingOpacity_ > 0.5;
         QString sentence;
         if (intelShown_ >= 0 && !intelWords_.isEmpty()) {
             sentence = thinking ? strings_.fmt(QStringLiteral("a11y.orb.intel"), {intelWords_, thinkingText_})
@@ -1105,7 +1300,12 @@ void OrbWindow::updateLabel() {
         } else {
             sentence = strings_.t(QStringLiteral("intel.none"));
         }
-        label += separator + sentence;
+        if (!isCharacter() || characterReadouts_.intelligence || characterReadouts_.thinking) label += separator + sentence;
+        // The 首字 row after the 性能 reading, while it shows.
+        if (const auto& latency = characterReadings_.latency();
+            isCharacter() && characterReadouts_.latency && latency && characterReadings_.latencyOpacity() > 0.5) {
+            label += separator + latency->spoken;
+        }
     }
     // DESIGN 10 Accessibility: the network rates read as words while the readout shows.
     if (unavailable_.isEmpty() && netAvailable_ && netOpacity_ > 0.5) {
@@ -1114,6 +1314,22 @@ void OrbWindow::updateLabel() {
             return text.endsWith(QLatin1String("/s")) ? text.chopped(2) : text;
         };
         label += separator + fill(strings_.t(QStringLiteral("a11y.orb.traffic")), {spoken(netDown_), spoken(netUp_)});
+    }
+    if (isCharacter() && unavailable_.isEmpty() && characterReadouts_.cost && costOpacity_ > 0.5 && !costCardNumber_.isEmpty()) {
+        if (costCardUnknown_) {
+            label += separator + strings_.t(QStringLiteral("a11y.board.costUnknown"));
+        } else {
+            const QString shown = costCardAtLeast_ ? fill(strings_.t(QStringLiteral("a11y.orb.costAtLeast")), {costCardNumber_}) : costCardNumber_;
+            label += separator + fill(strings_.t(QStringLiteral("a11y.board.cost")), {shown, currency});
+        }
+    }
+    // The models card after the cost: every running model, drawn or not.
+    if (isCharacter() && unavailable_.isEmpty() && characterReadouts_.models && characterReadings_.modelsOpacity() > 0.5) {
+        if (const QString spoken = characterReadings_.spokenModels(strings_); !spoken.isEmpty()) label += separator + spoken;
+    }
+    // 額度 last, every source of the card whenever it applies (it has no quiet rule).
+    if (isCharacter() && unavailable_.isEmpty() && characterReadouts_.quota && !characterQuota_.spoken.isEmpty()) {
+        label += separator + characterQuota_.spoken;
     }
     if (label == labelText_) return;
     labelText_ = label;

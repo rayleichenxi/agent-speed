@@ -73,6 +73,9 @@ public static class DisplayText
         SourceKind.OpenClaw => "source.openclaw",
         SourceKind.Hermes => "source.hermes",
         SourceKind.Droid => "source.droid",
+        SourceKind.Devin => "source.devin",
+        SourceKind.Qoder => "source.qoder",
+        SourceKind.QoderCli => "source.qoderCli",
         _ => throw new ArgumentOutOfRangeException(nameof(source), source, null),
     };
 

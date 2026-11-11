@@ -56,6 +56,9 @@ final class AppSettings {
     var effects: EffectsLevel { didSet { store(effects.rawValue, .effects) } }
     var celebratePeaks: Bool { didSet { store(celebratePeaks, .celebratePeaks) } }
     var responsePulses: Bool { didSet { store(responsePulses, .responsePulses) } }
+    /// The orbs and boards present in step with the display's refresh (DESIGN 5, Effects); off kept the built-in
+    /// display's brightness from changing on an M1 (issue #48).
+    var displaySync: Bool { didSet { store(displaySync, .displaySync) } }
 
     var enabledSources: Set<SourceKind> {
         didSet {
@@ -63,33 +66,12 @@ final class AppSettings {
             store(SourceKind.allCases.map(\.rawValue), .knownSources)
         }
     }
-    /// Nil means the default location from `LiveMonitor`.
-    var codexRoot: URL? { didSet { store(codexRoot?.path, .codexRoot) } }
-    var claudeRoot: URL? { didSet { store(claudeRoot?.path, .claudeRoot) } }
-    var dshRoot: URL? { didSet { store(dshRoot?.path, .dshRoot) } }
-    /// The folder that contains `opencode.db`.
-    var opencodeRoot: URL? { didSet { store(opencodeRoot?.path, .opencodeRoot) } }
-    /// One Gemini CLI `tmp` folder, replacing both defaults.
-    var geminiRoot: URL? { didSet { store(geminiRoot?.path, .geminiRoot) } }
-    /// One omp `sessions` folder, replacing the default root and every named profile.
-    var ompRoot: URL? { didSet { store(ompRoot?.path, .ompRoot) } }
-    /// One Antigravity store folder (or its `conversations` folder), replacing the three default stores.
-    var antigravityRoot: URL? { didSet { store(antigravityRoot?.path, .antigravityRoot) } }
-    /// WorkBuddy's data folder (or its `projects` folder), replacing `~/.workbuddy`.
-    var workbuddyRoot: URL? { didSet { store(workbuddyRoot?.path, .workbuddyRoot) } }
-    /// WorkBuddy AI's data folder (or its `projects` folder), replacing `~/.workbuddy-ai`.
-    var workbuddyAiRoot: URL? { didSet { store(workbuddyAiRoot?.path, .workbuddyAiRoot) } }
-    var zcodeRoot: URL? { didSet { store(zcodeRoot?.path, .zcodeRoot) } }
-    var kimiRoot: URL? { didSet { store(kimiRoot?.path, .kimiRoot) } }
-    var grokBuildRoot: URL? { didSet { store(grokBuildRoot?.path, .grokBuildRoot) } }
-    /// One Pi folder, replacing `<agent dir>/sessions` and Pi's own custom session folder.
-    var piRoot: URL? { didSet { store(piRoot?.path, .piRoot) } }
-    /// One OpenClaw state folder, agent folder or `openclaw-agent.sqlite`, replacing every automatic state folder.
-    var openclawRoot: URL? { didSet { store(openclawRoot?.path, .openclawRoot) } }
-    /// One Hermes Agent home or `logs` folder, replacing the automatic home.
-    var hermesRoot: URL? { didSet { store(hermesRoot?.path, .hermesRoot) } }
-    /// Factory Droid's `.factory` folder or its `sessions` folder, replacing `~/.factory/sessions`.
-    var droidRoot: URL? { didSet { store(droidRoot?.path, .droidRoot) } }
+    /// Every source's location list (DESIGN 5, METRICS 2.1), stored as one JSON value under `sourceLocations`. The
+    /// single-folder keys of earlier versions (`codexRoot`, …) are only read once to migrate and never written again,
+    /// so a downgrade restores the single folder.
+    var sourceLocations: SourceLocations {
+        didSet { if sourceLocations != oldValue { store(sourceLocations.data(), .sourceLocations) } }
+    }
 
     /// UPDATES section 3: check GitHub at launch and every 6 h.
     var autoCheckUpdates: Bool { didSet { store(autoCheckUpdates, .autoCheckUpdates) } }
@@ -107,6 +89,41 @@ final class AppSettings {
         didSet { store(subscriptionSources.map(\.rawValue).sorted(), .subscriptionSources) }
     }
     var includeSubscriptions: Bool { didSet { store(includeSubscriptions, .includeSubscriptions) } }
+
+    /// The remote hosts (REMOTE 2.1), stored as one JSON value under `remoteHosts`.
+    var remoteHosts: RemoteHostsDocument {
+        didSet { if remoteHosts != oldValue { store(remoteHosts.data(), .remoteHosts) } }
+    }
+
+    /// The local network feed (LAN 2.1), stored as one JSON value under `lan`.
+    var lan: LanDocument {
+        didSet { if lan != oldValue { store(lan.data(), .lan) } }
+    }
+
+    /// The subscription quotas (QUOTAS; DESIGN 5 *額度*): Codex and Claude Desktop on, the Claude CLI's status line
+    /// bridge off until the user confirms it.
+    var quotaCodex: Bool { didSet { store(quotaCodex, .quotaCodex) } }
+    var quotaClaudeDesktop: Bool { didSet { store(quotaClaudeDesktop, .quotaClaudeDesktop) } }
+    var quotaClaudeCli: Bool { didSet { store(quotaClaudeCli, .quotaClaudeCli) } }
+    /// The dashboard's Claude Code invitation was dismissed for good (`quotaCliInvite` = `"dismissed"`).
+    var quotaCliInviteDismissed: Bool {
+        didSet { store(quotaCliInviteDismissed ? Self.inviteDismissed : nil, .quotaCliInvite) }
+    }
+
+    /// Phase 2 (QUOTAS 9; DESIGN 5 *額度, phase 2*): local routes and the agents' own sign-ins on, Grok's live request
+    /// off, ZCode off until a key is saved, the browser sessions off until the user agrees. The ZCode key itself is
+    /// only in the keychain.
+    var quotaGrokBuild: Bool { didSet { store(quotaGrokBuild, .quotaGrokBuild) } }
+    var quotaGrokBuildLive: Bool { didSet { store(quotaGrokBuildLive, .quotaGrokBuildLive) } }
+    var quotaDevin: Bool { didSet { store(quotaDevin, .quotaDevin) } }
+    var quotaAntigravity: Bool { didSet { store(quotaAntigravity, .quotaAntigravity) } }
+    var quotaKimi: Bool { didSet { store(quotaKimi, .quotaKimi) } }
+    var quotaGemini: Bool { didSet { store(quotaGemini, .quotaGemini) } }
+    var quotaDroid: Bool { didSet { store(quotaDroid, .quotaDroid) } }
+    var quotaZcode: Bool { didSet { store(quotaZcode, .quotaZcode) } }
+    var quotaZcodeRegion: QuotaRequests.ZaiRegion { didSet { store(quotaZcodeRegion.rawValue, .quotaZcodeRegion) } }
+    var quotaQoder: Bool { didSet { store(quotaQoder, .quotaQoder) } }
+    var quotaWorkBuddy: Bool { didSet { store(quotaWorkBuddy, .quotaWorkBuddy) } }
 
     /// The vehicle of the last speed title other than idle (DESIGN 4c, Idle), parked in the dashboard hero while idle,
     /// also across relaunches. Nil before any title was reached.
@@ -158,6 +175,7 @@ final class AppSettings {
         effects = EffectsLevel(rawValue: defaults.string(forKey: Key.effects.rawValue) ?? "") ?? .standard
         celebratePeaks = defaults.object(forKey: Key.celebratePeaks.rawValue) as? Bool ?? true
         responsePulses = defaults.object(forKey: Key.responsePulses.rawValue) as? Bool ?? true
+        displaySync = defaults.object(forKey: Key.displaySync.rawValue) as? Bool ?? true
         if let raw = defaults.array(forKey: Key.enabledSources.rawValue) as? [String] {
             // A source added after the choice was saved starts enabled, like it would for a new user.
             let known = (defaults.array(forKey: Key.knownSources.rawValue) as? [String]).map(Set.init) ?? Self.legacySources
@@ -166,22 +184,8 @@ final class AppSettings {
         } else {
             enabledSources = Set(SourceKind.allCases)
         }
-        codexRoot = Self.url(defaults.string(forKey: Key.codexRoot.rawValue))
-        claudeRoot = Self.url(defaults.string(forKey: Key.claudeRoot.rawValue))
-        dshRoot = Self.url(defaults.string(forKey: Key.dshRoot.rawValue))
-        opencodeRoot = Self.url(defaults.string(forKey: Key.opencodeRoot.rawValue))
-        geminiRoot = Self.url(defaults.string(forKey: Key.geminiRoot.rawValue))
-        ompRoot = Self.url(defaults.string(forKey: Key.ompRoot.rawValue))
-        antigravityRoot = Self.url(defaults.string(forKey: Key.antigravityRoot.rawValue))
-        workbuddyRoot = Self.url(defaults.string(forKey: Key.workbuddyRoot.rawValue))
-        workbuddyAiRoot = Self.url(defaults.string(forKey: Key.workbuddyAiRoot.rawValue))
-        zcodeRoot = Self.url(defaults.string(forKey: Key.zcodeRoot.rawValue))
-        kimiRoot = Self.url(defaults.string(forKey: Key.kimiRoot.rawValue))
-        grokBuildRoot = Self.url(defaults.string(forKey: Key.grokBuildRoot.rawValue))
-        piRoot = Self.url(defaults.string(forKey: Key.piRoot.rawValue))
-        openclawRoot = Self.location(defaults.string(forKey: Key.openclawRoot.rawValue))
-        hermesRoot = Self.url(defaults.string(forKey: Key.hermesRoot.rawValue))
-        droidRoot = Self.url(defaults.string(forKey: Key.droidRoot.rawValue))
+        sourceLocations = defaults.data(forKey: Key.sourceLocations.rawValue).flatMap(SourceLocations.init(data:))
+            ?? Self.legacyLocations(defaults)
         autoCheckUpdates = defaults.object(forKey: Key.autoCheckUpdates.rawValue) as? Bool ?? true
         networkEnabled = defaults.object(forKey: Key.networkEnabled.rawValue) as? Bool ?? true
         syncPrices = defaults.object(forKey: Key.syncPrices.rawValue) as? Bool ?? true
@@ -191,6 +195,24 @@ final class AppSettings {
             .compactMap(SourceKind.init(rawValue:)))
         includeSubscriptions = defaults.object(forKey: Key.includeSubscriptions.rawValue) as? Bool ?? false
         heroLastTitle = defaults.string(forKey: Key.heroLastTitle.rawValue)
+        quotaCodex = defaults.object(forKey: Key.quotaCodex.rawValue) as? Bool ?? true
+        quotaClaudeDesktop = defaults.object(forKey: Key.quotaClaudeDesktop.rawValue) as? Bool ?? true
+        quotaClaudeCli = defaults.object(forKey: Key.quotaClaudeCli.rawValue) as? Bool ?? false
+        quotaCliInviteDismissed = defaults.string(forKey: Key.quotaCliInvite.rawValue) == Self.inviteDismissed
+        func flag(_ key: Key, _ fallback: Bool) -> Bool { defaults.object(forKey: key.rawValue) as? Bool ?? fallback }
+        quotaGrokBuild = flag(.quotaGrokBuild, true)
+        quotaGrokBuildLive = flag(.quotaGrokBuildLive, false)
+        quotaDevin = flag(.quotaDevin, true)
+        quotaAntigravity = flag(.quotaAntigravity, true)
+        quotaKimi = flag(.quotaKimi, true)
+        quotaGemini = flag(.quotaGemini, true)
+        quotaDroid = flag(.quotaDroid, true)
+        quotaZcode = flag(.quotaZcode, false)
+        quotaZcodeRegion = QuotaRequests.ZaiRegion(rawValue: defaults.string(forKey: Key.quotaZcodeRegion.rawValue) ?? "") ?? .global
+        quotaQoder = flag(.quotaQoder, false)
+        quotaWorkBuddy = flag(.quotaWorkBuddy, false)
+        remoteHosts = defaults.data(forKey: Key.remoteHosts.rawValue).flatMap(RemoteHostsDocument.init(data:)) ?? .empty
+        lan = defaults.data(forKey: Key.lan.rawValue).map(LanDocument.init(data:)) ?? .empty
         if !redlinesMigrated {
             // A stored former default now reads as the new default; persist it once so a later choice of 400 stays.
             if defaults.object(forKey: Key.redline.rawValue) != nil { store(redlineOutput, .redline) }
@@ -200,25 +222,7 @@ final class AppSettings {
     }
 
     var monitorConfiguration: MonitorConfiguration {
-        MonitorConfiguration(
-            enabledSources: enabledSources,
-            codexRoot: codexRoot,
-            claudeRoot: claudeRoot,
-            dshRoot: dshRoot,
-            opencodeRoot: opencodeRoot,
-            geminiRoot: geminiRoot,
-            ompRoot: ompRoot,
-            antigravityRoot: antigravityRoot,
-            workbuddyRoot: workbuddyRoot,
-            workbuddyAiRoot: workbuddyAiRoot,
-            zcodeRoot: zcodeRoot,
-            kimiRoot: kimiRoot,
-            grokBuildRoot: grokBuildRoot,
-            piRoot: piRoot,
-            openclawRoot: openclawRoot,
-            hermesRoot: hermesRoot,
-            droidRoot: droidRoot
-        )
+        MonitorConfiguration(enabledSources: enabledSources, locations: sourceLocations)
     }
 
     func isEnabled(_ source: SourceKind) -> Bool { enabledSources.contains(source) }
@@ -264,15 +268,65 @@ final class AppSettings {
     /// The sources that existed before `knownSources` was saved alongside `enabledSources`.
     private static let legacySources: Set<String> = ["codex", "claudeCode", "claudeDesktop"]
 
-    private static func url(_ path: String?) -> URL? {
-        guard let path, !path.isEmpty else { return nil }
-        return URL(fileURLWithPath: path, isDirectory: true)
+    /// The single folder each source could be given before location lists (issue #45): that folder alone.
+    private static func legacyLocations(_ defaults: UserDefaults) -> SourceLocations {
+        var paths: [TranscriptFolder: String] = [:]
+        for folder in TranscriptFolder.allCases {
+            if let path = defaults.string(forKey: legacyKey(folder)), !path.isEmpty { paths[folder] = path }
+        }
+        return SourceLocations(legacy: paths)
     }
 
-    /// A folder or a file, as the file system says.
-    private static func location(_ path: String?) -> URL? {
-        guard let path, !path.isEmpty else { return nil }
-        return URL(fileURLWithPath: path)
+    /// `codexRoot`, `claudeRoot`, …: read to migrate, never written.
+    static func legacyKey(_ folder: TranscriptFolder) -> String { folder.rawValue + "Root" }
+
+    static let inviteDismissed = "dismissed"
+
+    /// Whether a source's quota is read and shown (QUOTAS 9.1): the source is enabled and its quota switch is on; only
+    /// the quota sources have one (DESIGN 5 *額度*). Qoder's one switch covers both Qoder sources, each row its own.
+    func showsQuota(_ source: SourceKind) -> Bool {
+        isEnabled(source) && quotaSwitch(source)
+    }
+
+    /// The quota switch alone, whatever the source's toggle.
+    func quotaSwitch(_ source: SourceKind) -> Bool {
+        switch source {
+        case .codex: quotaCodex
+        case .claudeDesktop: quotaClaudeDesktop
+        case .claudeCode: quotaClaudeCli
+        case .grokBuild: quotaGrokBuild
+        case .devin: quotaDevin
+        case .antigravity: quotaAntigravity
+        case .kimi: quotaKimi
+        case .gemini: quotaGemini
+        case .droid: quotaDroid
+        case .zcode: quotaZcode
+        case .qoder, .qoderCli: quotaQoder
+        case .workbuddy: quotaWorkBuddy
+        default: false
+        }
+    }
+
+    /// The phase 2 readers that may run (QUOTAS 9.1): the source enabled and its switch on; Grok's live request only
+    /// with its log's switch; Qoder's shared account while either Qoder source is enabled.
+    var quotaRoutes: Set<QuotaRoute> {
+        Set(QuotaRoute.allCases.filter(routeIsOn))
+    }
+
+    func routeIsOn(_ route: QuotaRoute) -> Bool {
+        switch route {
+        case .grokBuildLive: showsQuota(.grokBuild) && quotaGrokBuildLive
+        case .qoder: quotaQoder && (isEnabled(.qoder) || isEnabled(.qoderCli))
+        default: showsQuota(route.source)
+        }
+    }
+
+    /// The switches every remote host reads with (REMOTE 11.1): enabled sources only; Claude Code is each host's own
+    /// switch, and only while Claude Code is enabled.
+    var remoteQuotaSwitches: RemoteQuotaSwitches {
+        let sources = RemoteQuotaConfig.hostSources.filter { $0 != .claudeCode && showsQuota($0) }
+        return RemoteQuotaSwitches(sources: Set(sources), grokLive: routeIsOn(.grokBuildLive),
+                                   claudeCode: isEnabled(.claudeCode))
     }
 
     /// The stored `barTraffic` value of builds before 性能 had its own switch (DESIGN 10).
@@ -288,13 +342,17 @@ final class AppSettings {
         case orbVisible, orbsVisible, orbNames
         case trafficEnabled, trafficIncludeTools, trafficUnit, barTraffic, barIntelligence, barSecondary
         case agentsExpanded
-        case effects, celebratePeaks, responsePulses
+        case effects, celebratePeaks, responsePulses, displaySync
         case enabledSources, knownSources
-        case codexRoot, claudeRoot, dshRoot, opencodeRoot, geminiRoot, ompRoot, antigravityRoot, workbuddyRoot, workbuddyAiRoot
-        case zcodeRoot, kimiRoot, grokBuildRoot, piRoot, openclawRoot, hermesRoot, droidRoot
+        case sourceLocations
         case autoCheckUpdates
         case networkEnabled, syncPrices, currency, liveUnit, subscriptionSources, includeSubscriptions
         case heroLastTitle
+        case remoteHosts
+        case lan
+        case quotaCodex, quotaClaudeDesktop, quotaClaudeCli, quotaCliInvite
+        case quotaGrokBuild, quotaGrokBuildLive, quotaDevin, quotaAntigravity, quotaKimi, quotaGemini, quotaDroid
+        case quotaZcode, quotaZcodeRegion, quotaQoder, quotaWorkBuddy
     }
 }
 

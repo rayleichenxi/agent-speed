@@ -49,6 +49,14 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
     private SettingsService _settings = null!;
     private TitleThemesService _titles = null!;
     private CostService _cost = null!;
+    private Characters.CharacterService? _characters;
+
+    /// <summary>The installed characters in catalog order for the menus (DESIGN 2b, Context menu item 2).</summary>
+    public IReadOnlyList<Presentation.Menus.MenuCharacter> InstalledCharacters =>
+        _characters is { } characters
+            ? characters.Library.Packs.Select(p => new Presentation.Menus.MenuCharacter(p.Id,
+                characters.Library.InstalledPack(p.Id)?.Manifest.Name.For(_loc.LanguageCode) ?? p.Id)).ToArray()
+            : [];
     private Traffic.TrafficService _traffic = null!;
     private TaskbarState? _lastTaskbarState;
     private readonly ThinkingZeroHold _barThinking = new();
@@ -64,6 +72,7 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
     private SpeedModel _speed = null!;
     private PreviewService _preview = null!;
     private LiveMonitor? _monitor;
+    private RemoteHostsService? _remote;
     private ShellMessageWindow? _shell;
     private TrayIcon? _tray;
     private TaskbarWidget? _taskbar;
@@ -147,6 +156,8 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
         _speed = new SpeedModel(_hub, _ui);
         _speed.Configure(Settings.Metric, Settings.Redline);
         _preview = new PreviewService(_hub, _ui);
+        CreateRemoteHosts();
+        CreateLan();
 
         _shell = new ShellMessageWindow();
         _shell.TaskbarCreated += (_, _) => _taskbar?.Reembed();
@@ -199,13 +210,33 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
                 Orb.Gpu.OrbGpuRenderer.Timer = new Orb.Gpu.GpuTimer();
             }
         }
-        _orbs = new OrbManager(_ui, _orbClock, _settings, _theme, _speed, _loc, this) { Titles = _titles, Cost = _cost.Display };
+        _characters = new Characters.CharacterService(_ui, _settings, AppPaths.Version);
+        _orbs = new OrbManager(_ui, _orbClock, _settings, _theme, _speed, _loc, this)
+        {
+            Titles = _titles,
+            Cost = _cost.Display,
+            Characters = _characters,
+            Prices = () => _cost.Book.Current,
+        };
+        _characters.Changed += (_, _) =>
+        {
+            _orbs?.RefreshCharacters();
+            AgentSpeed.Settings.OrbsPane.OrbPreview.NotifyCharacterPortraits();
+        };
+        AgentSpeed.Settings.OrbsPane.OrbPreview.CharacterPortrait = id =>
+        {
+            var library = _characters?.Library;
+            var pack = (id is null ? null : library?.InstalledPack(id))
+                ?? (library?.Packs.FirstOrDefault() is { } first ? library.InstalledPack(first.Id) : null);
+            return pack is null ? null : AgentSpeed.Settings.OrbsPane.OrbsPaneViewModel.Portrait(pack);
+        };
         _orbs.Apply();
         StartBoards();
         _titles.Changed += (_, _) => OnTitlesChanged();
         phases.Mark("orb");
         UpdateTaskbar();
         StartMonitor();
+        StartQuota();
         phases.Mark("monitor");
         _instance.Listen(() => _ui.BeginInvoke(() => ShowDashboard(CursorAnchor())));
         _started = true;
@@ -222,6 +253,7 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
             _cost.Start();
             _traffic.Start();
             StartReporting();
+            StartLan();
             if (_launch.DemoSpeedValues is { Count: > 0 } speeds)
             {
                 HeroStats.Enabled = true;
@@ -286,6 +318,11 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
                         return reportTarget;
                     }
 
+                    if (target == "dialog")
+                    {
+                        return LanCaptureTarget() ?? QuotaCaptureTarget() ?? RemoteCaptureTarget(target);
+                    }
+
                     if (target == "history")
                     {
                         // An open window is captured as the ops left it (op history-all, op history-<source>).
@@ -325,8 +362,29 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
                             case "corner" when first is not null:
                                 _orbs?.MoveToNextCorner(first);
                                 break;
+                            case not null when first is not null && op.StartsWith("style-", StringComparison.Ordinal):
+                                var style = Presentation.Orb.OrbStyles.Parse(op[6..]);
+                                _settings.Update(s => s with { Orbs = OrbEditing.SetStyle(s.Orbs, first, style) });
+                                break;
+                            case not null when first is not null && op.StartsWith("character-", StringComparison.Ordinal):
+                                var character = op[10..];
+                                _settings.Update(s => s with { Orbs = OrbEditing.SetCharacter(s.Orbs, first, character == "auto" ? null : character) });
+                                break;
+                            case not null when first is not null && op.StartsWith("size-", StringComparison.Ordinal)
+                                && double.TryParse(op[5..], NumberStyles.Float, CultureInfo.InvariantCulture, out var size):
+                                _settings.Update(s => s with { Orbs = OrbEditing.SetSize(s.Orbs, first, size) });
+                                break;
+                            case not null when first is not null && op.StartsWith("readout-", StringComparison.Ordinal):
+                                var parts = op[8..].Split('-');
+                                if (parts.Length == 2 && CharacterReadouts.All.FirstOrDefault(r => CharacterReadouts.Key(r) == parts[0]) is var readout
+                                    && CharacterReadouts.Key(readout) == parts[0])
+                                {
+                                    _settings.Update(s => s with { Orbs = OrbEditing.SetCharacterReadout(s.Orbs, first, readout, parts[1] == "on") });
+                                }
+
+                                break;
                             default:
-                                RunTitleCaptureOperation(op);
+                                RunTitleCaptureOperation(op!);
                                 break;
                         }
                     },
@@ -388,16 +446,28 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
             _settingsModel ??= new SettingsViewModel(_settings, _preview, _loc, initial => SettingsWindow.PickFolder(_settingsWindow, initial),
                 _updates, OpenUpdate, () => OpenHistory(), ConfirmClearHistory, ClearHistory, _cost) { TitleService = _titles };
             _settingsModel.Report ??= CreateReportPane();
+            _settingsModel.Remote ??= CreateRemotePane();
+            _settingsModel.Lan ??= CreateLanPane();
             _settingsModel.Traffic ??= new TrafficPaneViewModel(_settings, _traffic, _traffic.Helper, _loc,
                 () => _settingsWindow is { } window ? new System.Windows.Interop.WindowInteropHelper(window).Handle : 0,
                 ConfirmRemoveHelper);
             if (_settingsModel.Orbs is null && _orbs is not null)
             {
-                _settingsModel.Orbs = new Settings.OrbsPane.OrbsPaneViewModel(_settings, _orbs, _speed, _loc) { TitleService = _titles };
+                _settingsModel.Orbs = new Settings.OrbsPane.OrbsPaneViewModel(_settings, _orbs, _speed, _loc)
+                {
+                    Characters = _characters,
+                    TitleService = _titles,
+                    RemoteHosts = _remoteHosts,
+                };
             }
 
-            _settingsModel.Boards ??= new Settings.BoardsPane.BoardsPaneViewModel(_settings, _speed, _loc, AddBoard, RemoveBoard) { DarkTheme = _theme.IsDark };
+            _settingsModel.Boards ??= new Settings.BoardsPane.BoardsPaneViewModel(_settings, _speed, _loc, AddBoard, RemoveBoard)
+            {
+                DarkTheme = _theme.IsDark,
+                RemoteHosts = _remoteHosts,
+            };
 
+            AttachQuotaPane(_settingsModel.SourcesPane);
             _settingsModel.ReduceMotion = _theme.ReduceMotion;
             _settingsModel.DarkTheme = _theme.IsDark;
             _settingsModel.UpdateLive(_speed.Snapshot, _taskbar?.Presence ?? TaskbarPresence.Hidden);
@@ -475,14 +545,18 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
         Try(() => _historyService?.Dispose());
         Try(() => _settingsModel?.Report?.Dispose());
         Try(() => _report?.Dispose());
+        Try(() => _lan?.Dispose());
         Try(() => _consentDialog?.CloseFromController());
         Try(() => _previewWindow?.Close());
         Try(() => _traffic?.Dispose());
         Try(() => _cost.Dispose());
+        Try(() => _characters?.Dispose());
         Try(() => _settings.Flush());
         Try(() => _preview.Stop());
         Try(() => _pinnedSpeeds?.Dispose());
         Try(() => _heroTour?.Dispose());
+        Try(() => _remote?.Dispose());
+        Try(() => _quota?.Dispose());
         Try(() => _monitor?.Dispose());
         Try(() => _taskbar?.Dispose());
         Try(() => _tray?.Dispose());
@@ -523,11 +597,35 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
         try
         {
             _monitor = new LiveMonitor(_hub, Settings.ToMonitorConfiguration(), _cost.Book);
+            RequestSubsets(Settings);
             _monitor.Start();
         }
         catch (Exception ex)
         {
             AppLog.Error("The live monitor failed to start.", ex);
+        }
+
+        StartRemoteHosts();
+    }
+
+    /// <summary>The remote hosts (REMOTE 2.1): connections follow the settings from now on.</summary>
+    private void StartRemoteHosts()
+    {
+        if (_monitor is null)
+        {
+            return;
+        }
+
+        try
+        {
+            _remote = new RemoteHostsService(_monitor, AppPaths.Version, _cost.Book);
+            _remote.Coordinator.QuotaReceived += OnRemoteQuota;
+            _remote.Apply(Settings);
+            _remoteHosts?.Attach(_remote);
+        }
+        catch (Exception ex)
+        {
+            AppLog.Error("The remote hosts failed to start.", ex);
         }
     }
 
@@ -641,6 +739,9 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
         _dashboardTitle = _speed.Title;
         var snapshot = _speed.Snapshot;
         _dashboardModel.ReduceMotion = _theme.ReduceMotion;
+        _dashboardModel.HighContrast = _theme.HighContrast;
+        _dashboardModel.Quota = Quota;
+        _dashboardModel.QuotaSettings = Settings.Quota;
         _dashboardModel.AgentsExpanded = Settings.AgentsExpanded;
         _dashboardModel.TitleTheme = _titles.General;
         _dashboardModel.TitleSlides = !_theme.ReduceMotion && Settings.Effects != EffectsIntensity.Off;
@@ -909,7 +1010,10 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
             _dashboard = new DashboardWindow(_dashboardModel, () => _speed.Now) { Language = AppFonts.XmlLanguageFor(_loc.LanguageCode) };
             _dashboard.SettingsRequested += (_, _) => OpenSettings();
             _dashboard.SourcesRequested += (_, _) => OpenSettings("sources");
+            _dashboard.CliQuotaRequested += (_, _) => _ui.BeginInvoke(() => EnableClaudeCliQuota());
+            _dashboard.CliInvitationDismissed += (_, _) => DismissCliInvitation();
             _dashboard.HistoryRequested += (_, source) => OpenHistory(source);
+            _dashboard.HostHistoryRequested += (_, host) => ShowHostHistory(host);
             _dashboard.QuitRequested += (_, _) => Quit();
             _dashboard.OrbToggled += (_, visible) => _settings.Update(s => s.WithShowOrbs(visible));
             _dashboard.RangeChanged += (_, seconds) => _settings.Update(s => s with { ChartSeconds = seconds });
@@ -922,6 +1026,7 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
             AttachReporting(_dashboard);
             _dashboard.IsVisibleChanged += (_, _) =>
             {
+                _quota?.SetDashboardOpen(_dashboard?.IsVisible == true);
                 if (_dashboard?.IsVisible != true)
                 {
                     _dashboardTimer?.Stop();
@@ -1024,7 +1129,7 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
         _historyStarted = true;
         try
         {
-            _historyService = new HistoryService(_historyHub, Settings.ToMonitorConfiguration(), pricing: _cost.Book)
+            _historyService = new HistoryService(_historyHub, Settings.ToMonitorConfiguration(), pricing: _cost.Book, remote: _remote?.History)
             {
                 PerfRecordsUpdated = records => _monitor?.SetPerfRecords(records),
             };
@@ -1069,7 +1174,9 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
 
         _updates.OnSettingsChanged(previous, current);
         _cost.OnSettingsChanged(previous, current);
+        _characters?.OnSettingsChanged(previous, current);
         _traffic.OnSettingsChanged(previous, current);
+        OnQuotaSettingsChanged(previous, current);
         if (previous.Traffic.IncludeTools != current.Traffic.IncludeTools || previous.EnabledSourceSet() != current.EnabledSourceSet())
         {
             _history?.OnTrafficSettingsChanged();
@@ -1089,6 +1196,29 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
         if (previous.Metric != current.Metric || previous.Redline != current.Redline)
         {
             _speed.Configure(current.Metric, current.Redline);
+        }
+
+        if (previous.Orbs != current.Orbs || previous.Boards != current.Boards)
+        {
+            RequestSubsets(current);
+        }
+
+        if (previous.RemoteHosts != current.RemoteHosts)
+        {
+            _history?.OnHostsChanged();
+        }
+
+        if (previous.RemoteHosts != current.RemoteHosts || previous.NetworkEnabled != current.NetworkEnabled
+            || previous.RemoteQuotaSwitches != current.RemoteQuotaSwitches)
+        {
+            try
+            {
+                _remote?.Apply(current);
+            }
+            catch (Exception ex)
+            {
+                AppLog.Error("Updating the remote hosts failed.", ex);
+            }
         }
 
         if (!previous.ToMonitorConfiguration().Equals(current.ToMonitorConfiguration()))
@@ -1139,6 +1269,21 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
     /// </summary>
     private void RunTitleCaptureOperation(string op)
     {
+        if (RunRemoteCaptureOperation(op))
+        {
+            return;
+        }
+
+        if (RunLanCaptureOperation(op))
+        {
+            return;
+        }
+
+        if (RunQuotaCaptureOperation(op))
+        {
+            return;
+        }
+
         if (op.StartsWith("page-", StringComparison.Ordinal))
         {
             _capturePage = op[5..];
@@ -1431,8 +1576,39 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
             return null;
         }
 
+        if (kind is "menu-host" or "menu-orb-hosts" or "menu-board-hosts" or "menu-lan")
+        {
+            if ((kind == "menu-lan" ? LanCaptureMenu() : RemoteCaptureMenu(kind)) is not { } hostsMenu)
+            {
+                return null;
+            }
+
+            var origin = Monitors.Primary() is { } screen ? new POINT(screen.WorkArea.Left + 400, screen.WorkArea.Top + 200) : new POINT(400, 200);
+            _menu.Show(hostsMenu, origin);
+            return hostsMenu;
+        }
+
+        if (kind is "menu-orb-characters" or "menu-orb-readouts")
+        {
+            var label = _loc[kind == "menu-orb-characters" ? "characters.title" : "character.readouts"];
+            var level = Settings.Orbs.Orbs.FirstOrDefault() is { } first
+                ? OrbMenuModel.Build(first.Id, Settings, SourceAvailability.From(_speed.Snapshot.Sources), _loc, SourceTrafficAvailable,
+                    _remoteHosts?.MenuStates(_loc), InstalledCharacters)
+                : null;
+            if (level?.Rows.FirstOrDefault(r => r.Label == label)?.Submenu is not { } submenu)
+            {
+                return null;
+            }
+
+            var subMenu = MenuBuilder.Build(submenu, this, _loc);
+            var place = Monitors.Primary() is { } screen ? new POINT(screen.WorkArea.Left + 400, screen.WorkArea.Top + 200) : new POINT(400, 200);
+            _menu.Show(subMenu, place);
+            return subMenu;
+        }
+
         var menu = kind == "menu-orb" && Settings.Orbs.Orbs.FirstOrDefault() is { } orb
-            ? OrbMenu.Build(this, orb.Id, Settings, SourceAvailability.From(_speed.Snapshot.Sources), _loc, SourceTrafficAvailable)
+            ? OrbMenu.Build(this, orb.Id, Settings, SourceAvailability.From(_speed.Snapshot.Sources), _loc, SourceTrafficAvailable,
+                _remoteHosts?.MenuStates(_loc))
             : AppMenu.Build(this, Settings, _loc, _updates.Available, SourceAvailability.From(_speed.Snapshot.Sources), SourceTrafficAvailable,
                 ReportMenuState());
         if (menu is null)
@@ -1453,7 +1629,8 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
         }
 
         HideTooltip();
-        if (OrbMenu.Build(this, orbId, Settings, SourceAvailability.From(_speed.Snapshot.Sources), _loc, SourceTrafficAvailable) is { } menu)
+        if (OrbMenu.Build(this, orbId, Settings, SourceAvailability.From(_speed.Snapshot.Sources), _loc, SourceTrafficAvailable,
+                _remoteHosts?.MenuStates(_loc)) is { } menu)
         {
             _menu.Show(menu);
         }
@@ -1476,7 +1653,7 @@ internal sealed partial class AppController : IAppCommands, IOrbHost, IDisposabl
     public void RemoveOrb(string orbId)
     {
         if (Settings.Orbs.Find(orbId) is not { } orb
-            || !OrbMenu.ConfirmRemove(null, OrbNaming.DisplayName(orb, _loc), _loc))
+            || !OrbMenu.ConfirmRemove(null, OrbNaming.DisplayName(orb, _loc, Presentation.Remote.RemoteHostStates.Choices(Settings.RemoteHosts, _loc)), _loc))
         {
             return;
         }

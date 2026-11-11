@@ -30,7 +30,7 @@ public sealed class LiveMonitor : IDisposable
     private long _pendingSince;
     private bool _rescanRequested;
     private MonitorConfiguration _configuration;
-    private SourceSet[] _subsets = [];
+    private SubsetKey[] _subsets = [];
     private int _subsetsChanged;
     private IReadOnlyList<Perf.PerfRecord>? _perfRecords;
     private int _perfRecordsChanged;
@@ -42,6 +42,11 @@ public sealed class LiveMonitor : IDisposable
     private CancellationTokenSource? _session;
     private bool _disposed;
 
+    /// <summary>The remote hosts' received state, kept across sessions (REMOTE 7 <i>Monitor restart</i>).</summary>
+    private readonly Remote.RemoteFeed _remoteFeed = new();
+    private readonly RemoteChanges _remoteChanges;
+    private bool _remoteWatch;
+
     /// <param name="pricing">Prices every response (METRICS 9); null leaves costs unknown.</param>
     public LiveMonitor(SpeedHub hub, MonitorConfiguration? configuration = null, PriceBook? pricing = null)
     {
@@ -49,9 +54,22 @@ public sealed class LiveMonitor : IDisposable
         _hub = hub;
         _configuration = configuration ?? MonitorConfiguration.Default;
         Pricing = pricing;
+        _remoteChanges = new RemoteChanges(SignalWake);
     }
 
+    /// <summary>The remote hosts' live side, fed by <see cref="Remote.RemoteCoordinator"/>.</summary>
+    internal Remote.RemoteFeed RemoteFeed => _remoteFeed;
+
+    /// <summary>Follows the enabled sources (REMOTE 7 <i>Sources</i>) and the report watch (METRICS 11.10); set by the coordinator.</summary>
+    internal Action? RemoteSettingsChanged { get; set; }
+
+    /// <summary>Live reporting's statistics watch is on: the hosts' relays send their tool calls (REMOTE 5.3 <c>watch</c>).</summary>
+    internal bool ReportWatchOn => _hub.PerfWatch.On;
+
     public PriceBook? Pricing { get; }
+
+    /// <summary>The newest Codex limits seen in this computer's rollouts (QUOTAS 3), kept across monitor restarts.</summary>
+    public Quota.CodexQuotaCollector CodexQuota { get; } = new();
 
     /// <summary>Runs on the pool thread before each background whole-file read (tests make reads slow with it).</summary>
     internal Action<string>? BeforeBackgroundRead { get; set; }
@@ -159,10 +177,34 @@ public sealed class LiveMonitor : IDisposable
     /// <summary>The Factory Droid sessions folder a setting stands for: its <c>sessions</c> folder or the folder itself; null: the default.</summary>
     public static string DroidRoot(string? setting) => SourceLocations.DroidRootOf(setting);
 
+    /// <summary>
+    /// The Devin CLI's database: <c>%CHISEL_SESSION_DB%</c>, else <c>%APPDATA%\devin\cli\sessions.db</c> (macOS and Linux: the XDG
+    /// data folder, else <c>~/.local/share/devin/cli/sessions.db</c>), METRICS 2, 4.17.
+    /// </summary>
+    public static string DefaultDevinDatabase => Devin.DevinPaths.AutomaticDatabase();
+
+    /// <summary>The folder the automatic Devin entry names in Settings: the CLI folder that holds the database (DESIGN 5).</summary>
+    public static string DefaultDevinRoot => Devin.DevinRoot.Database(DefaultDevinDatabase).DisplayFolder;
+
+    /// <summary>
+    /// Qoder IDE's chat databases, one per edition: <c>%APPDATA%\Qoder\SharedClientCache\cache\db\local.db</c> and the same below
+    /// <c>%APPDATA%\QoderCN</c> (macOS <c>~/Library/Application Support</c>, Linux the XDG config folder), METRICS 2, 4.18.
+    /// </summary>
+    public static IReadOnlyList<string> DefaultQoderDatabases => Qoder.QoderPaths.AutomaticDatabases();
+
+    /// <summary>The IDE data folders the automatic Qoder IDE entry names in Settings, international edition first (DESIGN 5).</summary>
+    public static IReadOnlyList<string> DefaultQoderRoots => Qoder.QoderPaths.AutomaticDataFolders();
+
+    /// <summary>
+    /// Qoder CLI's roots: <c>%QODER_CONFIG_DIR%\projects</c>, else <c>~\.qoder\projects</c>, then <c>%QODERCN_CONFIG_DIR%\projects</c>,
+    /// else <c>~\.qoder-cn\projects</c> (METRICS 2, 4.19).
+    /// </summary>
+    public static IReadOnlyList<string> DefaultQoderCliRoots => Qoder.QoderCliPaths.AutomaticRoots();
+
     /// <summary>Every automatic OpenClaw state folder: the override alone, else <c>.openclaw</c> and its profiles.</summary>
     public static IReadOnlyList<string> DefaultOpenClawRoots => OpenClaw.OpenClawPaths.AutomaticStateFolders();
 
-    /// <summary>The three Antigravity stores below <c>~/.gemini</c>: CLI, desktop app, IDE (METRICS 2, 4.8).</summary>
+    /// <summary>Native Antigravity stores and, on Windows, valid T3 Code ACP stores (METRICS 2, 4.8).</summary>
     public static IReadOnlyList<string> DefaultAntigravityStores => AntigravityPaths.DefaultStores(Path.Combine(UserHome, ".gemini"));
 
     /// <summary>The Antigravity folders read for a setting (null: the default stores); a <c>*-backup</c> store is never read.</summary>
@@ -264,8 +306,11 @@ public sealed class LiveMonitor : IDisposable
         }
     }
 
-    /// <summary>Source sets whose measured peak today every snapshot reports in <see cref="SpeedSnapshot.SubsetPeaks"/>.</summary>
-    public IReadOnlyCollection<SourceSet> Subsets => Volatile.Read(ref _subsets).AsReadOnly();
+    /// <summary>Source sets of every host whose measured peak today every snapshot reports in <see cref="SpeedSnapshot.SubsetPeaks"/>.</summary>
+    public IReadOnlyCollection<SourceSet> Subsets => [.. Volatile.Read(ref _subsets).Where(k => !k.HasHosts).Select(k => k.Sources)];
+
+    /// <summary>Every requested subset, with or without hosts.</summary>
+    public IReadOnlyCollection<SubsetKey> SubsetKeys => Volatile.Read(ref _subsets).AsReadOnly();
 
     /// <summary>
     /// Requests <see cref="SpeedSnapshot.SubsetPeaks"/> for these sets (one per floating orb that tracks a subset,
@@ -275,7 +320,17 @@ public sealed class LiveMonitor : IDisposable
     public void SetSubsets(IReadOnlyCollection<SourceSet> sets)
     {
         ArgumentNullException.ThrowIfNull(sets);
-        var next = sets.Distinct().ToArray();
+        SetSubsets(sets.Select(set => new SubsetKey(set)).ToArray());
+    }
+
+    /// <summary>
+    /// Requests the measured peaks of these subsets (one per orb or board): every host's in
+    /// <see cref="SpeedSnapshot.SubsetPeaks"/>, those with hosts in <see cref="SpeedSnapshot.HostSubsetPeaks"/> (DESIGN 13).
+    /// </summary>
+    public void SetSubsets(IReadOnlyCollection<SubsetKey> keys)
+    {
+        ArgumentNullException.ThrowIfNull(keys);
+        var next = keys.Distinct().ToArray();
         lock (_gate)
         {
             var current = _subsets;
@@ -303,10 +358,17 @@ public sealed class LiveMonitor : IDisposable
         SignalWake();
     }
 
-    /// <summary>Applies new settings; the monitor re-reads its sources in the background when anything changed.</summary>
+    /// <summary>
+    /// Applies new settings; the monitor re-reads its sources in the background when what it reads changed. Location lists that
+    /// name the same folders as before (METRICS 2.1) are taken without reading again.
+    /// </summary>
     public void Update(MonitorConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(configuration);
+        var previous = Configuration;
+        var readsSame = !configuration.Equals(previous) && configuration.EnabledSources.SetEquals(previous.EnabledSources)
+            && string.Equals(SourceLocations.Resolve(configuration).Signature(), SourceLocations.Resolve(previous).Signature(), StringComparison.Ordinal);
+        var sourcesChanged = false;
         lock (_gate)
         {
             if (configuration.Equals(_configuration))
@@ -314,14 +376,24 @@ public sealed class LiveMonitor : IDisposable
                 return;
             }
 
+            sourcesChanged = !configuration.EnabledSources.SetEquals(_configuration.EnabledSources);
+            var restart = !readsSame || !ReferenceEquals(previous, _configuration);
             _configuration = configuration;
             try
             {
-                _session?.Cancel();
+                if (restart)
+                {
+                    _session?.Cancel();
+                }
             }
             catch (ObjectDisposedException)
             {
             }
+        }
+
+        if (sourcesChanged)
+        {
+            RemoteSettingsChanged?.Invoke();
         }
 
         SignalWake();
@@ -383,7 +455,10 @@ public sealed class LiveMonitor : IDisposable
     {
         var zone = TimeZoneInfo.Local;
         using var core = new MonitorCore(
-            configuration, SourceLocations.Resolve(configuration), LocalDay.StartMs(NowMs(), zone), pricing: Pricing, zone: zone);
+            configuration, SourceLocations.Resolve(configuration), LocalDay.StartMs(NowMs(), zone), pricing: Pricing, zone: zone)
+        {
+            CodexQuota = CodexQuota,
+        };
         core.ReadWholeFilesInBackground = true;
         core.BackgroundReadCompleted = SignalWake;
         core.BeforeBackgroundRead = BeforeBackgroundRead;
@@ -397,7 +472,9 @@ public sealed class LiveMonitor : IDisposable
             EnsureWatchers(core, watchers);
             if (!core.AnyEnabledRootAvailable)
             {
-                Publish(core, MonitorState.NoSources, zone, observeLive: false);
+                // The hosts' received state joins as seeded (REMOTE 7 Monitor restart).
+                core.ApplyRemote(_remoteFeed.Attach(_remoteChanges));
+                Publish(core, StateOf(core), zone, observeLive: false);
             }
             else
             {
@@ -413,6 +490,9 @@ public sealed class LiveMonitor : IDisposable
                 });
                 // Seeding decodes hundreds of megabytes; return the freed memory instead of keeping it committed.
                 GC.Collect(GC.MaxGeneration, GCCollectionMode.Aggressive, blocking: true, compacting: true);
+
+                // The hosts' received state joins as seeded, before the peak is established (REMOTE 7 Monitor restart).
+                core.ApplyRemote(_remoteFeed.Attach(_remoteChanges));
                 Publish(core, StateOf(core), zone, observeLive: true);
             }
 
@@ -420,6 +500,8 @@ public sealed class LiveMonitor : IDisposable
         }
         finally
         {
+            _remoteFeed.Detach(_remoteChanges);
+            _remoteChanges.Clear();
             foreach (var watcher in watchers.Values)
             {
                 watcher.Dispose();
@@ -457,6 +539,12 @@ public sealed class LiveMonitor : IDisposable
             elapsed = Stopwatch.GetElapsedTime(start);
             var now = NowMs();
             core.PerfWatch = _hub.PerfWatch;
+            if (core.PerfWatch.On != _remoteWatch)
+            {
+                _remoteWatch = core.PerfWatch.On;
+                RemoteSettingsChanged?.Invoke();
+            }
+
             if (elapsed >= nextZoneRefresh)
             {
                 TimeZoneInfo.ClearCachedData();
@@ -482,6 +570,7 @@ public sealed class LiveMonitor : IDisposable
                 }
 
                 changed |= core.ApplyCompletedReads();
+                changed |= core.ApplyRemote(_remoteChanges.Take());
                 if (TakePendingPaths(start, elapsed) is { } paths)
                 {
                     changed |= core.ProcessPaths(paths, now, today);
@@ -559,7 +648,7 @@ public sealed class LiveMonitor : IDisposable
     }
 
     private static MonitorState StateOf(MonitorCore core) =>
-        core.AnyEnabledRootAvailable ? MonitorState.Running : MonitorState.NoSources;
+        core.AnyEnabledRootAvailable || core.HasRemoteHosts ? MonitorState.Running : MonitorState.NoSources;
 
     private void EnsureWatchers(MonitorCore core, Dictionary<SourceRoot, RootWatcher> watchers)
     {
@@ -690,4 +779,44 @@ public sealed class LiveMonitor : IDisposable
     private static TimeSpan Min(TimeSpan a, TimeSpan b, TimeSpan c) => a < b ? (a < c ? a : c) : (b < c ? b : c);
 
     private static long NowMs() => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+
+    /// <summary>The remote feed's changes waiting for the monitor thread, in order.</summary>
+    private sealed class RemoteChanges(Action wake) : Remote.IRemoteFeedSink
+    {
+        private readonly Lock _lock = new();
+        private List<Remote.RemoteFeedChange> _pending = [];
+
+        public void RemoteFeed(IReadOnlyList<Remote.RemoteFeedChange> changes)
+        {
+            lock (_lock)
+            {
+                _pending.AddRange(changes);
+            }
+
+            wake();
+        }
+
+        public IReadOnlyList<Remote.RemoteFeedChange> Take()
+        {
+            lock (_lock)
+            {
+                if (_pending.Count == 0)
+                {
+                    return [];
+                }
+
+                var taken = _pending;
+                _pending = [];
+                return taken;
+            }
+        }
+
+        public void Clear()
+        {
+            lock (_lock)
+            {
+                _pending = [];
+            }
+        }
+    }
 }

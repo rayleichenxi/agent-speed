@@ -133,9 +133,11 @@ std::vector<std::string> desktopApps(Platform p) {
     if (p == Platform::MacOS) {
         return {"/Applications/Claude.app/Contents/MacOS/Claude", "/Applications/ChatGPT.app/Contents/MacOS/ChatGPT",
                 "/Applications/Codex.app/Contents/MacOS/Codex", "/Applications/OpenCode.app/Contents/MacOS/OpenCode",
-                "/Applications/Antigravity.app/Contents/MacOS/Antigravity"};
+                "/Applications/Antigravity.app/Contents/MacOS/Antigravity", "/Applications/Devin.app/Contents/MacOS/Devin",
+                "/Applications/Qoder IDE.app/Contents/MacOS/Qoder"};
     }
-    if (p == Platform::Windows) return {"%LOCALAPPDATA%/AnthropicClaude/"};
+    // Devin Desktop's own executable is an app process (Windows: an assumed path); its `devin acp` agent follows the row.
+    if (p == Platform::Windows) return {"%LOCALAPPDATA%/AnthropicClaude/", "%LOCALAPPDATA%/Programs/Devin/Devin.exe"};
     return {};
 }
 std::vector<std::string> deepseekApp(Platform p) {
@@ -205,6 +207,12 @@ bool isHermes(const Env& env, const Process& p) {
 
 bool hasArg(const Process& p, const std::string& arg) { return std::find(p.args.begin(), p.args.end(), arg) != p.args.end(); }
 
+// Qoder IDE's agent core: `resources/bin/<platform>/<name>` inside the IDE, compared case-insensitively.
+bool isQoderCore(const std::string& normalized) {
+    static const std::regex core("/resources/bin/[^/]+/[^/]+$", std::regex::icase);
+    return std::regex_search(normalized, core);
+}
+
 }  // namespace
 
 std::string formatRate(double bytesPerSecond, bool bits) {
@@ -242,6 +250,13 @@ std::string Env::name(const std::string& exe) const {
         if (base.ends_with(".exe")) base.resize(base.size() - 4);
     }
     return base;
+}
+
+bool isClaudeDesktopProcess(const Env& env, const Process& process) { return isClaudeDesktopApp(env, process); }
+
+bool isCodexAppProcess(const Env& env, const Process& process) {
+    if (env.platform == Platform::MacOS) return under(env, process.exe, {"/Applications/Codex.app/Contents/MacOS/Codex"});
+    return env.platform == Platform::Windows && env.name(process.exe) == "codex" && packageApp(env, process.exe) == "openai.codex_";
 }
 
 std::optional<SourceKind> matchSource(const Env& env, const Process& p, const std::vector<const Process*>& ancestors) {
@@ -287,6 +302,13 @@ std::optional<SourceKind> matchSource(const Env& env, const Process& p, const st
     if (name == "openclaw" || contains(script, "/openclaw.mjs") || contains(script, "/openclaw/dist/")) return SourceKind::OpenClaw;
     if (isHermes(env, p)) return SourceKind::Hermes;
     if (name == "droid") return SourceKind::Droid;
+    // The Devin CLI, also `devin acp` started by Devin Desktop or another client as its local agent.
+    if (name == "devin") return SourceKind::Devin;
+    // Qoder IDE's agent core, not the IDE's own executable (METRICS 4.18).
+    if (name == (env.platform == Platform::Windows ? "qoder" : "Qoder") && isQoderCore(env.norm(p.exe))) return SourceKind::Qoder;
+    if (name == "qodercli" || name == "qoderclicn" || contains(script, "/@qoder-ai/qodercli/") || contains(script, "/@qodercn-ai/qoderclicn/")) {
+        return SourceKind::QoderCli;
+    }
     const auto edition = workBuddyEdition(env.platform, env.platform == Platform::MacOS ? p.bundle.value_or("") : name);
     if (edition) {
         for (std::size_t i = 1; i < p.args.size(); ++i) {
@@ -574,7 +596,7 @@ void Engine::tick(const Sample& sample, const std::vector<AgentFacts>& agents) {
             src.unassignedTx += acc.v[1] + acc.v[3];
         }
     }
-    for (int k = 0; k <= static_cast<int>(SourceKind::Droid); ++k) {
+    for (int k = 0; k <= static_cast<int>(SourceKind::QoderCli); ++k) {
         const auto source = static_cast<SourceKind>(k);
         const auto it = totals.find(source);
         const std::array<std::uint64_t, 4> v = it == totals.end() ? std::array<std::uint64_t, 4>{} : it->second;
@@ -613,7 +635,7 @@ std::vector<HistoryRow> Engine::history() const {
     std::vector<HistoryRow> rows;
     for (const auto& [date, d] : days_) {
         rows.push_back({date, "machine", d.machine.rx, d.machine.tx, 0, 0, d.machine.sampledMs});
-        for (int k = 0; k <= static_cast<int>(SourceKind::Droid); ++k) {
+        for (int k = 0; k <= static_cast<int>(SourceKind::QoderCli); ++k) {
             const auto source = static_cast<SourceKind>(k);
             const auto it = d.sources.find(source);
             if (it == d.sources.end()) continue;

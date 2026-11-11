@@ -84,18 +84,6 @@
     "en": "%@ tok/s",
     "ja": "%@ tok/s"
   },
-  "mac.settings.sources.default": {
-    "zh-Hant": "預設位置",
-    "zh-Hans": "默认位置",
-    "en": "Default location",
-    "ja": "デフォルトの場所"
-  },
-  "mac.settings.sources.custom": {
-    "zh-Hant": "自訂位置",
-    "zh-Hans": "自定位置",
-    "en": "Custom location",
-    "ja": "カスタムの場所"
-  },
   "mac.settings.sources.chooseCodex": {
     "zh-Hant": "選擇 Codex 的 sessions 資料夾",
     "zh-Hans": "选择 Codex 的 sessions 文件夹",
@@ -239,6 +227,18 @@
     "zh-Hans": "用 20 秒依次展示每个速度阶段。",
     "en": "A 20-second sweep through every speed tier.",
     "ja": "20 秒間ですべての速度段階を順に表示します。"
+  },
+  "mac.settings.effects.displaySync": {
+    "zh-Hant": "與螢幕更新同步",
+    "zh-Hans": "与屏幕刷新同步",
+    "en": "Sync with display refresh",
+    "ja": "画面のリフレッシュに同期"
+  },
+  "mac.settings.effects.displaySync.hint": {
+    "zh-Hant": "懸浮窗和看板配合螢幕更新顯示每一格畫面。部分 Mac 關閉後，內建螢幕的亮度可能調不動。",
+    "zh-Hans": "悬浮窗和看板配合屏幕刷新显示每一帧画面。部分 Mac 关闭后，内建屏幕的亮度可能调不动。",
+    "en": "Floating orbs and boards show each frame in step with the display's refresh. On some Macs, turning this off can keep the built-in display's brightness from changing.",
+    "ja": "フローティングオーブとボードは、画面のリフレッシュに合わせて各フレームを表示します。一部の Mac では、オフにすると内蔵ディスプレイの明るさを変えられなくなることがあります。"
   },
   "mac.settings.sources.folder": {
     "zh-Hant": "資料夾",
@@ -564,10 +564,46 @@
     "en": "Choose Factory Droid's .factory folder or its sessions folder",
     "ja": "Factory Droid の .factory フォルダまたは sessions フォルダを選択"
   },
+  "mac.settings.sources.chooseDevin": {
+    "zh-Hant": "選擇 Devin CLI 的 cli 資料夾（含 sessions.db）或上一層的 devin 資料夾",
+    "zh-Hans": "选择 Devin CLI 的 cli 文件夹（含 sessions.db）或上一层的 devin 文件夹",
+    "en": "Choose Devin CLI's cli folder (with sessions.db) or the devin folder above it",
+    "ja": "Devin CLI の cli フォルダ（sessions.db を含む）またはその上の devin フォルダを選択"
+  },
+  "mac.settings.sources.chooseQoder": {
+    "zh-Hant": "選擇 Qoder IDE 的 db 資料夾（含 local.db）、SharedClientCache 資料夾或 IDE 資料夾",
+    "zh-Hans": "选择 Qoder IDE 的 db 文件夹（含 local.db）、SharedClientCache 文件夹或 IDE 文件夹",
+    "en": "Choose Qoder IDE's db folder (with local.db), its SharedClientCache folder or the IDE's folder",
+    "ja": "Qoder IDE の db フォルダ（local.db を含む）、SharedClientCache フォルダ、または IDE フォルダを選択"
+  },
+  "mac.settings.sources.chooseQoderCli": {
+    "zh-Hant": "選擇 Qoder CLI 的 .qoder 資料夾或 projects 資料夾",
+    "zh-Hans": "选择 Qoder CLI 的 .qoder 文件夹或 projects 文件夹",
+    "en": "Choose Qoder CLI's .qoder folder or its projects folder",
+    "ja": "Qoder CLI の .qoder フォルダまたは projects フォルダを選択"
+  },
   "mac.update.relaunching": {
     "zh-Hant": "正在重新啟動…",
     "zh-Hans": "正在重新启动…",
     "en": "Relaunching…",
     "ja": "再起動中…"
+  },
+  "mac.settings.tab.remote": {
+    "zh-Hant": "遠端主機",
+    "zh-Hans": "远程主机",
+    "en": "Remote",
+    "ja": "リモート"
+  },
+  "mac.lan.localNetwork": {
+    "zh-Hant": "macOS 會詢問一次是否允許 Agent Speed 存取區域網路，請選擇「允許」；之後可在「系統設定 → 隱私權與安全性 → 區域網路」更改。",
+    "zh-Hans": "macOS 会询问一次是否允许 Agent Speed 访问本地网络，请选择“允许”；之后可在“系统设置 → 隐私与安全性 → 本地网络”中更改。",
+    "en": "macOS asks once whether Agent Speed may access the local network: choose Allow. You can change it later in System Settings → Privacy & Security → Local Network.",
+    "ja": "macOS は Agent Speed のローカルネットワークへのアクセスを許可するか一度だけ確認します。「許可」を選んでください。あとから「システム設定 → プライバシーとセキュリティ → ローカルネットワーク」で変更できます。"
+  },
+  "mac.lan.usage": {
+    "zh-Hant": "在「設定 → API → 區域網路」開啟後，Agent Speed 會讓區網內的裝置讀取即時速度，並把速度送到你加入的裝置。",
+    "zh-Hans": "在“设置 → API → 局域网”开启后，Agent Speed 会让局域网内的设备读取实时速度，并把速度发送到你添加的设备。",
+    "en": "When you turn it on in Settings → API → Local Network, Agent Speed lets devices on your network read the live speed and sends it to devices you add.",
+    "ja": "「設定 → API → ローカルネットワーク」でオンにすると、Agent Speed はネットワーク内のデバイスにライブ速度を読み取らせ、追加したデバイスへ送信します。"
   }
 }

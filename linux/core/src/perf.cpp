@@ -101,7 +101,8 @@ std::string_view formId(Form form) {
 }
 
 bool recordsLatency(SourceKind source) {
-    return source == SourceKind::Codex || source == SourceKind::ClaudeCode || source == SourceKind::ClaudeDesktop;
+    return source == SourceKind::Codex || source == SourceKind::ClaudeCode || source == SourceKind::ClaudeDesktop ||
+           source == SourceKind::Devin;
 }
 bool recordsReasoning(SourceKind source) { return source != SourceKind::Deepseek; }
 bool recordsCache(SourceKind source) { return source != SourceKind::Hermes; }
@@ -176,6 +177,9 @@ Evaluation evaluate(SourceKind source, Phase phase, std::optional<std::int64_t> 
         spans.push_back(span);
         spanStart = spanStart ? std::min(*spanStart, span.first) : span.first;
     }
+    for (const auto* r : sample) {
+        if (r->firstMs && r->startMs && *r->firstMs >= *r->startMs) out.latencies.push_back(*r->firstMs - *r->startMs);
+    }
     std::vector<const work::Action*> calls;
     if (n >= kMinSamples) {
         const auto from = actions.size() > work::ActionLog::kStored ? actions.size() - work::ActionLog::kStored : 0;
@@ -197,12 +201,11 @@ Evaluation evaluate(SourceKind source, Phase phase, std::optional<std::int64_t> 
     };
     if (n >= kMinSamples) {
         std::int64_t output = 0, duration = 0;
-        std::vector<std::int64_t> latencies;
+        const auto& latencies = out.latencies;
         std::int64_t reason = 0, reasonMs = 0, thought = 0, input = 0, cached = 0, withInput = 0;
         for (const auto* r : sample) {
             output += r->output;
             duration += durationMs(*r);
-            if (r->firstMs && r->startMs && *r->firstMs >= *r->startMs) latencies.push_back(*r->firstMs - *r->startMs);
             if (const auto t = std::min(r->reasoning, r->output); t > 0) {
                 ++thought;
                 reason += t;

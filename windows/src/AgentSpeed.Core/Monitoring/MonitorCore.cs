@@ -56,7 +56,10 @@ internal sealed partial class MonitorCore : IDisposable
     private readonly List<SourceRoot> _roots = [];
     private readonly Dictionary<TrackedFile, BackgroundRead> _wholeReads = [];
     private readonly CancellationTokenSource _backgroundStop = new();
-    private readonly OpenCodeSource? _openCode;
+    private readonly OpenCodeSourceSet? _openCode;
+    private readonly List<SourceRoot> _openCodeWatchRoots = [];
+    private readonly IReadOnlyList<string> _openCodeRootPaths;
+    private readonly SourceLocations _locations;
     private readonly AntigravityConnections _connections = new();
     private readonly bool _ompAutomatic;
     private readonly bool _piAutomatic;
@@ -92,28 +95,34 @@ internal sealed partial class MonitorCore : IDisposable
         _enabledSet = SourceSet.From(_enabled);
         _observer = observer;
         _engine = new SpeedEngine(todayStartMs, pricing, zone);
+        _locations = locations;
         foreach (var (family, path) in locations.FileRoots())
         {
             _roots.Add(new SourceRoot(family, path, Families.IsEnabled(family, _enabled)));
         }
 
-        CodexRoot = _roots.First(r => r.Family == RootFamily.Codex);
-        ClaudeRoot = _roots.First(r => r.Family == RootFamily.Claude);
-        DshRoot = _roots.First(r => r.Family == RootFamily.DeepSeek);
-        if (Families.IsEnabled(RootFamily.OpenCode, _enabled) && locations.OpenCodeRoot.Length > 0)
+        _openCodeRootPaths = locations.OpenCodeRoots;
+        if (Families.IsEnabled(RootFamily.OpenCode, _enabled) && _openCodeRootPaths.Count > 0)
         {
-            _openCode = new OpenCodeSource(locations.OpenCodeRoot, _deduper);
-            OpenCodeRoot = new SourceRoot(RootFamily.OpenCode, _openCode.WatchDirectory, enabled: true);
+            _openCode = new OpenCodeSourceSet(_openCodeRootPaths, _deduper);
+            foreach (var directory in _openCode.WatchDirectories())
+            {
+                _openCodeWatchRoots.Add(new SourceRoot(RootFamily.OpenCode, directory, enabled: true));
+            }
         }
 
         InitializeZCode(locations);
+        InitializeDevin(locations);
+        InitializeQoder(locations);
         InitializeOpenClaw(locations);
         InitializeHermes(locations, zone);
-        OpenCodeRootPath = locations.OpenCodeRoot;
         _ompAutomatic = locations.OmpAutomatic;
         _piAutomatic = locations.PiAutomatic;
         RefreshAvailability();
     }
+
+    /// <summary>Receives the Codex rollouts' limits (QUOTAS 3); set before seeding.</summary>
+    internal Quota.CodexQuotaCollector? CodexQuota { get; init; }
 
     /// <summary>Live reporting's statistics watch (METRICS 11.10), as last published; the monitor thread sets it before reading.</summary>
     internal Reporting.ReportPerfWatch PerfWatch { get; set; } = Reporting.ReportPerfWatch.Off;
@@ -125,18 +134,8 @@ internal sealed partial class MonitorCore : IDisposable
         set => _engine.PerfBaselines = value;
     }
 
-    public SourceRoot CodexRoot { get; }
-
-    public SourceRoot ClaudeRoot { get; }
-
-    public SourceRoot DshRoot { get; }
-
-    /// <summary>The folder watched for the OpenCode database; null when OpenCode is disabled.</summary>
-    public SourceRoot? OpenCodeRoot { get; }
-
-    public string OpenCodeRootPath { get; }
-
-    internal OpenCodeSource? OpenCode => _openCode;
+    /// <summary>OpenCode's databases in list order; null when OpenCode is disabled.</summary>
+    internal OpenCodeSourceSet? OpenCode => _openCode;
 
     /// <summary>
     /// While running, whole-file reads (<c>.jsonl.zst</c>, legacy Gemini <c>.json</c>) happen on the pool and are applied
@@ -171,13 +170,17 @@ internal sealed partial class MonitorCore : IDisposable
     public IReadOnlyList<SourceRoot> Roots => _roots;
 
     /// <summary>Every folder a file watcher should observe, including the OpenCode database folder.</summary>
-    public IEnumerable<SourceRoot> WatchRoots => (_zcodeRoot is { } zcode ? _roots.Append(zcode) : _roots)
-        .Concat(OpenCodeRoot is { } openCode ? [openCode] : [])
+    public IEnumerable<SourceRoot> WatchRoots => _roots
+        .Concat(_zcodeWatchRoots)
+        .Concat(_openCodeWatchRoots)
         .Concat(_openClawWatchRoots)
-        .Concat(_hermesWatchRoots);
+        .Concat(_hermesWatchRoots)
+        .Concat(_devinWatchRoots)
+        .Concat(_qoderWatchRoots);
 
-    public bool AnyEnabledRootAvailable => _roots.Any(r => r.Enabled && r.Available) || OpenCodeRoot?.Available == true
-        || _zcodeRoot?.Available == true || _openClaw?.Available == true || _hermes?.Available == true;
+    public bool AnyEnabledRootAvailable => _roots.Any(r => r.Enabled && r.Available) || _openCodeWatchRoots.Any(r => r.Available)
+        || _zcode?.Available == true || _openClaw?.Available == true || _hermes?.Available == true || _devin?.Available == true
+        || _qoder?.Available == true;
 
     public int TrackedFileCount => _files.Count;
 
@@ -192,15 +195,34 @@ internal sealed partial class MonitorCore : IDisposable
         RefreshZCodeAvailability();
         RefreshOpenClawWatchRoots();
         RefreshHermesWatchRoots();
+        RefreshDevinWatchRoots();
+        RefreshQoderWatchRoots();
         foreach (var root in _roots)
         {
             root.Available = SafeDirectoryExists(root.DetectionPath);
         }
 
-        if (_openCode is not null)
+        RefreshOpenCodeAvailability();
+    }
+
+    /// <summary>A watched OpenCode folder is available while a database of the list in it exists.</summary>
+    private bool RefreshOpenCodeAvailability()
+    {
+        if (_openCode is null)
         {
-            OpenCodeRoot!.Available = _openCode.CheckExists();
+            return false;
         }
+
+        _openCode.CheckExists();
+        var changed = false;
+        foreach (var root in _openCodeWatchRoots)
+        {
+            var available = _openCode.Sources.Any(s => PathComparer.Equals(s.WatchDirectory, root.Path) && s.DatabaseExists);
+            changed |= available != root.Available;
+            root.Available = available;
+        }
+
+        return changed;
     }
 
     public void Dispose()
@@ -292,14 +314,15 @@ internal sealed partial class MonitorCore : IDisposable
                 continue;
             }
 
-            var files = TranscriptDiscovery.Enumerate(root.Path, root.Naming, cancellationToken);
-            discovered += files.Count;
-            foreach (var file in files)
+            // A file reachable from two roots of the list is one file, under the first root that reaches it (METRICS 2.1).
+            foreach (var file in TranscriptDiscovery.Enumerate(root.Path, root.Naming, cancellationToken))
             {
                 if (_files.ContainsKey(file.Path))
                 {
                     continue;
                 }
+
+                discovered++;
 
                 var tracked = NewTrackedFile(root, file.Path);
                 _files[file.Path] = tracked;
@@ -337,25 +360,24 @@ internal sealed partial class MonitorCore : IDisposable
         if (_openCode is { } openCode && !_openCodeSeeded)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            OpenCodeRoot!.Available = openCode.CheckExists();
-            if (OpenCodeRoot.Available)
+            RefreshOpenCodeAvailability();
+            var (updates, databasesRead, databaseBytes) = openCode.Seed(todayStartMs);
+            foreach (var update in updates)
             {
-                discovered++;
-                openCode.RefreshAvailability();
-                ApplyOpenCode(openCode.Seed(todayStartMs), seeded: true);
-                if (openCode.Status == OpenCodeStatus.Ready)
-                {
-                    filesRead++;
-                    bytesRead += openCode.DatabaseBytes;
-                }
+                ApplyOpenCode(update, seeded: true);
             }
 
+            discovered += updates.Count;
+            filesRead += databasesRead;
+            bytesRead += databaseBytes;
             _openCodeSeeded = true;
         }
 
         SeedZCode(todayStartMs);
         SeedOpenClaw(todayStartMs, cancellationToken, ref discovered, ref filesRead, ref bytesRead);
         SeedHermes(todayStartMs, cancellationToken, ref discovered, ref filesRead, ref bytesRead);
+        SeedDevin(todayStartMs, ref discovered, ref filesRead, ref bytesRead);
+        SeedQoder(todayStartMs, ref discovered, ref filesRead, ref bytesRead);
         RefreshAgentContext();
         return new SeedReport(stopwatch.ElapsedMilliseconds, discovered, filesRead, bytesRead, _responsesSeen);
     }
@@ -370,11 +392,13 @@ internal sealed partial class MonitorCore : IDisposable
     private bool ProcessPathsCore(IEnumerable<string> paths, long todayStartMs)
     {
         var changed = false;
-        var openCodeChanged = false;
+        List<string>? openCodePaths = null;
         var zcodeChanged = false;
         var openClawChanged = false;
         var openClawNew = false;
         var hermesChanged = false;
+        var devinChanged = false;
+        var qoderChanged = false;
         foreach (var incoming in paths)
         {
             var path = incoming;
@@ -395,7 +419,7 @@ internal sealed partial class MonitorCore : IDisposable
             }
             if (_openCode?.IsWatchedPath(path) == true)
             {
-                openCodeChanged = true;
+                (openCodePaths ??= []).Add(path);
                 continue;
             }
 
@@ -409,6 +433,18 @@ internal sealed partial class MonitorCore : IDisposable
             if (_hermes?.IsWatchedPath(path) == true)
             {
                 hermesChanged = true;
+                continue;
+            }
+
+            if (_devin?.IsWatchedPath(path) == true)
+            {
+                devinChanged = true;
+                continue;
+            }
+
+            if (_qoder?.IsWatchedPath(path) == true)
+            {
+                qoderChanged = true;
                 continue;
             }
 
@@ -443,9 +479,12 @@ internal sealed partial class MonitorCore : IDisposable
             changed |= RefreshZCode();
         }
 
-        if (openCodeChanged && _openCodeSeeded && _openCode is { } openCode)
+        if (openCodePaths is not null && _openCodeSeeded && _openCode is { } openCode)
         {
-            changed |= ApplyOpenCode(openCode.Refresh(), seeded: false);
+            foreach (var update in openCode.Refresh(openCodePaths))
+            {
+                changed |= ApplyOpenCode(update, seeded: false);
+            }
         }
 
         if (openClawChanged)
@@ -456,6 +495,16 @@ internal sealed partial class MonitorCore : IDisposable
         if (hermesChanged)
         {
             changed |= RefreshHermes(discover: false);
+        }
+
+        if (devinChanged)
+        {
+            changed |= RefreshDevin();
+        }
+
+        if (qoderChanged)
+        {
+            changed |= RefreshQoder();
         }
 
         return changed;
@@ -471,10 +520,20 @@ internal sealed partial class MonitorCore : IDisposable
     private bool PollRecentCore(long nowMs)
     {
         var cutoff = DateTime.UnixEpoch.AddMilliseconds(nowMs - RecentWriteWindowMs);
-        var changed = _openCodeSeeded && _openCode?.RefreshIfChanged() is { } update && ApplyOpenCode(update, seeded: false);
+        var changed = false;
+        if (_openCodeSeeded && _openCode is { } openCode)
+        {
+            foreach (var update in openCode.RefreshIfChanged())
+            {
+                changed |= ApplyOpenCode(update, seeded: false);
+            }
+        }
+
         changed |= _zcodeSeeded && RefreshZCode();
         changed |= RefreshOpenClaw(discover: false);
         changed |= RefreshHermes(discover: false);
+        changed |= RefreshDevin();
+        changed |= RefreshQoder();
         _connections.CloseIdle();
         List<TrackedFile>? due = null;
         foreach (var tracked in _files.Values)
@@ -518,17 +577,39 @@ internal sealed partial class MonitorCore : IDisposable
         var changed = false;
         if (_openCode is { } openCode && _openCodeSeeded)
         {
-            var available = openCode.CheckExists();
-            changed |= available != OpenCodeRoot!.Available;
-            OpenCodeRoot.Available = available;
-            var update = openCode.Rediscover(nowMs, todayStartMs);
-            changed |= ApplyOpenCode(update, seeded: update.Reset);
+            changed |= RefreshOpenCodeAvailability();
+            foreach (var update in openCode.Rediscover(nowMs, todayStartMs))
+            {
+                changed |= ApplyOpenCode(update, seeded: update.Reset);
+            }
         }
 
         RefreshZCodeAvailability();
         if (_zcodeSeeded)
         {
             changed |= RefreshZCode();
+        }
+
+        if (_devin is not null && !_devinSeeded)
+        {
+            var (discovered, filesRead, bytesRead) = (0, 0, 0L);
+            SeedDevin(todayStartMs, ref discovered, ref filesRead, ref bytesRead);
+            changed = true;
+        }
+        else
+        {
+            changed |= RediscoverDevin(todayStartMs);
+        }
+
+        if (_qoder is not null && !_qoderSeeded)
+        {
+            var (discovered, filesRead, bytesRead) = (0, 0, 0L);
+            SeedQoder(todayStartMs, ref discovered, ref filesRead, ref bytesRead);
+            changed = true;
+        }
+        else
+        {
+            changed |= RediscoverQoder(todayStartMs);
         }
 
         AddNewPiRoots();
@@ -631,7 +712,18 @@ internal sealed partial class MonitorCore : IDisposable
             return _hermes?.ActiveSessionCount(todayStartMs) ?? 0;
         }
 
-        var mainOnly = WorkBuddyPaths.IsWorkBuddy(kind) || kind is SourceKind.Kimi or SourceKind.GrokBuild or SourceKind.Pi or SourceKind.Droid;
+        if (kind == SourceKind.Devin)
+        {
+            return _devin?.ActiveSessionCount(todayStartMs) ?? 0;
+        }
+
+        if (kind == SourceKind.Qoder)
+        {
+            return _qoder?.ActiveSessionCount(todayStartMs) ?? 0;
+        }
+
+        var mainOnly = WorkBuddyPaths.IsWorkBuddy(kind)
+            || kind is SourceKind.Kimi or SourceKind.GrokBuild or SourceKind.Pi or SourceKind.Droid or SourceKind.QoderCli;
         var count = 0;
         foreach (var tracked in _files.Values)
         {
@@ -675,7 +767,7 @@ internal sealed partial class MonitorCore : IDisposable
             warnings.Add(new MonitorWarning.UnsupportedFormat(SourceKind.ZCode));
         }
 
-        if (_openCode?.Status == OpenCodeStatus.Unsupported)
+        if (_openCode?.Unsupported == true)
         {
             warnings.Add(new MonitorWarning.UnsupportedFormat(SourceKind.OpenCode));
         }
@@ -690,24 +782,43 @@ internal sealed partial class MonitorCore : IDisposable
             warnings.Add(new MonitorWarning.UnsupportedFormat(SourceKind.OpenClaw));
         }
 
+        if (_devin?.Unsupported == true)
+        {
+            warnings.Add(new MonitorWarning.UnsupportedFormat(SourceKind.Devin));
+        }
+
+        if (_qoder?.Unsupported == true)
+        {
+            warnings.Add(new MonitorWarning.UnsupportedFormat(SourceKind.Qoder));
+        }
+
         return warnings;
     }
 
     public long MalformedLineCount =>
         _removedMalformedLines + _files.Values.Sum(f => f.Parser.MalformedLines) + (_openCode?.MalformedRows ?? 0)
-        + (_openClaw?.MalformedLines ?? 0) + (_hermes?.MalformedLines ?? 0);
+        + (_openClaw?.MalformedLines ?? 0) + (_hermes?.MalformedLines ?? 0) + (_devin?.MalformedRows ?? 0) + (_qoder?.MalformedRows ?? 0);
 
     public long OversizedLineCount => _removedOversizedLines + _files.Values.Sum(f => f.Tailer.OversizedLines) + (_hermes?.OversizedLines ?? 0);
 
     public int UnreadableFileCount =>
-        _files.Values.Count(f => f.Unreadable) + (_openCode?.Status == OpenCodeStatus.Unreadable ? 1 : 0) + (_zcode?.Unreadable == true ? 1 : 0)
-        + (_openClaw?.UnreadableCount ?? 0) + (_hermes?.UnreadableCount ?? 0);
+        _files.Values.Count(f => f.Unreadable) + (_openCode?.UnreadableCount ?? 0) + (_zcode?.UnreadableCount ?? 0)
+        + (_openClaw?.UnreadableCount ?? 0) + (_hermes?.UnreadableCount ?? 0) + (_devin?.UnreadableCount ?? 0)
+        + (_qoder?.UnreadableCount ?? 0);
 
     public bool PartialHistory => _partialHistory;
 
     /// <param name="subsets">Source sets whose measured peak today the snapshot reports in <see cref="SpeedSnapshot.SubsetPeaks"/>.</param>
     public (SpeedSnapshot Snapshot, IReadOnlyList<SpeedEvent> Events) BuildSnapshot(
-        long nowMs, long todayStartMs, MonitorState state, bool observeLive, IReadOnlyCollection<SourceSet>? subsets = null)
+        long nowMs, long todayStartMs, MonitorState state, bool observeLive, IReadOnlyCollection<SourceSet>? subsets) =>
+        BuildSnapshot(nowMs, todayStartMs, state, observeLive, subsets?.Select(set => new SubsetKey(set)).ToArray());
+
+    /// <param name="subsets">
+    /// Subsets whose measured peak today the snapshot reports: every host's in <see cref="SpeedSnapshot.SubsetPeaks"/>, those
+    /// with hosts in <see cref="SpeedSnapshot.HostSubsetPeaks"/>.
+    /// </param>
+    public (SpeedSnapshot Snapshot, IReadOnlyList<SpeedEvent> Events) BuildSnapshot(
+        long nowMs, long todayStartMs, MonitorState state, bool observeLive, IReadOnlyCollection<SubsetKey>? subsets = null)
     {
         ResolveParents();
         _engine.FollowPerfWatch(PerfWatch);
@@ -726,17 +837,21 @@ internal sealed partial class MonitorCore : IDisposable
                 a.ParentId)
             {
                 Modes = a.Info.Modes, SessionModes = a.Info.SessionModes, ConfiguredModes = a.Info.ConfiguredModes,
-                Intelligence = a.Intelligence, Perf = a.Perf, Work = a.Work,
+                Intelligence = a.Intelligence, Perf = a.Perf, Work = a.Work, Host = a.Info.Host,
             })
             .ToList();
 
-        var sources = Enum.GetValues<SourceKind>()
+        var local = Enum.GetValues<SourceKind>()
             .Select(kind => WithEngineSums(
                 BuildSourceStatus(kind, todayStartMs, frame.SourceLive[(int)kind],
                     frame.SourceToday[(int)kind], agents.Count(a => a.Source == kind && a.Phase == AgentPhase.Generating),
                     frame.SourceLiveEstimated[(int)kind]),
                 frame))
             .ToList();
+        var sources = WithRemoteSources(local);
+        var warnings = Warnings(frame.UnfinalizedToday);
+        var peaks = subsets is { Count: > 0 } ? SubsetPeaks(subsets) : (SpeedSnapshot.Empty.SubsetPeaks, SpeedSnapshot.Empty.HostSubsetPeaks);
+        var (hosts, hostSources) = _remote.HasHosts ? HostStatuses(frame, local, warnings) : ([], []);
 
         var snapshot = new SpeedSnapshot(
             DateTimeOffset.FromUnixTimeMilliseconds(nowMs),
@@ -753,15 +868,18 @@ internal sealed partial class MonitorCore : IDisposable
             frame.ToolsCount,
             frame.History,
             frame.LastResponse,
-            Warnings(frame.UnfinalizedToday))
+            warnings)
         {
-            SubsetPeaks = subsets is { Count: > 0 } ? SubsetPeaks(subsets) : SpeedSnapshot.Empty.SubsetPeaks,
+            SubsetPeaks = peaks.Item1,
+            HostSubsetPeaks = peaks.Item2,
             DayStart = DateTimeOffset.FromUnixTimeMilliseconds(todayStartMs),
             LiveCost = frame.LiveCost,
             TodayCost = frame.TodayCost,
             Report = frame.Report,
             TodayModes = frame.TodayModes,
             ObservedAtMs = _observedAtMs,
+            Hosts = hosts,
+            HostSources = hostSources,
         };
         _observedAtMs = null;
         return (snapshot, frame.Events);
@@ -810,18 +928,6 @@ internal sealed partial class MonitorCore : IDisposable
         };
     }
 
-    /// <summary>A disabled source contributes nothing to a set (METRICS 6.8).</summary>
-    private IReadOnlyDictionary<SourceSet, double> SubsetPeaks(IReadOnlyCollection<SourceSet> subsets)
-    {
-        var peaks = new Dictionary<SourceSet, double>(subsets.Count);
-        foreach (var set in subsets)
-        {
-            peaks[set] = _engine.MeasuredPeakOutput(set.Intersect(_enabledSet));
-        }
-
-        return peaks.AsReadOnly();
-    }
-
     private SourceStatus BuildSourceStatus(
         SourceKind kind, long todayStartMs, Rate live, TokenTotals today, int activeAgents, Rate liveEstimated = default)
     {
@@ -830,9 +936,8 @@ internal sealed partial class MonitorCore : IDisposable
         bool available, rootEnabled;
         if (kind == SourceKind.ZCode)
         {
-            path = _zcodeRootPath;
-            available = _zcodeRoot?.Available ?? File.Exists(ZCode.ZCodeDatabase.DatabasePath(_zcodeRootPath));
-            rootEnabled = _zcodeRoot is not null;
+            (path, available) = ZCodeStatus();
+            rootEnabled = _zcode is not null;
         }
         else if (kind == SourceKind.OpenClaw)
         {
@@ -844,18 +949,29 @@ internal sealed partial class MonitorCore : IDisposable
             (path, available) = HermesStatus();
             rootEnabled = _hermes is not null;
         }
+        else if (kind == SourceKind.Devin)
+        {
+            (path, available) = DevinLocation();
+            rootEnabled = _devin is not null;
+        }
+        else if (kind == SourceKind.Qoder)
+        {
+            (path, available) = QoderLocation();
+            rootEnabled = _qoder is not null;
+        }
         else if (kind == SourceKind.OpenCode)
         {
-            path = OpenCodeRootPath;
-            available = OpenCodeRoot?.Available ?? SafeFileExists(OpenCodeDatabase.DatabasePath(OpenCodeRootPath));
-            rootEnabled = OpenCodeRoot is not null;
+            (path, available) = OpenCodeStatus();
+            rootEnabled = _openCode is not null;
         }
         else
         {
+            // The first detected root names the source, else the first root (METRICS 2.1).
             var family = Families.Of(kind);
             var roots = _roots.Where(r => r.Family == family).ToList();
-            path = roots.Count > 0 ? roots[0].Path : string.Empty;
-            available = roots.Any(r => r.Available);
+            var detected = roots.FirstOrDefault(r => r.Available);
+            path = detected?.Path ?? (roots.Count > 0 ? roots[0].Path : string.Empty);
+            available = detected is not null;
             rootEnabled = roots.Any(r => r.Enabled);
         }
 
@@ -870,6 +986,18 @@ internal sealed partial class MonitorCore : IDisposable
             enabled ? activeAgents : 0,
             enabled ? liveEstimated : Rate.Zero)
         { ConfiguredModes = kind == SourceKind.Codex && path.Length > 0 ? _configured.Of(kind, path, string.Empty, null) : ExecutionModes.Empty };
+    }
+
+    /// <summary>The first root whose database exists, else the first root, and whether any database exists (METRICS 2.1).</summary>
+    private (string Path, bool Available) OpenCodeStatus()
+    {
+        if (_openCode is { } openCode)
+        {
+            return (openCode.DisplayRoot, openCode.Sources.Any(s => s.DatabaseExists));
+        }
+
+        var existing = _openCodeRootPaths.FirstOrDefault(root => SafeFileExists(OpenCodeDatabase.DatabasePath(root)));
+        return (existing ?? (_openCodeRootPaths.Count > 0 ? _openCodeRootPaths[0] : string.Empty), existing is not null);
     }
 
     private ReadPlan? PlanInitialRead(TrackedFile tracked, DiscoveredFile file, long todayStartMs)
@@ -1307,7 +1435,7 @@ internal sealed partial class MonitorCore : IDisposable
 
     private TrackedFile NewTrackedFile(SourceRoot root, string path)
     {
-        return new TrackedFile(root, path, _deduper);
+        return new TrackedFile(root, path, _deduper, CodexQuota);
     }
 
     /// <summary>Re-resolves parent links over the engine's agents after any of them changed (METRICS 6.7).</summary>

@@ -7,8 +7,8 @@ enum BundledPriceAssets {
 {
   "_comment": "API list prices for API-equivalent costs (METRICS 9). USD per million tokens. Edit by hand: raise version by one, set updated and each changed entry's checked date, add tests for new id forms, run python3 spec/tools/prices.py. Apps sync this file from main daily (spec/NETWORK.md).",
   "schema": 1,
-  "version": 3,
-  "updated": "2026-10-28",
+  "version": 8,
+  "updated": "2026-11-10",
   "currency": "USD",
   "unit": "perMillionTokens",
   "providers": {
@@ -167,6 +167,12 @@ enum BundledPriceAssets {
           "-volc",
           "-lkeap",
           "-taiji"
+        ]
+      },
+      {
+        "prefix": "grok-",
+        "suffixes": [
+          "-build"
         ]
       }
     ],
@@ -327,10 +333,35 @@ enum BundledPriceAssets {
       "checked": "2026-10-22"
     },
     {
+      "id": "claude-fable-5-2",
+      "provider": "anthropic",
+      "name": "Claude Fable 5.2",
+      "status": "current",
+      "prices": {
+        "input": 8,
+        "cachedInput": 0.2,
+        "cacheWrite": 10,
+        "cacheWrite1h": 16,
+        "output": 40
+      },
+      "fast": {
+        "prices": {
+          "input": 16,
+          "cachedInput": 0.4,
+          "cacheWrite": 20,
+          "cacheWrite1h": 32,
+          "output": 80
+        }
+      },
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "checked": "2026-11-09",
+      "note": "Cache read is 0.025x input. Fast-mode cache prices derived from the fast input price with the standard cache multipliers (pricing page)."
+    },
+    {
       "id": "claude-fable-5-1",
       "provider": "anthropic",
       "name": "Claude Fable 5.1",
-      "status": "current",
+      "status": "legacy",
       "prices": {
         "input": 10,
         "cachedInput": 0.25,
@@ -339,7 +370,7 @@ enum BundledPriceAssets {
         "output": 50
       },
       "source": "https://platform.claude.com/docs/en/about-claude/pricing",
-      "checked": "2026-10-22"
+      "checked": "2026-11-09"
     },
     {
       "id": "claude-fable-5",
@@ -357,10 +388,35 @@ enum BundledPriceAssets {
       "checked": "2026-10-22"
     },
     {
+      "id": "claude-mythos-5-2",
+      "provider": "anthropic",
+      "name": "Claude Mythos 5.2",
+      "status": "current",
+      "prices": {
+        "input": 8,
+        "cachedInput": 0.2,
+        "cacheWrite": 10,
+        "cacheWrite1h": 16,
+        "output": 40
+      },
+      "fast": {
+        "prices": {
+          "input": 16,
+          "cachedInput": 0.4,
+          "cacheWrite": 20,
+          "cacheWrite1h": 32,
+          "output": 80
+        }
+      },
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "checked": "2026-11-09",
+      "note": "Limited availability. Cache read is 0.025x input. Fast-mode cache prices derived from the fast input price with the standard cache multipliers (pricing page)."
+    },
+    {
       "id": "claude-mythos-5-1",
       "provider": "anthropic",
       "name": "Claude Mythos 5.1",
-      "status": "current",
+      "status": "legacy",
       "prices": {
         "input": 10,
         "cachedInput": 0.25,
@@ -369,7 +425,7 @@ enum BundledPriceAssets {
         "output": 50
       },
       "source": "https://platform.claude.com/docs/en/about-claude/pricing",
-      "checked": "2026-10-22",
+      "checked": "2026-11-09",
       "note": "Limited availability."
     },
     {
@@ -1699,6 +1755,36 @@ enum BundledPriceAssets {
       "checked": "2026-10-22"
     },
     {
+      "id": "gemini-4-carbon",
+      "provider": "google",
+      "name": "Gemini 4 Carbon",
+      "status": "current",
+      "prices": {
+        "input": 2,
+        "cachedInput": 0.1,
+        "output": 10
+      },
+      "periods": [
+        {
+          "from": "2026-12-01",
+          "prices": {
+            "input": 4,
+            "cachedInput": 0.2,
+            "output": 20
+          }
+        }
+      ],
+      "aliases": [
+        "gemini 4 carbon (low)",
+        "gemini 4 carbon (medium)",
+        "gemini 4 carbon (high)",
+        "gemini 4 carbon"
+      ],
+      "source": "https://aistudio.google.com/docs/pricing",
+      "checked": "2026-11-10",
+      "note": "Announced price change on 2026-12-01. Implicit caching only."
+    },
+    {
       "id": "gemini-4-argon",
       "provider": "google",
       "name": "Gemini 4 Argon",
@@ -1724,8 +1810,8 @@ enum BundledPriceAssets {
         "gemini 4 argon (high)",
         "gemini 4 argon"
       ],
-      "source": "https://ai.google.dev/gemini-api/docs/pricing",
-      "checked": "2026-10-24",
+      "source": "https://aistudio.google.com/docs/pricing",
+      "checked": "2026-11-10",
       "note": "Announced price change on 2026-12-01."
     },
     {
@@ -2026,7 +2112,7 @@ enum BundledPriceAssets {
         }
       ],
       "source": "https://docs.x.ai/developers/models/grok-4.7",
-      "checked": "2026-10-22"
+      "checked": "2026-11-10"
     },
     {
       "id": "grok-4.6",
@@ -2047,7 +2133,7 @@ enum BundledPriceAssets {
         }
       ],
       "source": "https://docs.x.ai/developers/models/grok-4.6",
-      "checked": "2026-10-22"
+      "checked": "2026-11-10"
     },
     {
       "id": "grok-4.5",
@@ -3206,6 +3292,44 @@ enum BundledPriceAssets {
       "checked": "2026-10-22"
     },
     {
+      "id": "kimi-k3.1-pro",
+      "provider": "moonshot",
+      "name": "Kimi K3.1 Pro",
+      "status": "current",
+      "prices": {
+        "input": 2,
+        "cachedInput": 0.2,
+        "cacheWrite": 2,
+        "cacheWrite1h": 4,
+        "output": 10
+      },
+      "aliases": [
+        "k3.1-pro"
+      ],
+      "source": "https://www.kimi.ai/zh-hans/resources/kimi-k3-1-pro-pricing",
+      "checked": "2026-11-06",
+      "note": "Kimi Code calls it k3.1-pro (https://www.kimi.com/code/docs/en/kimi-code/models.html)."
+    },
+    {
+      "id": "kimi-k3.1-pro-highspeed",
+      "provider": "moonshot",
+      "name": "Kimi K3.1 Pro HighSpeed",
+      "status": "current",
+      "prices": {
+        "input": 4,
+        "cachedInput": 0.2,
+        "cacheWrite": 4,
+        "cacheWrite1h": 8,
+        "output": 20
+      },
+      "aliases": [
+        "k3.1-pro-highspeed"
+      ],
+      "source": "https://www.kimi.ai/zh-hans/resources/kimi-k3-1-pro-pricing",
+      "checked": "2026-11-06",
+      "note": "Kimi Code calls it k3.1-pro-highspeed (https://www.kimi.com/code/docs/en/kimi-code/models.html)."
+    },
+    {
       "id": "kimi-k3",
       "provider": "moonshot",
       "name": "Kimi K3",
@@ -3218,7 +3342,12 @@ enum BundledPriceAssets {
         "output": 15
       },
       "source": "https://platform.kimi.ai/docs/pricing/chat",
-      "checked": "2026-10-22"
+      "checked": "2026-11-06",
+      "aliases": [
+        "k3",
+        "k3-256k"
+      ],
+      "note": "Kimi Code calls it k3, and k3-256k for its 256K context variant at the same prices (https://www.kimi.com/code/docs/en/kimi-code/models.html)."
     },
     {
       "id": "kimi-k2.7-code",
@@ -3244,7 +3373,11 @@ enum BundledPriceAssets {
         "output": 8
       },
       "source": "https://platform.kimi.ai/docs/pricing/chat",
-      "checked": "2026-10-22"
+      "checked": "2026-11-06",
+      "aliases": [
+        "kimi-for-coding-highspeed"
+      ],
+      "note": "Kimi Code calls it kimi-for-coding-highspeed (https://www.kimi.com/code/docs/en/kimi-code/models.html)."
     },
     {
       "id": "kimi-k2.6",
@@ -4433,6 +4566,26 @@ enum BundledPriceAssets {
       "match": "exact",
       "value": "default-1.2",
       "reason": "WorkBuddy legacy slot labelled Claude-4.0-Sonnet; the served model is chosen by Tencent's gateway and not recorded."
+    },
+    {
+      "match": "exact",
+      "value": "lite",
+      "reason": "Qoder model tier; Qoder's service picks the model and its records do not name it."
+    },
+    {
+      "match": "exact",
+      "value": "efficient",
+      "reason": "Qoder model tier; Qoder's service picks the model and its records do not name it."
+    },
+    {
+      "match": "exact",
+      "value": "performance",
+      "reason": "Qoder model tier; Qoder's service picks the model and its records do not name it."
+    },
+    {
+      "match": "exact",
+      "value": "ultimate",
+      "reason": "Qoder model tier; Qoder's service picks the model and its records do not name it."
     }
   ],
   "tests": [
@@ -4491,6 +4644,38 @@ enum BundledPriceAssets {
     {
       "model": "claude-fable-5-1",
       "expect": "claude-fable-5-1"
+    },
+    {
+      "model": "claude-fable-5-2",
+      "expect": "claude-fable-5-2"
+    },
+    {
+      "model": "claude-mythos-5-2",
+      "expect": "claude-mythos-5-2"
+    },
+    {
+      "model": "claude-fable-5-2[1m]",
+      "expect": "claude-fable-5-2"
+    },
+    {
+      "model": "claude-fable-5-2-fast",
+      "expect": "claude-fable-5-2 fast"
+    },
+    {
+      "model": "claude-mythos-5-2-fast",
+      "expect": "claude-mythos-5-2 fast"
+    },
+    {
+      "model": "anthropic/claude-fable-5.2",
+      "expect": "claude-fable-5-2"
+    },
+    {
+      "model": "claude-fable-5-2@default",
+      "expect": "claude-fable-5-2"
+    },
+    {
+      "model": "claude-fable-5-2-thinking-high",
+      "expect": "claude-fable-5-2"
     },
     {
       "model": "claude-sonnet-5",
@@ -4645,6 +4830,22 @@ enum BundledPriceAssets {
       "expect": "grok-code-fast-1"
     },
     {
+      "model": "grok-4.7-build",
+      "expect": "grok-4.7"
+    },
+    {
+      "model": "grok-4.6-build",
+      "expect": "grok-4.6"
+    },
+    {
+      "model": "xai/grok-4.7-build",
+      "expect": "grok-4.7"
+    },
+    {
+      "model": "grok-build-0.1",
+      "expect": "grok-build-0.1"
+    },
+    {
       "model": "grok-4",
       "expect": "grok-4-0709"
     },
@@ -4773,6 +4974,18 @@ enum BundledPriceAssets {
       "expect": "gemini-4-argon"
     },
     {
+      "model": "gemini-4-carbon",
+      "expect": "gemini-4-carbon"
+    },
+    {
+      "model": "models/gemini-4-carbon",
+      "expect": "gemini-4-carbon"
+    },
+    {
+      "model": "Gemini 4 Carbon (High)",
+      "expect": "gemini-4-carbon"
+    },
+    {
       "model": "mimo-v2.6-pro",
       "provider": "custom",
       "expect": "mimo-v2.6-pro"
@@ -4796,6 +5009,48 @@ enum BundledPriceAssets {
     {
       "model": "mimo-v2.5-pro",
       "expect": "unknown"
+    },
+    {
+      "model": "kimi-k3.1-pro",
+      "expect": "kimi-k3.1-pro"
+    },
+    {
+      "model": "k3.1-pro",
+      "expect": "kimi-k3.1-pro"
+    },
+    {
+      "model": "kimi-k3.1-pro-highspeed",
+      "expect": "kimi-k3.1-pro-highspeed"
+    },
+    {
+      "model": "k3.1-pro-highspeed",
+      "expect": "kimi-k3.1-pro-highspeed"
+    },
+    {
+      "model": "k3",
+      "expect": "kimi-k3"
+    },
+    {
+      "model": "k3-256k",
+      "expect": "kimi-k3"
+    },
+    {
+      "model": "kimi-for-coding-highspeed",
+      "expect": "kimi-k2.7-code-highspeed"
+    },
+    {
+      "model": "kimi-for-coding",
+      "expect": "unknown"
+    },
+    {
+      "model": "k3.1-pro",
+      "provider": "openai",
+      "expect": "kimi-k3.1-pro"
+    },
+    {
+      "model": "moonshotai/k3.1-pro-highspeed",
+      "provider": "openai",
+      "expect": "kimi-k3.1-pro-highspeed"
     }
   ]
 }

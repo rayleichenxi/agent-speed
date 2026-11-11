@@ -61,13 +61,14 @@ internal sealed class NamePlates
             var work = monitor?.WorkRect ?? new RectD(0, 0, 1920, 1080);
             subjects[i] = new NamePlateSubject(
                 new PointD(orb.Center.X / scale, orb.Center.Y / scale),
-                monitor?.OrbDisplay.DiameterFor(orb.Definition.Size, orb.Definition.Style) ?? orb.Window.Surface.Diameter,
+                monitor?.OrbDisplay.FootprintFor(orb.Definition.Size, orb.Definition.Style) ?? orb.Window.Surface.Diameter,
                 new RectD(work.X / scale, work.Y / scale, work.Width / scale, work.Height / scale),
                 NamePlateRules.Shows(orb.Definition, settings));
         }
 
+        var hosts = Presentation.Remote.RemoteHostStates.Choices(settings.RemoteHosts, _loc);
         NamePlateLayout Fit(int i, double budget) =>
-            NamePlateContent.Plate(orbs[i].Definition, availability, _loc, new NamePlateMetrics(subjects[i].Size), budget, type.Measure);
+            NamePlateContent.Plate(orbs[i].Definition, availability, _loc, new NamePlateMetrics(subjects[i].Size), budget, type.Measure, hosts);
 
         var placed = NamePlatePlacement.Resolve(subjects, (i, budget) => Fit(i, budget).Width);
         var seen = new HashSet<string>(StringComparer.Ordinal);

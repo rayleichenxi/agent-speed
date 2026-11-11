@@ -7,6 +7,7 @@ let package = Package(
     platforms: [.macOS(.v14)],
     products: [
         .executable(name: "AgentSpeed", targets: ["AgentSpeed"]),
+        .executable(name: "agent-speed-statusline", targets: ["AgentSpeedStatusLine"]),
     ],
     targets: [
         .target(
@@ -21,13 +22,26 @@ let package = Package(
             ]
         ),
         .target(
+            name: "AgentSpeedStatusLineKit",
+            path: "Sources/AgentSpeedStatusLineKit"
+        ),
+        .executableTarget(
+            name: "AgentSpeedStatusLine",
+            dependencies: ["AgentSpeedStatusLineKit"],
+            path: "Sources/AgentSpeedStatusLine"
+        ),
+        .target(
             name: "AgentSpeedCore",
-            dependencies: ["CZstd"],
+            dependencies: ["CZstd", "AgentSpeedStatusLineKit"],
             path: "Sources/AgentSpeedCore"
         ),
         .target(
             name: "AgentSpeedHero",
             path: "Sources/AgentSpeedHero"
+        ),
+        .target(
+            name: "AgentSpeedCharacter",
+            path: "Sources/AgentSpeedCharacter"
         ),
         .target(
             name: "AgentSpeedOrbModel",
@@ -36,7 +50,7 @@ let package = Package(
         ),
         .executableTarget(
             name: "AgentSpeed",
-            dependencies: ["AgentSpeedCore", "AgentSpeedHero", "AgentSpeedOrbModel"],
+            dependencies: ["AgentSpeedCore", "AgentSpeedHero", "AgentSpeedOrbModel", "AgentSpeedCharacter"],
             path: "Sources/AgentSpeed"
         ),
         .executableTarget(
@@ -50,9 +64,19 @@ let package = Package(
             path: "Tests/AgentSpeedCoreTests"
         ),
         .testTarget(
+            name: "AgentSpeedStatusLineTests",
+            dependencies: ["AgentSpeedStatusLineKit"],
+            path: "Tests/AgentSpeedStatusLineTests"
+        ),
+        .testTarget(
             name: "AgentSpeedHeroTests",
             dependencies: ["AgentSpeedHero"],
             path: "Tests/AgentSpeedHeroTests"
+        ),
+        .testTarget(
+            name: "AgentSpeedCharacterTests",
+            dependencies: ["AgentSpeedCharacter"],
+            path: "Tests/AgentSpeedCharacterTests"
         ),
         .testTarget(
             name: "AgentSpeedOrbModelTests",
@@ -61,7 +85,7 @@ let package = Package(
         ),
         .testTarget(
             name: "AgentSpeedAppTests",
-            dependencies: ["AgentSpeed", "AgentSpeedCore"],
+            dependencies: ["AgentSpeed", "AgentSpeedCore", "AgentSpeedCharacter", "AgentSpeedStatusLineKit"],
             path: "Tests/AgentSpeedAppTests"
         ),
     ]

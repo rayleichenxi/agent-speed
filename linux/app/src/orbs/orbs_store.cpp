@@ -4,14 +4,17 @@
 #include <QJsonDocument>
 #include <QSettings>
 #include <QUuid>
+#include <QVariantMap>
 #include <algorithm>
 #include <cmath>
+
+#include "agentspeed/host_selection.hpp"
 
 namespace {
 
 constexpr int kMaxArrangements = 16;
 const QStringList kStyles{QStringLiteral("led"), QStringLiteral("needle"), QStringLiteral("liquid"), QStringLiteral("reactor"),
-                          QStringLiteral("minimal")};
+                          QStringLiteral("minimal"), QStringLiteral("character")};
 const QStringList kTraffic{QStringLiteral("sources"), QStringLiteral("machine"), QStringLiteral("intelligence"), QStringLiteral("off")};
 
 std::optional<int> optionalInt(const QJsonValue& value) {
@@ -34,6 +37,7 @@ OrbConfig OrbConfig::fromJson(const QJsonObject& o) {
     c.extra = o;
     c.id = o.value(QStringLiteral("id")).toString();
     if (const auto name = optionalString(o.value(QStringLiteral("name")))) c.name = name->trimmed().left(32);
+    c.hosts = hostsFromJson(o.value(QStringLiteral("hosts")));
     const auto sources = o.value(QStringLiteral("sources"));
     if (sources.isArray()) {
         QStringList list;
@@ -59,6 +63,62 @@ OrbConfig OrbConfig::fromJson(const QJsonObject& o) {
     c.traffic = traffic.isUndefined() ? QStringLiteral("sources") : kTraffic.contains(traffic.toString()) ? traffic.toString() : QStringLiteral("off");
     const auto showName = o.value(QStringLiteral("showName"));
     if (showName.isBool()) c.showName = showName.toBool();
+    if (const auto character = o.value(QStringLiteral("character")); character.isString()) {
+        c.character = cleanCharacter(character.toString());
+    }
+    c.characterReadouts = readoutsFromJson(o.value(QStringLiteral("characterReadouts")));
+    return c;
+}
+
+std::optional<QString> OrbConfig::cleanCharacter(const QString& id) {
+    const auto clean = agentspeed::character::cleanCharacterID(id.toStdString());
+    if (!clean) return std::nullopt;
+    return QString::fromStdString(*clean);
+}
+
+agentspeed::character::CharacterReadouts OrbConfig::readoutsFromJson(const QJsonValue& value) {
+    agentspeed::character::CharacterReadouts r;
+    if (!value.isObject()) return r;
+    const auto o = value.toObject();
+    for (const auto readout : agentspeed::character::kCharacterReadouts) {
+        const auto v = o.value(QLatin1String(agentspeed::character::key(readout)));
+        if (v.isBool()) r.set(readout, v.toBool());
+    }
+    return r;
+}
+
+QJsonObject OrbConfig::readoutsToJson(const agentspeed::character::CharacterReadouts& r) {
+    QJsonObject o;
+    for (const auto readout : agentspeed::character::kCharacterReadouts) {
+        o.insert(QLatin1String(agentspeed::character::key(readout)), r.get(readout));
+    }
+    return o;
+}
+
+QVariantList OrbConfig::readoutItems() {
+    QVariantList out;
+    for (const auto readout : agentspeed::character::kCharacterReadouts) {
+        out.push_back(QVariantMap{{QStringLiteral("key"), QLatin1String(agentspeed::character::key(readout))},
+                                  {QStringLiteral("title"), QLatin1String(agentspeed::character::titleKey(readout))}});
+    }
+    return out;
+}
+
+OrbConfig OrbConfig::childOf(const OrbConfig& from, const QString& id) {
+    OrbConfig c;
+    c.id = id;
+    c.style = from.style;
+    c.size = from.size;
+    c.opacity = from.opacity;
+    c.alwaysOnTop = from.alwaysOnTop;
+    c.clickThrough = from.clickThrough;
+    c.fadeWhenIdle = from.fadeWhenIdle;
+    c.titleTheme = from.titleTheme;
+    c.unit = from.unit;
+    c.traffic = from.traffic;
+    c.showName = from.showName;
+    c.character = from.character;
+    c.characterReadouts = from.characterReadouts;
     return c;
 }
 
@@ -71,6 +131,7 @@ QJsonObject OrbConfig::toJson() const {
     } else {
         o.insert(QStringLiteral("sources"), QStringLiteral("all"));
     }
+    o.insert(QStringLiteral("hosts"), hostsToJson(hosts));
     o.insert(QStringLiteral("style"), style);
     o.insert(QStringLiteral("size"), size);
     o.insert(QStringLiteral("opacity"), opacity);
@@ -84,7 +145,32 @@ QJsonObject OrbConfig::toJson() const {
     o.insert(QStringLiteral("unit"), unit);
     o.insert(QStringLiteral("traffic"), traffic);
     o.insert(QStringLiteral("showName"), showName ? QJsonValue(*showName) : QJsonValue(QJsonValue::Null));
+    if (character) o.insert(QStringLiteral("character"), *character);
+    else o.remove(QStringLiteral("character"));
+    if (!characterReadouts.isDefault()) o.insert(QStringLiteral("characterReadouts"), readoutsToJson(characterReadouts));
+    else o.remove(QStringLiteral("characterReadouts"));
     return o;
+}
+
+std::optional<QStringList> OrbConfig::hostsFromJson(const QJsonValue& value) {
+    std::vector<std::string> ids;
+    if (value.isString()) {
+        if (value.toString() == QLatin1String("all")) return std::nullopt;
+        ids.push_back(value.toString().toStdString());
+    } else if (value.isArray()) {
+        for (const auto& v : value.toArray()) {
+            if (v.isString()) ids.push_back(v.toString().toStdString());
+        }
+    }
+    const auto selection = agentspeed::hosts::HostSelection::normalized(ids);
+    if (selection.isAll()) return std::nullopt;
+    QStringList list;
+    for (const auto& id : selection.ids()) list.push_back(QString::fromStdString(id));
+    return list;
+}
+
+QJsonValue OrbConfig::hostsToJson(const std::optional<QStringList>& hosts) {
+    return hosts ? QJsonValue(QJsonArray::fromStringList(*hosts)) : QJsonValue(QStringLiteral("all"));
 }
 
 OrbPosition OrbPosition::fromJson(const QJsonObject& o) {
@@ -108,13 +194,14 @@ QString OrbsStore::newId() { return QUuid::createUuid().toString(QUuid::WithoutB
 
 OrbConfig OrbsStore::clamped(OrbConfig c) {
     if (c.id.isEmpty()) c.id = newId();
-    c.size = std::clamp(std::isfinite(c.size) ? c.size : 148.0, c.minimumSize(), 240.0);
+    c.size = std::clamp(std::isfinite(c.size) ? c.size : 148.0, OrbConfig::kMinSize, OrbConfig::kMaxSize);
     c.opacity = std::clamp(std::isfinite(c.opacity) ? c.opacity : 1.0, 0.4, 1.0);
     if (c.name) {
         const QString trimmed = c.name->trimmed().left(32);
         c.name = trimmed.isEmpty() ? std::nullopt : std::optional<QString>(trimmed);
     }
     if (c.sources && c.sources->isEmpty()) c.sources.reset();
+    if (c.hosts) c.hosts = OrbConfig::hostsFromJson(QJsonArray::fromStringList(*c.hosts));
     return c;
 }
 

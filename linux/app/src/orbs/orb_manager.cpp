@@ -1,5 +1,8 @@
 #include "orbs/orb_manager.hpp"
 
+#include "characters/character_library.hpp"
+#include "orbs/character_demo.hpp"
+
 #include <QActionGroup>
 #include <QDateTime>
 #include <QIcon>
@@ -17,9 +20,14 @@
 
 #include "agentspeed/model.hpp"
 #include "appearance.hpp"
+#include "host_dot.hpp"
 #include "orb/orb_window.hpp"
+#include "orb/style.hpp"
 #include "orbs/name_plate.hpp"
+#include "orbs/size_slider_action.hpp"
 #include "preferences.hpp"
+#include "quota/quota_view.hpp"
+#include "remote_hosts_view.hpp"
 #include "source_colors.hpp"
 #include "strings.hpp"
 #include "title_themes.hpp"
@@ -28,7 +36,6 @@ namespace {
 
 constexpr double kGap = 12, kSnapMargin = 12;
 constexpr double kPresets[] = {112, 148, 196};
-const char* const kStyles[] = {"led", "needle", "liquid", "reactor", "minimal"};
 
 QString fill(QString text, const QStringList& args) {
     for (const auto& arg : args) {
@@ -42,7 +49,7 @@ QString fill(QString text, const QStringList& args) {
 // METRICS 1 source order.
 QStringList sourceOrder() {
     QStringList keys;
-    for (int k = 0; k <= static_cast<int>(agentspeed::SourceKind::Droid); ++k) {
+    for (int k = 0; k <= static_cast<int>(agentspeed::SourceKind::QoderCli); ++k) {
         keys.push_back(QString::fromUtf8(agentspeed::sourceId(static_cast<agentspeed::SourceKind>(k))));
     }
     return keys;
@@ -96,6 +103,33 @@ void OrbManager::setTitles(const TitleThemes* titles) {
     if (titles_) connect(titles_, &TitleThemes::changed, this, &OrbManager::listChanged);
 }
 
+void OrbManager::setHostsView(const RemoteHostsView* hosts) {
+    hosts_ = hosts;
+    if (hosts_) connect(hosts_, &RemoteHostsView::namesChanged, this, &OrbManager::sync);
+}
+
+void OrbManager::setQuotas(const QuotaView* quotas) {
+    quotas_ = quotas;
+    if (quotas_) connect(quotas_, &QuotaView::changed, this, &OrbManager::pushQuotas);
+    pushQuotas();
+}
+
+// Every `character` orb's 額度 items, made again once the quotas or the orb's sources or hosts changed.
+void OrbManager::pushQuotas() {
+    if (!quotas_) return;
+    for (const auto& c : store_.orbs()) {
+        const auto it = orbs_.find(c.id);
+        if (it == orbs_.end() || c.style != QLatin1String("character")) continue;
+        const QStringList sources = c.sources.value_or(QStringList());
+        const QStringList hosts = c.hosts.value_or(QStringList());
+        const QString key = QString::number(quotas_->revision()) + QLatin1Char('|') + sources.join(QLatin1Char(',')) + QLatin1Char('|') +
+                            (c.tracksAllHosts() ? QStringLiteral("*") : hosts.join(QLatin1Char(',')));
+        if (key == it->second.quotaKey) continue;
+        it->second.quotaKey = key;
+        it->second.window->setQuota(quotas_->cardItems(sources, hosts, c.tracksAllHosts()));
+    }
+}
+
 void OrbManager::start() {
     started_ = true;
     placeAll();
@@ -126,11 +160,13 @@ QString OrbManager::sourceName(const QString& key) const { return strings_.t(QSt
 // DESIGN 2b `name`: custom, else all sources, one source's name, `A + B`, or `A +n`, in source order.
 QString OrbManager::nameOf(const OrbConfig& c) const {
     if (c.name) return *c.name;
-    if (!c.sources) return strings_.t(QStringLiteral("orbs.sources.all"));
+    // DESIGN 13: ` · <host>` or ` · <first> +N` after the sources' name.
+    const QString hosts = hosts_ ? hosts_->nameSuffix(c.hosts) : QString();
+    if (!c.sources) return strings_.t(QStringLiteral("orbs.sources.all")) + hosts;
     const auto keys = ordered(*c.sources);
-    if (keys.size() == 1) return sourceName(keys[0]);
-    if (keys.size() == 2) return fill(strings_.t(QStringLiteral("orbs.name.pair")), {sourceName(keys[0]), sourceName(keys[1])});
-    return fill(strings_.t(QStringLiteral("orbs.name.more")), {sourceName(keys[0]), QString::number(keys.size() - 1)});
+    if (keys.size() == 1) return sourceName(keys[0]) + hosts;
+    if (keys.size() == 2) return fill(strings_.t(QStringLiteral("orbs.name.pair")), {sourceName(keys[0]), sourceName(keys[1])}) + hosts;
+    return fill(strings_.t(QStringLiteral("orbs.name.more")), {sourceName(keys[0]), QString::number(keys.size() - 1)}) + hosts;
 }
 
 QString OrbManager::autoName(const QString& id) const {
@@ -187,19 +223,24 @@ bool OrbManager::platesShown(const QString& id) const {
     if (c->showName) return *c->showName;
     if (names_ == QLatin1String("always")) return true;
     if (names_ == QLatin1String("never")) return false;
-    return visibleCount() >= 2 || !c->tracksAll();
+    return visibleCount() >= 2 || !c->tracksAll() || !c->tracksAllHosts();
 }
 
 std::vector<OrbSpec> orbSpecs(const OrbsStore& store) {
     std::vector<OrbSpec> out;
     for (const auto& c : store.orbs()) {
-        OrbSpec spec{c.id, std::nullopt};
+        OrbSpec spec{c.id, std::nullopt, std::nullopt};
         if (c.sources) {
             std::vector<agentspeed::SourceKind> kinds;
             for (const auto& key : *c.sources) {
                 if (const auto kind = agentspeed::sourceFromId(key.toStdString())) kinds.push_back(*kind);
             }
             spec.sources = kinds;
+        }
+        if (c.hosts) {
+            std::vector<std::string> ids;
+            for (const auto& id : *c.hosts) ids.push_back(id.toStdString());
+            spec.hosts = ids;
         }
         out.push_back(spec);
     }
@@ -218,11 +259,12 @@ QVariantList OrbManager::list() const {
                                                 {strings_.t(QStringLiteral("style.") + c.style), QString::number(qRound(c.size))}));
         m.insert(QStringLiteral("style"), c.style);
         m.insert(QStringLiteral("size"), c.size);
-        m.insert(QStringLiteral("minimumSize"), c.minimumSize());
+        m.insert(QStringLiteral("minimumSize"), OrbConfig::kMinSize);
         m.insert(QStringLiteral("opacity"), c.opacity);
         m.insert(QStringLiteral("visible"), c.visible);
         m.insert(QStringLiteral("all"), c.tracksAll());
         m.insert(QStringLiteral("sources"), c.sources.value_or(QStringList()));
+        m.insert(QStringLiteral("hosts"), c.hosts ? QVariant(*c.hosts) : QVariant(QStringLiteral("all")));
         QVariantList colors;
         for (const auto& key : c.sources ? ordered(*c.sources) : detected()) colors.push_back(sourceColor(key));
         m.insert(QStringLiteral("colors"), colors);
@@ -234,6 +276,8 @@ QVariantList OrbManager::list() const {
         m.insert(QStringLiteral("showName"), c.showName ? QVariant(*c.showName) : QVariant());
         m.insert(QStringLiteral("plate"), platesShown(c.id));
         m.insert(QStringLiteral("titleTheme"), c.titleTheme.value_or(QString()));
+        m.insert(QStringLiteral("character"), c.character.value_or(QString()));
+        m.insert(QStringLiteral("characterReadouts"), OrbConfig::readoutsToJson(c.characterReadouts).toVariantMap());
         const bool total = prefs_.metric() == QLatin1String("total");
         const auto own = total ? c.redlineTotal : c.redlineOutput;
         m.insert(QStringLiteral("customRedline"), own.has_value());
@@ -272,6 +316,7 @@ void OrbManager::sync() {
         } else {
             orb.window = std::make_unique<orb::OrbWindow>(strings_, c.id);
             orb.window->setTitles(titles_);
+            orb.window->setCharacters(characters_);
             orb.window->forceDark(forcedDark_);
             orb.window->setEffectsLevel(effectsLevel_);
             orb.plate = std::make_unique<NamePlate>();
@@ -336,11 +381,12 @@ void OrbManager::sync() {
         emit specsChanged();
     }
     layoutPlates();
+    pushQuotas();
     emit listChanged();
 }
 
 void OrbManager::syncWindow(const OrbConfig& c, Orb& orb) {
-    orb.window->apply(c, store_.orbs().size() > 1 || !c.tracksAll() ? nameOf(c) : QString(), redlineOf(c));
+    orb.window->apply(c, store_.orbs().size() > 1 || !c.tracksAll() || !c.tracksAllHosts() ? nameOf(c) : QString(), redlineOf(c));
     // a11y.orb.sources: the tracked sources joined with list.separator.
     QStringList names;
     for (const auto& key : c.sources ? ordered(*c.sources) : detected()) names.push_back(sourceName(key));
@@ -362,8 +408,15 @@ void OrbManager::applySnapshot(const QVariantMap& snap) {
         if (it == orbs_.end()) continue;
         valuesChanged = valuesChanged || it->second.values.value(QStringLiteral("liveText")) != map.value(QStringLiteral("liveText"));
         it->second.values = map;
+        if (character_demo::enabled() && it->second.window->style() == QLatin1String("character")) {
+            auto demo = map;
+            character_demo::apply(demo, static_cast<double>(QDateTime::currentMSecsSinceEpoch()) / 1000, strings_.language());
+            it->second.window->applySnapshot(demo);
+            continue;
+        }
         it->second.window->applySnapshot(map);
     }
+    pushQuotas();
     if (valuesChanged) emit this->valuesChanged();
 }
 
@@ -418,9 +471,9 @@ void OrbManager::set(const QString& id, const QString& key, const QVariant& valu
     if (!found) return;
     OrbConfig c = *found;
     const bool sourcesBefore = c.tracksAll();
+    const QString styleBefore = c.style;
     if (key == QLatin1String("style")) {
         c.style = value.toString();
-        c.size = std::max(c.size, c.minimumSize());
     } else if (key == QLatin1String("size")) {
         c.size = std::round(value.toDouble() / 4) * 4;
     } else if (key == QLatin1String("opacity")) {
@@ -458,6 +511,47 @@ void OrbManager::set(const QString& id, const QString& key, const QVariant& valu
     }
     store_.update(c);
     if (sourcesBefore != c.tracksAll()) showChip(id, 2);
+    // Switching to `character` downloads every character, this orb's live vendors first (CHARACTERS 2).
+    if (characters_ && key == QLatin1String("style") && c.style == QLatin1String("character") && styleBefore != c.style) {
+        const auto it = orbs_.find(id);
+        characters_->downloadAll(it == orbs_.end() ? QStringList() : it->second.values.value(QStringLiteral("vendorOrder")).toStringList());
+    }
+}
+
+void OrbManager::setCharacter(const QString& id, const QString& character) {
+    const auto* found = store_.find(id);
+    if (!found) return;
+    OrbConfig c = *found;
+    c.character = OrbConfig::cleanCharacter(character);
+    if (c.character == found->character) return;
+    store_.update(c);
+}
+
+void OrbManager::setCharacterReadout(const QString& id, const QString& key, bool on) {
+    const auto* found = store_.find(id);
+    if (!found) return;
+    OrbConfig c = *found;
+    for (const auto readout : agentspeed::character::kCharacterReadouts) {
+        if (key == QLatin1String(agentspeed::character::key(readout))) c.characterReadouts.set(readout, on);
+    }
+    if (c.characterReadouts == found->characterReadouts) return;
+    store_.update(c);
+}
+
+QVariantList OrbManager::characterReadoutItems() const { return OrbConfig::readoutItems(); }
+
+void OrbManager::setCharacters(CharacterLibrary* characters) {
+    characters_ = characters;
+    for (auto& [id, orb] : orbs_) orb.window->setCharacters(characters_);
+    if (characters_) connect(characters_, &CharacterLibrary::installedChanged, this, [this] { sync(); });
+}
+
+bool OrbManager::anyCharacterOrb() const {
+    return std::any_of(store_.orbs().begin(), store_.orbs().end(), [](const OrbConfig& c) { return c.style == QLatin1String("character"); });
+}
+
+void OrbManager::resumeCharacterDownloads() {
+    if (characters_ && anyCharacterOrb()) characters_->downloadAll({});
 }
 
 // Checking a source on an all-sources orb makes the set that single source; the last one cannot be unchecked.
@@ -478,23 +572,20 @@ void OrbManager::setSource(const QString& id, const QString& source, bool on) {
     showChip(id, 2);
 }
 
+void OrbManager::setHosts(const QString& id, const QVariant& hosts) {
+    const auto* found = store_.find(id);
+    if (!found) return;
+    OrbConfig c = *found;
+    const auto next = OrbConfig::hostsFromJson(QJsonValue::fromVariant(hosts));
+    if (next == c.hosts) return;
+    c.hosts = next;
+    store_.update(c);
+    showChip(id, 2);
+}
+
 // Add, Duplicate and Split copy the look and the toggles; a new orb's sources are the first detected source no orb
 // tracks explicitly (else all sources).
-OrbConfig OrbManager::childOf(const OrbConfig& from) const {
-    OrbConfig c;
-    c.id = OrbsStore::newId();
-    c.style = from.style;
-    c.size = from.size;
-    c.opacity = from.opacity;
-    c.alwaysOnTop = from.alwaysOnTop;
-    c.clickThrough = from.clickThrough;
-    c.fadeWhenIdle = from.fadeWhenIdle;
-    c.titleTheme = from.titleTheme;
-    c.unit = from.unit;
-    c.traffic = from.traffic;
-    c.showName = from.showName;
-    return c;
-}
+OrbConfig OrbManager::childOf(const OrbConfig& from) const { return OrbConfig::childOf(from, OrbsStore::newId()); }
 
 void OrbManager::add(const QString& from) {
     const auto* source = store_.find(from.isEmpty() ? selected_ : from);
@@ -511,9 +602,9 @@ void OrbManager::add(const QString& from) {
         }
     }
     const QString origin = source->id;
-    const QPointF from_ = orbs_.count(origin) ? orbs_[origin].window->discCenter() : defaultCenter(c.size);
-    const double fromRadius = source->size / 2;
-    store_.setPosition(arrangement(), c.id, recordOf(freeSpot(from_, fromRadius, c.size / 2, QString()), c.size));
+    const QPointF from_ = orbs_.count(origin) ? orbs_[origin].window->discCenter() : defaultCenter(c.footprintDiameter());
+    const double fromRadius = source->footprintDiameter() / 2;
+    store_.setPosition(arrangement(), c.id, recordOf(freeSpot(from_, fromRadius, c.footprintDiameter() / 2, QString()), c.footprintDiameter()));
     if (store_.insert(c, origin)) {
         select(c.id);
         showChip(c.id, 2);
@@ -527,8 +618,8 @@ void OrbManager::duplicate(const QString& id) {
     c.id = OrbsStore::newId();
     c.extra = {};
     if (c.name) c.name = *c.name + QStringLiteral(" 2");
-    const QPointF from = orbs_.count(id) ? orbs_[id].window->discCenter() : defaultCenter(c.size);
-    store_.setPosition(arrangement(), c.id, recordOf(freeSpot(from, source->size / 2, c.size / 2, QString()), c.size));
+    const QPointF from = orbs_.count(id) ? orbs_[id].window->discCenter() : defaultCenter(c.footprintDiameter());
+    store_.setPosition(arrangement(), c.id, recordOf(freeSpot(from, source->footprintDiameter() / 2, c.footprintDiameter() / 2, QString()), c.footprintDiameter()));
     if (store_.insert(c, id)) select(c.id);
 }
 
@@ -548,11 +639,11 @@ std::vector<OrbConfig> OrbManager::splitInto(std::vector<OrbConfig>& all, int at
     first.sources = QStringList{keys[0]};
     first.name.reset();
     all[static_cast<std::size_t>(at)] = first;
-    const QPointF start = orbs_.count(original.id) ? orbs_[original.id].window->discCenter() : defaultCenter(original.size);
+    const QPointF start = orbs_.count(original.id) ? orbs_[original.id].window->discCenter() : defaultCenter(original.footprintDiameter());
     QScreen* screen = QGuiApplication::screenAt(start.toPoint());
     if (!screen) screen = QGuiApplication::primaryScreen();
     const QRectF avail = screen->availableGeometry();
-    const double r = original.size / 2;
+    const double r = original.footprintDiameter() / 2;
     const bool column = start.x() - r - avail.left() <= kSnapMargin + 2 || avail.right() + 1 - start.x() - r <= kSnapMargin + 2;
     const QPointF step = column ? QPointF(0, start.y() < avail.center().y() ? 1 : -1) * (2 * r + kGap)
                                 : QPointF(start.x() < avail.center().x() ? 1 : -1, 0) * (2 * r + kGap);
@@ -561,9 +652,11 @@ std::vector<OrbConfig> OrbManager::splitInto(std::vector<OrbConfig>& all, int at
     for (int i = 1; i < keys.size(); ++i) {
         OrbConfig c = childOf(original);
         c.sources = QStringList{keys[i]};
+        // DESIGN 13: a split keeps the orb's hosts.
+        c.hosts = original.hosts;
         QPointF next = previous + step;
         if (!avail.adjusted(r, r, -r, -r).contains(next)) next = freeSpot(previous, r, r, original.id);
-        store_.setPosition(arrangement(), c.id, recordOf(next, c.size));
+        store_.setPosition(arrangement(), c.id, recordOf(next, c.footprintDiameter()));
         previous = next;
         children.push_back(c);
     }
@@ -707,7 +800,7 @@ void OrbManager::savePosition(const QString& id) {
     const auto it = orbs_.find(id);
     const auto* c = store_.find(id);
     if (it == orbs_.end() || !c) return;
-    store_.setPosition(arrangement(), id, recordOf(it->second.window->discCenter(), c->size));
+    store_.setPosition(arrangement(), id, recordOf(it->second.window->discCenter(), c->footprintDiameter()));
 }
 
 // An orb's place in this arrangement; else its record from the last arrangement when its display is still connected
@@ -718,16 +811,16 @@ void OrbManager::place(const QString& id) {
     if (!c || it == orbs_.end()) return;
     QPointF center;
     if (auto p = store_.position(arrangement(), id)) {
-        center = centerOf(*p, c->size);
+        center = centerOf(*p, c->footprintDiameter());
     } else if (auto last = store_.lastPosition(id, arrangement())) {
-        center = centerOf(*last, c->size);
+        center = centerOf(*last, c->footprintDiameter());
     } else if (store_.indexOf(id) == 0 && store_.legacyCenter() && QGuiApplication::screenAt(store_.legacyCenter()->toPoint())) {
         center = *store_.legacyCenter();
     } else {
-        center = store_.indexOf(id) == 0 ? defaultCenter(c->size) : freeSpot(defaultCenter(c->size), c->size / 2, c->size / 2, id);
+        center = store_.indexOf(id) == 0 ? defaultCenter(c->footprintDiameter()) : freeSpot(defaultCenter(c->footprintDiameter()), c->footprintDiameter() / 2, c->footprintDiameter() / 2, id);
     }
     it->second.window->placeAt(center);
-    store_.setPosition(arrangement(), id, recordOf(center, c->size));
+    store_.setPosition(arrangement(), id, recordOf(center, c->footprintDiameter()));
 }
 
 // Every orb from the layout of the current arrangement; overlaps are resolved in list order.
@@ -737,10 +830,10 @@ void OrbManager::placeAll() {
     for (const auto& c : store_.orbs()) {
         auto& window = orbs_[c.id].window;
         const QPointF center = window->discCenter();
-        if (!fits(center, c.size / 2, c.id)) {
-            const QPointF free = freeSpot(center, c.size / 2, c.size / 2, c.id);
+        if (!fits(center, c.footprintDiameter() / 2, c.id)) {
+            const QPointF free = freeSpot(center, c.footprintDiameter() / 2, c.footprintDiameter() / 2, c.id);
             window->placeAt(free);
-            store_.setPosition(arrangement(), c.id, recordOf(free, c.size));
+            store_.setPosition(arrangement(), c.id, recordOf(free, c.footprintDiameter()));
         }
         window->setShown(shown_ && c.visible);
     }
@@ -753,7 +846,7 @@ std::vector<orb::Disc> OrbManager::discs(const QString& except) const {
         if (c.id == except) continue;
         const auto it = orbs_.find(c.id);
         if (it == orbs_.end() || !it->second.window->isVisible()) continue;
-        out.push_back({it->second.window->discCenter(), c.size / 2});
+        out.push_back({it->second.window->discCenter(), c.footprintDiameter() / 2});
     }
     return out;
 }
@@ -800,8 +893,8 @@ void OrbManager::resetPosition(const QString& id) {
     const auto* c = store_.find(id);
     auto it = orbs_.find(id);
     if (!c || it == orbs_.end()) return;
-    QPointF center = defaultCenter(c->size);
-    if (!fits(center, c->size / 2, id)) center = freeSpot(center, c->size / 2, c->size / 2, id);
+    QPointF center = defaultCenter(c->footprintDiameter());
+    if (!fits(center, c->footprintDiameter() / 2, id)) center = freeSpot(center, c->footprintDiameter() / 2, c->footprintDiameter() / 2, id);
     it->second.window->placeAt(center);
     savePosition(id);
     layoutPlates();
@@ -815,7 +908,7 @@ void OrbManager::moveToNextCorner(const QString& id) {
     QScreen* screen = QGuiApplication::screenAt(center.toPoint());
     if (!screen) screen = QGuiApplication::primaryScreen();
     const QRectF avail = screen->availableGeometry();
-    const double r = c->size / 2, m = kSnapMargin + r;
+    const double r = c->footprintDiameter() / 2, m = kSnapMargin + r;
     const QPointF corners[] = {{avail.right() + 1 - m, avail.top() + m}, {avail.right() + 1 - m, avail.bottom() + 1 - m},
                                {avail.left() + m, avail.bottom() + 1 - m}, {avail.left() + m, avail.top() + m}};
     int nearest = 0;
@@ -851,14 +944,14 @@ void OrbManager::layoutPlates() {
         const bool visible = window->isVisible();
         const bool plate = platesShown(c.id);
         const bool chipWanted = visible && (window->hovered() || window->dragging() || now < orb.chipUntil);
-        const bool chip = chipWanted && (count() > 1 || !c.tracksAll());
+        const bool chip = chipWanted && (count() > 1 || !c.tracksAll() || !c.tracksAllHosts());
         if (!visible || (!plate && !chip)) {
             orb.plate->disappear();
             continue;
         }
         NamePlate::Look look;
         look.dark = isDark;
-        look.diameter = c.size;
+        look.diameter = c.footprintDiameter();
         const QStringList keys = c.sources ? ordered(*c.sources) : QStringList();
         QStringList unavailable;
         for (const auto& item : orb.values.value(QStringLiteral("sourceStates")).toList()) {
@@ -882,7 +975,8 @@ void OrbManager::layoutPlates() {
                     const auto row = item.toMap();
                     const QString status = row.value(QStringLiteral("status")).toString();
                     if (row.value(QStringLiteral("source")).toString() == key && !status.isEmpty()) {
-                        statuses.push_back(strings_.t(QStringLiteral("source.") + status));
+                        statuses.push_back(strings_.t(status == QLatin1String("hostsOffline") ? QStringLiteral("remote.orb.offline")
+                                                                                              : QStringLiteral("source.") + status));
                     }
                 }
             }
@@ -898,17 +992,17 @@ void OrbManager::layoutPlates() {
         }
         // Width budget: 1.5 S; with another disc in the horizontal band, to the point dividing the centers by size, less 3 pt.
         const QPointF center = window->discCenter();
-        const double r = c.size / 2 * window->hoverScale();
-        double budget = 1.5 * c.size;
+        const double r = c.footprintDiameter() / 2 * window->hoverScale();
+        double budget = 1.5 * c.footprintDiameter();
         for (const auto& d : discs(c.id)) {
-            if (std::abs(d.center.y() - center.y()) >= (c.size / 2 + d.radius)) continue;
+            if (std::abs(d.center.y() - center.y()) >= (c.footprintDiameter() / 2 + d.radius)) continue;
             const double distance = std::abs(d.center.x() - center.x());
-            budget = std::min(budget, 2 * (distance * c.size / (c.size + 2 * d.radius) - 3));
+            budget = std::min(budget, 2 * (distance * c.footprintDiameter() / (c.footprintDiameter() + 2 * d.radius) - 3));
         }
         look.budget = std::max(budget, 40.0);
         orb.plate->setLook(look);
         const QSizeF size = orb.plate->capsule();
-        const double g = NamePlate::gap(c.size);
+        const double g = NamePlate::gap(c.footprintDiameter());
         QScreen* screen = QGuiApplication::screenAt(center.toPoint());
         if (!screen) screen = QGuiApplication::primaryScreen();
         const QRectF avail = screen->availableGeometry().adjusted(3, 3, -3, -3);
@@ -951,8 +1045,40 @@ void OrbManager::layoutPlates() {
 // DESIGN 2b Context menu: header, style, sources, unit, traffic, name plate, size, effects, window toggles, add,
 // duplicate, split, merge, hide, remove, settings, dashboard, quit.
 void OrbManager::showMenu(const QString& id, QPoint global) {
+    if (auto* menu = buildMenu(id)) menu->popup(global);
+}
+
+QList<std::pair<QString, QImage>> OrbManager::menuPictures(const QString& id) {
+    QList<std::pair<QString, QImage>> out;
+    auto* menu = buildMenu(id);
+    if (!menu) return out;
+    out.push_back({QStringLiteral("menu"), menu->grab().toImage()});
+    for (auto* sub : menu->findChildren<QMenu*>()) {
+        if (sub->title() == strings_.t(QStringLiteral("remote.hosts"))) out.push_back({QStringLiteral("hosts"), sub->grab().toImage()});
+        if (sub->title() == strings_.t(QStringLiteral("characters.title"))) {
+            sub->adjustSize();
+            out.push_back({QStringLiteral("characters"), sub->grab().toImage()});
+        }
+        if (sub->title() == strings_.t(QStringLiteral("character.readouts"))) {
+            sub->adjustSize();
+            out.push_back({QStringLiteral("readouts"), sub->grab().toImage()});
+        }
+        if (sub->title() == strings_.t(QStringLiteral("menu.size"))) {
+            sub->adjustSize();
+            out.push_back({QStringLiteral("size"), sub->grab().toImage()});
+        }
+        if (sub->title() == strings_.t(QStringLiteral("orbs.style"))) {
+            sub->adjustSize();
+            out.push_back({QStringLiteral("style"), sub->grab().toImage()});
+        }
+    }
+    menu->deleteLater();
+    return out;
+}
+
+QMenu* OrbManager::buildMenu(const QString& id) {
     const auto* found = store_.find(id);
-    if (!found) return;
+    if (!found) return nullptr;
     const OrbConfig c = *found;
     auto* menu = new QMenu();
     menu->setAttribute(Qt::WA_DeleteOnClose);
@@ -966,10 +1092,12 @@ void OrbManager::showMenu(const QString& id, QPoint global) {
         return action;
     };
     auto* styles = menu->addMenu(strings_.t(QStringLiteral("orbs.style")));
-    for (const char* style : kStyles) {
-        const QString key = QString::fromLatin1(style);
+    for (const auto kind : orb::kStyles) {
+        const QString key = orb::styleKey(kind);
         radio(styles, strings_.t(QStringLiteral("style.") + key), c.style == key, [this, id, key] { set(id, QStringLiteral("style"), key); });
     }
+    const bool character = c.style == QLatin1String("character");
+    if (character) addCharacterMenu(menu, id);
     auto* sources = menu->addMenu(strings_.t(QStringLiteral("orbs.sources")));
     radio(sources, strings_.t(QStringLiteral("orbs.sources.all")), c.tracksAll(), [this, id] { set(id, QStringLiteral("allSources"), true); });
     sources->addSeparator();
@@ -998,12 +1126,14 @@ void OrbManager::showMenu(const QString& id, QPoint global) {
         }
         connect(action, &QAction::triggered, this, [this, id, key](bool on) { setSource(id, key, on); });
     }
-    auto* unit = menu->addMenu(strings_.t(QStringLiteral("orbs.unit")));
+    addHostsMenu(menu, c);
+    if (character) addReadoutsMenu(menu, id);
+    auto* unit = character ? new QMenu(menu) : menu->addMenu(strings_.t(QStringLiteral("orbs.unit")));
     radio(unit, strings_.t(QStringLiteral("orbs.unit.tokens")), c.unit != QLatin1String("cost"), [this, id] { set(id, QStringLiteral("unit"), QStringLiteral("tokens")); });
     const QString symbol = orbs_.count(id) ? orbs_[id].values.value(QStringLiteral("costSymbol")).toString() : QString();
     radio(unit, fill(strings_.t(QStringLiteral("orbs.unit.cost")), {symbol.isEmpty() ? QStringLiteral("US$") : symbol}), c.unit == QLatin1String("cost"),
           [this, id] { set(id, QStringLiteral("unit"), QStringLiteral("cost")); });
-    auto* traffic = menu->addMenu(strings_.t(QStringLiteral("orbs.traffic")));
+    auto* traffic = character ? new QMenu(menu) : menu->addMenu(strings_.t(QStringLiteral("orbs.traffic")));
     for (const char* mode : {"sources", "machine", "intelligence", "off"}) {
         const QString value = QString::fromLatin1(mode);
         radio(traffic, strings_.t(QStringLiteral("orbs.traffic.") + value), c.traffic == value, [this, id, value] { set(id, QStringLiteral("traffic"), value); });
@@ -1014,12 +1144,22 @@ void OrbManager::showMenu(const QString& id, QPoint global) {
     showName->setChecked(plate);
     connect(showName, &QAction::triggered, this, [this, id, plate] { set(id, QStringLiteral("showName"), !plate); });
 
+    // The presets, a separator and the slider over the whole range; the presets' check follows the slider.
     auto* size = menu->addMenu(strings_.t(QStringLiteral("menu.size")));
     const char* sizeKeys[] = {"menu.size.small", "menu.size.medium", "menu.size.large"};
+    QList<QAction*> presets;
     for (int i = 0; i < 3; ++i) {
         const double d = kPresets[i];
-        radio(size, strings_.t(QString::fromLatin1(sizeKeys[i])), std::abs(c.size - d) < 0.5, [this, id, d] { set(id, QStringLiteral("size"), d); });
+        presets.push_back(radio(size, strings_.t(QString::fromLatin1(sizeKeys[i])), std::abs(c.size - d) < 0.5,
+                                [this, id, d] { set(id, QStringLiteral("size"), d); }));
     }
+    size->addSeparator();
+    auto* slider = new SizeSliderAction(c.size, strings_.t(QStringLiteral("settings.orb.size")), size);
+    connect(slider, &SizeSliderAction::sizeChanged, this, [this, id, presets](double d) {
+        set(id, QStringLiteral("size"), d);
+        for (int i = 0; i < 3; ++i) presets[i]->setChecked(std::abs(d - kPresets[i]) < 0.5);
+    });
+    size->addAction(slider);
     auto* fx = menu->addMenu(strings_.t(QStringLiteral("menu.effects")));
     const char* levelKeys[] = {"effects.off", "effects.soft", "effects.standard", "effects.max"};
     for (int i = 0; i < 4; ++i) radio(fx, strings_.t(QString::fromLatin1(levelKeys[i])), effectsLevel_ == i, [this, i] { setEffectsLevel(i); });
@@ -1073,5 +1213,107 @@ void OrbManager::showMenu(const QString& id, QPoint global) {
     });
     menu->addAction(strings_.t(QStringLiteral("menu.dashboard")), this, &OrbManager::dashboardRequested);
     menu->addAction(strings_.t(QStringLiteral("menu.quit")), this, &OrbManager::quitRequested);
-    menu->popup(global);
+    return menu;
+}
+
+void OrbManager::addCharacterMenu(QMenu* menu, const QString& id) {
+    const auto* c = store_.find(id);
+    if (!c) return;
+    auto* sub = menu->addMenu(strings_.t(QStringLiteral("characters.title")));
+    auto* group = new QActionGroup(sub);
+    auto* automatic = sub->addAction(strings_.t(QStringLiteral("characters.auto")));
+    automatic->setCheckable(true);
+    automatic->setChecked(!c->character);
+    group->addAction(automatic);
+    connect(automatic, &QAction::triggered, this, [this, id] { setCharacter(id, QString()); });
+    if (characters_ && characters_->hasInstalled()) {
+        sub->addSeparator();
+        for (const auto& pack : characters_->packs()) {
+            const QString packID = QString::fromStdString(pack.id);
+            auto* action = sub->addAction(characters_->displayName(packID));
+            QPixmap dot(10, 10);
+            dot.fill(Qt::transparent);
+            {
+                QPainter p(&dot);
+                p.setRenderHint(QPainter::Antialiasing);
+                p.setPen(Qt::NoPen);
+                p.setBrush(QColor(characters_->accent(packID)));
+                p.drawEllipse(QRectF(1, 1, 8, 8));
+            }
+            action->setIcon(QIcon(dot));
+            action->setCheckable(true);
+            action->setChecked(c->character == packID);
+            group->addAction(action);
+            connect(action, &QAction::triggered, this, [this, id, packID] { setCharacter(id, packID); });
+        }
+    }
+    sub->addSeparator();
+    // Downloads live in the orb's Settings, under the style cards.
+    sub->addAction(strings_.t(QStringLiteral("characters.more")), this, [this, id] {
+        select(id);
+        emit settingsRequested();
+    });
+}
+
+void OrbManager::addReadoutsMenu(QMenu* menu, const QString& id) {
+    const auto* c = store_.find(id);
+    if (!c) return;
+    auto* sub = menu->addMenu(strings_.t(QStringLiteral("character.readouts")));
+    const bool measured = prefs_.trafficEnabled();
+    for (const auto readout : agentspeed::character::kCharacterReadouts) {
+        auto* action = sub->addAction(strings_.t(QLatin1String(agentspeed::character::titleKey(readout))));
+        action->setCheckable(true);
+        action->setChecked(c->characterReadouts.get(readout));
+        if (readout == agentspeed::character::CharacterReadout::Network && !measured) action->setEnabled(false);
+        const QString key = QLatin1String(agentspeed::character::key(readout));
+        connect(action, &QAction::triggered, this, [this, id, key](bool on) { setCharacterReadout(id, key, on); });
+    }
+    sub->addSeparator();
+    sub->addAction(strings_.t(QStringLiteral("character.readouts.networkScope")))->setEnabled(false);
+    auto* group = new QActionGroup(sub);
+    const bool scopeOn = measured && c->characterReadouts.network;
+    for (const char* mode : {"sources", "machine"}) {
+        const QString value = QString::fromLatin1(mode);
+        auto* action = sub->addAction(strings_.t(QStringLiteral("orbs.traffic.") + value));
+        action->setCheckable(true);
+        action->setChecked(value == QLatin1String("machine") ? c->traffic == value : c->traffic != QLatin1String("machine"));
+        action->setEnabled(scopeOn);
+        group->addAction(action);
+        connect(action, &QAction::triggered, this, [this, id, value] { set(id, QStringLiteral("traffic"), value); });
+    }
+}
+
+// DESIGN 13: the Hosts submenu, only while remote hosts exist: All Hosts, then every host with its status dot and a
+// check when tracked; the last tracked host cannot be unchecked.
+void OrbManager::addHostsMenu(QMenu* menu, const OrbConfig& c) {
+    if (!hosts_ || !hosts_->shown()) return;
+    const QString id = c.id;
+    const QVariant current = c.hosts ? QVariant(*c.hosts) : QVariant(QStringLiteral("all"));
+    auto* submenu = menu->addMenu(strings_.t(QStringLiteral("remote.hosts")));
+    auto* all = submenu->addAction(strings_.t(QStringLiteral("remote.hosts.all")));
+    all->setCheckable(true);
+    all->setChecked(c.tracksAllHosts());
+    connect(all, &QAction::triggered, this, [this, id] { setHosts(id, QStringLiteral("all")); });
+    submenu->addSeparator();
+    for (const auto& item : hosts_->entries(current)) {
+        const auto entry = item.toMap();
+        const QString host = entry.value(QStringLiteral("id")).toString();
+        const QString word = entry.value(QStringLiteral("word")).toString();
+        const QString name = entry.value(QStringLiteral("name")).toString();
+        auto* action = submenu->addAction(word.isEmpty() ? name : name + QStringLiteral(" — ") + word);
+        action->setIcon(QIcon(hostDot(entry.value(QStringLiteral("dot")).toString())));
+        action->setCheckable(true);
+        action->setChecked(entry.value(QStringLiteral("checked")).toBool());
+        if (!entry.value(QStringLiteral("enabled")).toBool()) {
+            action->setEnabled(false);
+            action->setToolTip(strings_.t(QStringLiteral("remote.hosts.lastOne")));
+        }
+        connect(action, &QAction::triggered, this, [this, id, host] {
+            const auto* found = store_.find(id);
+            if (!found || !hosts_) return;
+            const auto next = hosts_->toggled(found->hosts ? QVariant(*found->hosts) : QVariant(QStringLiteral("all")), host);
+            if (next.isValid()) setHosts(id, next);
+        });
+    }
+    submenu->menuAction()->setToolTip(strings_.t(QStringLiteral("remote.hosts.allHint")));
 }

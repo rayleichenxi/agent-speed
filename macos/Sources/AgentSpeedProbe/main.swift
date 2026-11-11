@@ -20,13 +20,16 @@ case .dumpUnpriced(let options):
         table: arguments.priceTable()
     )
 case .watch(let seconds):
-    WatchMode.run(configuration: arguments.configuration, seconds: seconds)
+    WatchMode.run(configuration: arguments.configuration, seconds: seconds, remotes: arguments.remotes,
+                  history: arguments.remoteHistory, historyStore: arguments.historyStore)
 case .traffic(let seconds):
     TrafficMode.run(
         configuration: arguments.configuration, seconds: seconds, interval: arguments.trafficInterval,
         storePath: arguments.historyStore, live: !arguments.noLive)
 case .syncPrices(let directory):
     print(await NetworkSync.prices(directory: URL(fileURLWithPath: directory, isDirectory: true)))
+case .dumpQuota:
+    DumpQuota.run(configuration: arguments.configuration)
 case .syncRates(let directory, let currency):
     print(await NetworkSync.rates(directory: URL(fileURLWithPath: directory, isDirectory: true), currency: currency))
 }

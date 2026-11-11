@@ -1,8 +1,11 @@
+using AgentSpeed.Core.Quota.Network;
 using System.Collections.Immutable;
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using AgentSpeed.Core;
+using AgentSpeed.Core.Locations;
+using AgentSpeed.Presentation.Settings.Locations;
 using AgentSpeed.Presentation.Heat;
 using AgentSpeed.Presentation.Localization;
 using AgentSpeed.Presentation.Settings.Boards;
@@ -77,6 +80,15 @@ public static class SettingsSerializer
             OrbsJson.Write(w, s.Orbs);
             w.WritePropertyName("boards");
             BoardsJson.Write(w, s.Boards);
+            w.WritePropertyName("remoteHosts");
+            Core.Remote.RemoteHostsJson.Write(w, s.RemoteHosts);
+            // LAN 2.1: written once it has an instance (the feed was set up); an untouched install has no `lan` value.
+            if (s.Lan.Instance is not null)
+            {
+                w.WritePropertyName("lan");
+                Core.Lan.LanSettingsJson.Write(w, s.Lan);
+            }
+
             w.WritePropertyName("titleThemes");
             TitleThemesJson.Write(w, s.TitleThemes);
 
@@ -104,25 +116,22 @@ public static class SettingsSerializer
             w.WriteBoolean("openclaw", s.OpenClawEnabled);
             w.WriteBoolean("hermes", s.HermesEnabled);
             w.WriteBoolean("droid", s.DroidEnabled);
-            WriteNullableString(w, "codexRoot", s.CodexRoot);
-            WriteNullableString(w, "claudeRoot", s.ClaudeRoot);
-            WriteNullableString(w, "wslCodexRoot", s.WslCodexRoot);
-            WriteNullableString(w, "wslClaudeRoot", s.WslClaudeRoot);
-            WriteNullableString(w, "dshRoot", s.DshRoot);
-            WriteNullableString(w, "opencodeRoot", s.OpenCodeRoot);
-            WriteNullableString(w, "geminiRoot", s.GeminiRoot);
-            WriteNullableString(w, "ompRoot", s.OmpRoot);
-            WriteNullableString(w, "antigravityRoot", s.AntigravityRoot);
-            WriteNullableString(w, "workbuddyRoot", s.WorkBuddyRoot);
-            WriteNullableString(w, "workbuddyAiRoot", s.WorkBuddyAiRoot);
-            WriteNullableString(w, "zcodeRoot", s.ZCodeRoot);
-            WriteNullableString(w, "kimiRoot", s.KimiRoot);
-            WriteNullableString(w, "grokBuildRoot", s.GrokBuildRoot);
-            WriteNullableString(w, "piRoot", s.PiRoot);
-            WriteNullableString(w, "openclawRoot", s.OpenClawRoot);
-            WriteNullableString(w, "hermesRoot", s.HermesRoot);
-            WriteNullableString(w, "droidRoot", s.DroidRoot);
+            w.WriteBoolean("devin", s.DevinEnabled);
+            w.WriteBoolean("qoder", s.QoderEnabled);
+            w.WriteBoolean("qoderCli", s.QoderCliEnabled);
+            // The single folders of an earlier version go back exactly as loaded, so a downgrade still finds them (METRICS 2.1).
+            foreach (var (folder, path) in s.LegacyRoots)
+            {
+                w.WriteString(folder.LegacyKey(), path);
+            }
+
             w.WriteEndObject();
+
+            if (s.StoredLocations is { } locations)
+            {
+                w.WritePropertyName("sourceLocations");
+                locations.Write(w);
+            }
 
             w.WriteStartObject("dashboard");
             w.WriteNumber("chartSeconds", s.ChartSeconds);
@@ -187,6 +196,31 @@ public static class SettingsSerializer
             w.WriteStartObject("network");
             w.WriteBoolean("enabled", s.NetworkEnabled);
             w.WriteEndObject();
+
+            if (!s.CharactersSetAside.IsEmpty)
+            {
+                s.CharactersSetAside.Write(w, "charactersSetAside");
+            }
+
+            w.WriteBoolean("quotaCodex", s.Quota.Codex);
+            w.WriteBoolean("quotaClaudeDesktop", s.Quota.ClaudeDesktop);
+            w.WriteBoolean("quotaClaudeCli", s.Quota.ClaudeCli);
+            if (s.Quota.CliInviteDismissed)
+            {
+                w.WriteString("quotaCliInvite", "dismissed");
+            }
+
+            w.WriteBoolean("quotaGrokBuild", s.Quota.GrokBuild);
+            w.WriteBoolean("quotaGrokBuildLive", s.Quota.GrokBuildLive);
+            w.WriteBoolean("quotaDevin", s.Quota.Devin);
+            w.WriteBoolean("quotaAntigravity", s.Quota.Antigravity);
+            w.WriteBoolean("quotaKimi", s.Quota.Kimi);
+            w.WriteBoolean("quotaGemini", s.Quota.Gemini);
+            w.WriteBoolean("quotaDroid", s.Quota.Droid);
+            w.WriteBoolean("quotaZcode", s.Quota.Zcode);
+            w.WriteString("quotaZcodeRegion", s.Quota.ZcodeRegion.Key());
+            w.WriteBoolean("quotaQoder", s.Quota.Qoder);
+            w.WriteBoolean("quotaWorkBuddy", s.Quota.WorkBuddy);
 
             ReportSettingsJson.Write(w, s.Report);
 
@@ -281,24 +315,11 @@ public static class SettingsSerializer
             OpenClawEnabled = ReadBool(sources, "openclaw", d.OpenClawEnabled),
             HermesEnabled = ReadBool(sources, "hermes", d.HermesEnabled),
             DroidEnabled = ReadBool(sources, "droid", d.DroidEnabled),
-            CodexRoot = ReadString(sources, "codexRoot"),
-            ClaudeRoot = ReadString(sources, "claudeRoot"),
-            WslCodexRoot = ReadString(sources, "wslCodexRoot"),
-            WslClaudeRoot = ReadString(sources, "wslClaudeRoot"),
-            DshRoot = ReadString(sources, "dshRoot"),
-            OpenCodeRoot = ReadString(sources, "opencodeRoot"),
-            GeminiRoot = ReadString(sources, "geminiRoot"),
-            OmpRoot = ReadString(sources, "ompRoot"),
-            AntigravityRoot = ReadString(sources, "antigravityRoot"),
-            WorkBuddyRoot = ReadString(sources, "workbuddyRoot"),
-            WorkBuddyAiRoot = ReadString(sources, "workbuddyAiRoot"),
-            ZCodeRoot = ReadString(sources, "zcodeRoot"),
-            KimiRoot = ReadString(sources, "kimiRoot"),
-            GrokBuildRoot = ReadString(sources, "grokBuildRoot"),
-            PiRoot = ReadString(sources, "piRoot"),
-            OpenClawRoot = ReadString(sources, "openclawRoot"),
-            HermesRoot = ReadString(sources, "hermesRoot"),
-            DroidRoot = ReadString(sources, "droidRoot"),
+            DevinEnabled = ReadBool(sources, "devin", d.DevinEnabled),
+            QoderEnabled = ReadBool(sources, "qoder", d.QoderEnabled),
+            QoderCliEnabled = ReadBool(sources, "qoderCli", d.QoderCliEnabled),
+            LegacyRoots = ReadLegacyRoots(sources),
+            StoredLocations = root.TryGetProperty("sourceLocations", out var locations) ? LocationLists.Read(locations) : null,
             HistoryWindow = ReadWindowFrame(history is { } h ? Child(h, "window") : null),
             HistoryModeKind = ReadString(history, "modeKind") == "speed" ? ExecutionModeKind.Speed : ExecutionModeKind.Effort,
             HistoryPerfSort = ReadPerfSort(history is { } ph ? Child(ph, "perfSort") : null),
@@ -322,6 +343,22 @@ public static class SettingsSerializer
         };
 
         var fileVersion = ReadDouble(root, "version", 1);
+        // The maintenance build stored extra WSL paths before upstream added location lists.
+        // Migrate only once: an existing list is authoritative, including later removals.
+        if (settings.StoredLocations is null)
+        {
+            var migrated = settings.Locations;
+            var hasWslPath = false;
+            foreach (var (folder, key) in new[] { (LocationFolder.Codex, "wslCodexRoot"), (LocationFolder.Claude, "wslClaudeRoot") })
+            {
+                if (ReadString(sources, key) is { } path && Path.IsPathFullyQualified(path))
+                {
+                    migrated = migrated.With(folder, [.. migrated[folder], DataLocation.At(path)]);
+                    hasWslPath = true;
+                }
+            }
+            if (hasWslPath) settings = settings with { StoredLocations = migrated };
+        }
         if (fileVersion < 2)
         {
             settings = MigrateRedlineDefaults(settings);
@@ -332,9 +369,33 @@ public static class SettingsSerializer
         // An absent value is a fresh install or an older version: Vehicles, no custom sets (DESIGN 1, Persistence).
         var titles = root.TryGetProperty("titleThemes", out var titlesValue) ? TitleThemesJson.Read(titlesValue) : null;
         var boards = root.TryGetProperty("boards", out var boardsValue) ? BoardsJson.Read(boardsValue) : BoardsDocument.Empty;
+        var remoteHosts = root.TryGetProperty("remoteHosts", out var hostsValue)
+            ? Core.Remote.RemoteHostsJson.Read(hostsValue)
+            : Core.Remote.RemoteHostsDocument.Empty;
+        var lan = root.TryGetProperty("lan", out var lanValue) ? Core.Lan.LanSettingsJson.Read(lanValue) : Core.Lan.LanSettings.Default;
         return validated with
         {
             Orbs = orbs ?? OrbsMigration.FromLegacy(validated), Boards = boards, TitleThemes = titles ?? TitleThemesDocument.Default,
+            RemoteHosts = remoteHosts, Lan = lan,
+            CharactersSetAside = root.TryGetProperty("charactersSetAside", out var aside) ? CharacterSetAside.Read(aside) : CharacterSetAside.Empty,
+            Quota = new QuotaSettings
+            {
+                Codex = ReadBool(root, "quotaCodex", QuotaSettings.Default.Codex),
+                ClaudeDesktop = ReadBool(root, "quotaClaudeDesktop", QuotaSettings.Default.ClaudeDesktop),
+                ClaudeCli = ReadBool(root, "quotaClaudeCli", QuotaSettings.Default.ClaudeCli),
+                CliInviteDismissed = ReadString(root, "quotaCliInvite") == "dismissed",
+                GrokBuild = ReadBool(root, "quotaGrokBuild", QuotaSettings.Default.GrokBuild),
+                GrokBuildLive = ReadBool(root, "quotaGrokBuildLive", QuotaSettings.Default.GrokBuildLive),
+                Devin = ReadBool(root, "quotaDevin", QuotaSettings.Default.Devin),
+                Antigravity = ReadBool(root, "quotaAntigravity", QuotaSettings.Default.Antigravity),
+                Kimi = ReadBool(root, "quotaKimi", QuotaSettings.Default.Kimi),
+                Gemini = ReadBool(root, "quotaGemini", QuotaSettings.Default.Gemini),
+                Droid = ReadBool(root, "quotaDroid", QuotaSettings.Default.Droid),
+                Zcode = ReadBool(root, "quotaZcode", QuotaSettings.Default.Zcode),
+                ZcodeRegion = QuotaRequests.RegionOf(ReadString(root, "quotaZcodeRegion")),
+                Qoder = ReadBool(root, "quotaQoder", QuotaSettings.Default.Qoder),
+                WorkBuddy = ReadBool(root, "quotaWorkBuddy", QuotaSettings.Default.WorkBuddy),
+            },
         };
     }
 
@@ -414,6 +475,21 @@ public static class SettingsSerializer
         }
 
         return value.TryGetDouble(out var number) && double.IsFinite(number) ? number : fallback;
+    }
+
+    /// <summary>The single-folder values of earlier versions that are strings (<c>sources.codexRoot</c>, …).</summary>
+    private static LegacyLocations ReadLegacyRoots(JsonElement? sources)
+    {
+        var roots = LegacyLocations.Empty;
+        foreach (var folder in LocationFolders.All)
+        {
+            if (ReadString(sources, folder.LegacyKey()) is { } path)
+            {
+                roots = roots.With(folder, path);
+            }
+        }
+
+        return roots;
     }
 
     private static string? ReadString(JsonElement? parent, string name)

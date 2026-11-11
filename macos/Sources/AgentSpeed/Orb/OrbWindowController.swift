@@ -74,7 +74,7 @@ final class OrbWindowController {
         self.manager = manager
         id = runtime.id
         config = runtime.config
-        let diameter = CGFloat(runtime.config.size)
+        let diameter = CGFloat(runtime.config.footprintDiameter)
         let interaction = OrbInteraction()
         let panel = OrbPanel()
         self.interaction = interaction
@@ -149,7 +149,8 @@ final class OrbWindowController {
         loops.append(ObservationLoop { [weak self] in self?.refreshNameplate() })
         dimmer = OrbWindowIdleDimmer(gauge: runtime.feed.gauge, enabled: { [weak self] in self?.config.fadeWhenIdle ?? false },
                                      interaction: interaction) { [weak self] dimmed in
-            self?.fader.setDimmed(dimmed)
+            guard let self else { return }
+            self.fader.setDimmed(dimmed, reduceMotion: self.model.accessibility.reduceMotion)
         }
         reporter = OrbAccessibilityReporter(model: model, runtime: runtime, host: host)
         installAccessibilityActions()
@@ -199,16 +200,18 @@ final class OrbWindowController {
         self.config = config
         applyConfiguration()
         if previous.sources != config.sources { showSourcesBriefly() }
+        if previous.fadeWhenIdle != config.fadeWhenIdle { dimmer?.refresh() }
     }
 
     private func applyConfiguration() {
         presenter.setStyle(config.style)
+        host.setHitShape(config.style.hitShape)
         panel.apply(alwaysOnTop: config.alwaysOnTop, allSpaces: config.allSpaces)
         chipPanel.panel.level = panel.level
         nameplate.setLevel(panel.level, behavior: panel.collectionBehavior)
         fader.followerFactor = CGFloat(config.opacity)
         fader.reorderIfShown()
-        resize(to: CGFloat(config.size))
+        resize(to: CGFloat(config.footprintDiameter))
         updateTracking()
         refreshBody()
         refreshNameplate()
@@ -234,7 +237,7 @@ final class OrbWindowController {
     private func refreshBody() {
         let hideBlur = model.accessibility.reduceTransparency
         let opacity = CGFloat(config.opacity)
-        if host.blurView.isHidden != hideBlur { host.blurView.isHidden = hideBlur }
+        if host.blurHidden != hideBlur { host.blurHidden = hideBlur }
         if host.blurView.alphaValue != opacity { host.blurView.alphaValue = opacity }
         let contrast = model.accessibility.increaseContrast
         let dark = presenter.dark
@@ -403,6 +406,12 @@ final class OrbWindowController {
         updatePointer(at: NSEvent.mouseLocation)
     }
 
+    /// Re-reads the pointer after a stretch in which no move reached the monitors: a menu or modal session of the
+    /// app took every mouse event, so the pointer may now rest on this orb (or have left it) unseen.
+    func pointerMayHaveMoved() {
+        refreshPointer()
+    }
+
     /// Lets the panel take the mouse only while the pointer is over the disc, and the plate only over its capsule;
     /// everything else clicks through.
     private func updatePointer(at location: NSPoint) {
@@ -414,6 +423,7 @@ final class OrbWindowController {
             && nameplate.contains(screenPoint: location, slack: nameplate.hoverSlack))
         if panel.ignoresMouseEvents == inside {
             panel.ignoresMouseEvents = !inside
+            OrbWindowLog.debug("\(id.prefix(8)) takes the mouse: \(inside) at \(OrbWindowLog.describe(location))")
         }
         nameplate.setAcceptsMouse(onPlate)
         setHovered(inside || nearPlate)
@@ -427,7 +437,8 @@ final class OrbWindowController {
         let content = presenter.content
         guard content.showsReadout, !content.valueOnly, content.unavailableTitle == nil else { return nil }
         return OrbUnitToggle.hitRect(
-            layout: presenter.animator.renderer.readoutLayout, discDiameter: host.discDiameter * host.hoverScale,
+            layout: presenter.animator.renderer.readoutLayout.at(diameter: host.discDiameter),
+            discDiameter: host.discDiameter * host.hoverScale,
             in: host.bounds, unit: content.unit, value: presenter.animator.readout.odometer.current
         )
     }
@@ -786,15 +797,10 @@ extension OrbWindowController: OrbHostViewDelegate {
         finishPendingDrag()
         manager?.orbInteracted(id)
         let menu = MenuFactory.orbContextMenu(model: model, orbId: id)
-        if let event, event.window === panel {
-            NSMenu.popUpContextMenu(menu, with: event, for: host)
-        } else if let event, let window = event.window {
-            // A right-click on the name plate: open at the pointer, over the orb.
-            let point = panel.convertPoint(fromScreen: window.convertPoint(toScreen: event.locationInWindow))
-            menu.popUp(positioning: nil, at: host.convert(point, from: nil), in: host)
-        } else {
-            menu.popUp(positioning: nil, at: NSPoint(x: host.bounds.midX, y: host.bounds.midY), in: host)
-        }
+        // At the pointer for a right-click on the disc or the name plate; at the disc's centre from accessibility.
+        let point = event.map { $0.window?.convertPoint(toScreen: $0.locationInWindow) ?? NSEvent.mouseLocation }
+            ?? NSPoint(x: panel.frame.midX, y: panel.frame.midY)
+        menu.popUpDetached(at: point, appearance: host.effectiveAppearance)
         refreshPointer()
     }
 

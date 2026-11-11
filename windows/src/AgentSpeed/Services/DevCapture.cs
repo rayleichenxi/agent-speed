@@ -15,7 +15,7 @@ namespace AgentSpeed.Services;
 /// their screen positions over a backdrop, or a menu) into PNG files when a <c>capture.request</c> file appears in that
 /// folder. Rendering in-process means no screen capture and nothing of other windows is ever recorded. Request lines:
 /// <c>orbs name [#backdrop | @C:\path\to\image.png]</c> (an image covers the captured area, cropped to fill),
-/// <c>menu-tray name</c>, <c>menu-orb name</c>, <c>badge-sheet name [dark|light]</c> (the hero title badge of every theme
+/// <c>menu-tray name</c>, <c>menu-orb name</c> (<c>menu-orb-characters</c>, <c>menu-orb-readouts</c>: its submenus), <c>badge-sheet name [dark|light]</c> (the hero title badge of every theme
 /// but Vehicles at idle and levels 1–13), <c>badge-strip name [dark|light]</c> (its transitions at fixed τ),
 /// <c>dashboard name [#backdrop]</c> (the open dashboard's content) and <c>taskbar name [#backdrop] [dark|light] [2x]</c>
 /// (the widget as it draws now, rendered again in-process, optionally on a dark or light taskbar and at a given scale),
@@ -93,17 +93,17 @@ internal sealed partial class DevCapture
                 case "orbs":
                     CaptureOrbs(parts[1], parts.Length > 2 ? parts[2] : "#202020");
                     break;
-                case "menu-tray" or "menu-orb":
+                case "menu-tray" or "menu-orb" or "menu-host" or "menu-orb-hosts" or "menu-board-hosts" or "menu-lan" or "menu-orb-characters"
+                    or "menu-orb-readouts":
                     CaptureMenu(parts[0], parts[1]);
                     break;
                 case "op":
                     Operation?.Invoke(parts[1]);
                     break;
-                case "settings":
-                    CaptureElement(parts[1], parts.Length > 2 ? parts[2] : "#202020");
-                    break;
-                case "dashboard" or "history" or "report-consent" or "report-preview" or "report-invite":
-                    CaptureElement(parts[1], parts.Length > 2 ? parts[2] : "#202020", parts[0]);
+                case "settings" or "dashboard" or "history" or "dialog" or "report-consent" or "report-preview" or "report-invite":
+                    var tokens = parts.Length > 2 ? parts[2].Split(' ', StringSplitOptions.RemoveEmptyEntries) : [];
+                    var renderScale = tokens.FirstOrDefault(o => o is "1x" or "2x" or "3x") is { } x ? x[0] - '0' : 1;
+                    CaptureElement(parts[1], tokens.FirstOrDefault(o => o.StartsWith('#')) ?? "#202020", parts[0], renderScale);
                     break;
                 case "taskbar":
                     var options = parts.Length > 2 ? parts[2].Split(' ', StringSplitOptions.RemoveEmptyEntries) : [];
@@ -267,7 +267,8 @@ internal sealed partial class DevCapture
         return target;
     }
 
-    private void CaptureElement(string name, string backdrop, string target = "settings")
+    /// <param name="renderScale">Renders the element's vectors at this many pixels per DIP on top of its own DPI (the 2x path).</param>
+    private void CaptureElement(string name, string backdrop, string target = "settings", int renderScale = 1)
     {
         if (_element(target) is not { } element)
         {
@@ -279,14 +280,14 @@ internal sealed partial class DevCapture
             ((DispatcherTimer)sender!).Stop();
             element.UpdateLayout();
             var dpi = VisualTreeHelper.GetDpi(element);
-            var width = (int)Math.Ceiling(element.ActualWidth * dpi.DpiScaleX);
-            var height = (int)Math.Ceiling(element.ActualHeight * dpi.DpiScaleY);
+            var width = (int)Math.Ceiling(element.ActualWidth * dpi.DpiScaleX * renderScale);
+            var height = (int)Math.Ceiling(element.ActualHeight * dpi.DpiScaleY * renderScale);
             if (width <= 0 || height <= 0)
             {
                 return;
             }
 
-            var content = new RenderTargetBitmap(width, height, dpi.PixelsPerInchX, dpi.PixelsPerInchY, PixelFormats.Pbgra32);
+            var content = new RenderTargetBitmap(width, height, dpi.PixelsPerInchX * renderScale, dpi.PixelsPerInchY * renderScale, PixelFormats.Pbgra32);
             content.Render(element);
             var visual = new DrawingVisual();
             using (var dc = visual.RenderOpen())

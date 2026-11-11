@@ -10,12 +10,18 @@
 #include <memory>
 #include <vector>
 
+#include "agentspeed/character/pack.hpp"
+#include "agentspeed/character/selection.hpp"
+#include "orb/character/character_quota.hpp"
+#include "orb/character/character_readings.hpp"
 #include "orb/gauge.hpp"
+#include "orb/idle_fade.hpp"
 #include "orb/readout.hpp"
 #include "orb/renderer.hpp"
 #include "orb/shared_layers.hpp"
 #include "orb/style.hpp"
 
+class CharacterLibrary;
 class QAccessibleInterface;
 class QVariantAnimation;
 class Strings;
@@ -43,10 +49,14 @@ public:
     ~OrbWindow() override;
     // DESIGN 1 Title themes: the orb names its levels with its theme (the General one by default).
     void setTitles(const ::TitleThemes* titles);
+    // CHARACTERS 2, 7: the installed packs a `character` orb chooses from.
+    void setCharacters(CharacterLibrary* characters);
 
     QString id() const { return id_; }
     // This orb's settings with what the manager resolves for it: its name and the redline of the current metric.
     void apply(const OrbConfig& config, const QString& name, int redline);
+    // The 額度 card's items of a `character` orb (QuotaView::cardItems for its sources and hosts, DESIGN 2a.6).
+    void setQuota(const QVariantList& items);
     void setEffectsLevel(int level);
     // The master switch and the orb's own visibility together.
     void setShown(bool shown);
@@ -61,7 +71,8 @@ public:
     void dragTo(QPointF global);
     void endDrag();
 
-    double diameter() const { return diameter_; }
+    // The disc the orb occupies: its size × the style's footprint (D = 2 S for `character`, DESIGN 2a.6).
+    double diameter() const { return footprint(); }
     QPointF discCenter() const { return QPointF(position()) + center(); }
     bool clickThrough() const { return clickThrough_; }
     bool hovered() const { return hovered_; }
@@ -114,7 +125,13 @@ private:
     };
 
     double now() const { return static_cast<double>(clock_.nsecsElapsed()) / 1e9; }
-    double side() const { return 1.5 * diameter_; }
+    bool isCharacter() const { return styleKind_ == StyleKind::Character; }
+    double footprint() const { return isCharacter() ? 2 * diameter_ : diameter_; }
+    double side() const { return 1.5 * footprint(); }
+    void resizeToFootprint(QPointF discCenter);
+    void updateCharacter(const QVariantMap& snap, double time);
+    bool intelEnabled() const;
+    QString networkScope() const;
     QPointF center() const { return {side() / 2, side() / 2}; }
     bool insideDisc(QPointF local) const;
     bool openGLAvailable() const;
@@ -133,6 +150,7 @@ private:
     void applyFlags();
     void applyShape();
     void applyOpacity();
+    void updateFade();
     void setStyle(const QString& style);
     void setDiameter(double diameter);
     // `guides` receives the alignment guides (facing disc edges) of the snapped position.
@@ -149,6 +167,21 @@ private:
     void announceUnit();
     void setUnitHover(bool on);
     const ::TitleThemes* titles_ = nullptr;
+    CharacterLibrary* characters_ = nullptr;
+    std::optional<QString> characterLock_;
+    agentspeed::character::CharacterReadouts characterReadouts_;
+    agentspeed::character::CharacterSelection characterSelection_;
+    std::shared_ptr<const agentspeed::character::Pack> characterPack_;
+    QString characterModel_;
+    QString todayText_;
+    int agentCount_ = 0;
+    QString costCardNumber_, costCardUnit_;
+    bool costCardAtLeast_ = false, costCardUnknown_ = false;
+    double costLastActive_ = -1e9, costOpacity_ = 0;
+    // The 首字 row and the models card (DESIGN 2a.6) with their quiet rules.
+    CharacterReadings characterReadings_;
+    // The 額度 card's sources and what accessibility reads of it.
+    CharacterQuota characterQuota_;
     std::function<std::vector<Disc>()> neighbors_;
     void stepIntel(double time, double dt);
     IntelReadout intelContent(double time) const;
@@ -201,7 +234,6 @@ private:
     QString info_;
     QString unavailable_;  // "", "disabled" or "notFound"
     QStringList unavailableSources_;
-    double lastActive_ = -1e9;  // the last tick with a live value (fade when idle)
     QString labelText_;
     QString hint_;
     double labelAt_ = -1e9;
@@ -241,7 +273,8 @@ private:
     bool shown_ = false;
     double opacity_ = 1;
     bool fadeWhenIdle_ = false;
-    bool idleFaded_ = false;
+    IdleFade idleFade_;
+    IdleFadeMotion fadeMotion_{[this] { applyOpacity(); }};
     QStringList sources_;  // empty: all sources
     QString unit_ = QStringLiteral("tokens");
     QString theme_;

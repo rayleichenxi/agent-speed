@@ -41,7 +41,9 @@ final class OrbAccessibilityReporter {
     private func observe() {
         let gauge = runtime.feed.gauge
         _ = (gauge.readoutValue, gauge.title, runtime.feed.unavailableTitleKey, model.l10n.language)
-        _ = (runtime.feed.money, runtime.feed.unit, runtime.feed.lines)
+        _ = (runtime.feed.money, runtime.feed.unit, runtime.feed.lines, runtime.feed.characterReadings)
+        // 額度's reset times move on each minute.
+        _ = model.quota.minuteMs
         _ = model.orbs.document
         _ = model.titles.document
         let elapsed = Clock.now - publishedAt
@@ -154,6 +156,7 @@ final class OrbAccessibilityReporter {
     /// written, or `a11y.orb.intel` with the score words (`a11y.orb.intel.only` while the thinking line is hidden).
     private func lineSentence(_ l10n: Localizer) -> String? {
         let config = runtime.config
+        if config.style == .character { return characterSentence(l10n) }
         guard let lines = runtime.feed.lines, let reading = lines.reading, !runtime.isUnavailable else { return nil }
         let now = Clock.now
         guard now >= reading.shownAt, !reading.isGone(at: now) || now < reading.quietAt,
@@ -165,6 +168,45 @@ final class OrbAccessibilityReporter {
         case .intelligence(let score, let thinking):
             return Self.intelligenceSentence(score, thinking: reading.thinking.isHidden(at: now) ? nil : thinking, l10n)
         }
+    }
+
+    /// The `character` orb's cards that show (DESIGN 2a.6, Readouts), in the column's order: 性能 and 思考, 首字,
+    /// network speed, the cost rate, the running models, then 額度.
+    private func characterSentence(_ l10n: Localizer) -> String? {
+        guard let readings = runtime.feed.characterReadings, !runtime.isUnavailable else { return nil }
+        let parts = Self.characterParts(readings, currency: model.cost.currencyName, l10n, quotaNowMs: model.quota.clockMs)
+        guard !parts.isEmpty else { return nil }
+        return parts.joined(separator: l10n.language == .ja ? "、" : l10n.language.usesLatinCase ? ", " : "，")
+    }
+
+    /// The sentences of `characterSentence`, one per card that shows.
+    static func characterParts(_ readings: OrbCharacterReadings, currency: String, _ l10n: Localizer,
+                               now: TimeInterval = Clock.now, quotaNowMs: Int64 = QuotaController.nowMs()) -> [String] {
+        let on = readings.readouts
+        var parts: [String] = []
+        if readings.performanceLoud, on.intelligence || on.thinking, let reading = readings.performance,
+           case .intelligence(let score, let thinking) = reading.content {
+            let hidden = !on.thinking || (on.intelligence && reading.thinking.isHidden(at: now))
+            parts.append(Self.intelligenceSentence(score, thinking: hidden ? nil : thinking, l10n))
+        }
+        if readings.performanceLoud, on.latency, readings.performance != nil, let ms = readings.latencyMs {
+            parts.append(l10n("a11y.orb.latency", CharacterReadoutText.latency(ms: ms, language: l10n.language).spoken))
+        }
+        if readings.networkLoud, on.network, case .traffic(let rx, let tx) = readings.network?.content {
+            parts.append(l10n("a11y.orb.traffic", TrafficText.spoken(rx), TrafficText.spoken(tx)))
+        }
+        if readings.costLoud, on.cost, let money = readings.cost {
+            parts.append(money.unknown ? l10n("a11y.board.costUnknown")
+                : l10n("a11y.board.cost", money.atLeast ? l10n("a11y.orb.costAtLeast", money.number) : money.number,
+                       currency))
+        }
+        if readings.modelsLoud, on.models, let models = CharacterReadoutText.modelsSentence(readings.models, l10n) {
+            parts.append(models)
+        }
+        if on.quota, let quota = CharacterQuotaText.sentence(readings.quota, nowMs: quotaNowMs, l10n: l10n) {
+            parts.append(quota)
+        }
+        return parts
     }
 
     /// The performance readout's words (DESIGN 12, *Accessibility*): the score words in `a11y.orb.intel` with the

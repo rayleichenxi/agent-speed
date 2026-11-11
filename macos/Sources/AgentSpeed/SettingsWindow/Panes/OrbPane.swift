@@ -55,8 +55,17 @@ struct OrbPane: View {
                 OrbSourcesSection(model: model, orb: orb) {
                     OrbEditorHeading(model: model, orb: orb)
                 }
+                HostPickerSection(model: model, selection: orb.hosts,
+                                  set: { orbs.setHosts($0, of: orb.id) },
+                                  toggle: { orbs.toggleHost($0, of: orb.id) })
                 OrbStyleCards(model: model, orb: orb, feeds: cardFeeds, active: live)
-                OrbUnitSection(model: model, orb: orb)
+                if orb.style == .character {
+                    OrbCharacterSection(model: model, orb: orb)
+                        .id(OrbCharacterSection.anchor)
+                    OrbCharacterReadoutsSection(model: model, orb: orb)
+                } else {
+                    OrbUnitSection(model: model, orb: orb)
+                }
                 OrbLookSection(model: model, orb: orb)
                 OrbSwitchesSection(model: model, orb: orb)
                 OrbAdvancedSection(model: model, orb: orb, expanded: $advancedExpanded)

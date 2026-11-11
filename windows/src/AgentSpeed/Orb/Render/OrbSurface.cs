@@ -174,6 +174,15 @@ internal sealed class OrbSurface : FrameworkElement, IOrbFrameClient, IOrbSurfac
 
     public double? NextWake => Scene.NextWake;
 
+    /// <summary>Changes the display size while preserving the live source identity and availability.</summary>
+    public void Resize(double diameter)
+    {
+        if (_config is { } config)
+        {
+            Configure(config with { Size = diameter });
+        }
+    }
+
     public void Configure(OrbSurfaceConfig config)
     {
         var previous = _config;

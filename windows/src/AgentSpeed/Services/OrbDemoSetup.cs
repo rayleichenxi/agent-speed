@@ -65,7 +65,7 @@ internal static class OrbDemoSetup
         }
 
         var document = new OrbsDocument(orbs);
-        var displays = Monitors.All().Select(m => new OrbDisplay(m.Key, m.WorkRect, m.Scale, m.IsPrimary)).ToArray();
+        var displays = Monitors.All().Select(m => m.OrbDisplay).ToArray();
         var main = displays.FirstOrDefault(d => d.IsMain);
         if (main.Key is not null)
         {
@@ -75,7 +75,7 @@ internal static class OrbDemoSetup
             var rowHeight = 0.0;
             foreach (var orb in orbs)
             {
-                var radius = orb.Size / 2 * main.Scale;
+                var radius = main.RadiusFor(orb);
                 if (x + 2 * radius > main.Work.Right - 60 * main.Scale)
                 {
                     x = main.Work.X + 60 * main.Scale;
@@ -104,7 +104,7 @@ internal static class OrbDemoSetup
     /// </summary>
     private static AppSettings NameDemo(AppSettings settings, string demo)
     {
-        var displays = Monitors.All().Select(m => new OrbDisplay(m.Key, m.WorkRect, m.Scale, m.IsPrimary)).ToArray();
+        var displays = Monitors.All().Select(m => m.OrbDisplay).ToArray();
         var main = displays.FirstOrDefault(d => d.IsMain);
         if (main.Key is null)
         {

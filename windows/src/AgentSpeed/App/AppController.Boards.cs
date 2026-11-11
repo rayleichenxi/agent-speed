@@ -31,8 +31,8 @@ internal sealed partial class AppController : IBoardHost
         {
             if (Settings.Orbs.Find(id) is { Visible: true } orb)
             {
-                var scale = Monitors.FromPoint(new POINT((int)center.X, (int)center.Y))?.Scale ?? 1;
-                discs.Add(new OrbDisc(center, orb.RadiusPx(scale)));
+                var monitor = Monitors.FromPoint(new POINT((int)center.X, (int)center.Y));
+                discs.Add(new OrbDisc(center, monitor?.OrbDisplay.RadiusFor(orb) ?? orb.RadiusPx(1)));
             }
         }
 
@@ -76,8 +76,8 @@ internal sealed partial class AppController : IBoardHost
         }
         else if (fromId is not null && _orbs?.Centers.TryGetValue(fromId, out var center) == true && Settings.Orbs.Find(fromId) is { } orb)
         {
-            var scale = Monitors.FromPoint(new POINT((int)center.X, (int)center.Y))?.Scale ?? 1;
-            origin = BoardObstacle.Disc(center, orb.RadiusPx(scale));
+            var monitor = Monitors.FromPoint(new POINT((int)center.X, (int)center.Y));
+            origin = BoardObstacle.Disc(center, monitor?.OrbDisplay.RadiusFor(orb) ?? orb.RadiusPx(1));
         }
 
         _boards?.Add(origin);

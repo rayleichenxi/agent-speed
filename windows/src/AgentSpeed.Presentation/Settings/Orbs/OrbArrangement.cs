@@ -1,10 +1,17 @@
 using System.Collections.Immutable;
 using AgentSpeed.Presentation.Layout;
+using AgentSpeed.Presentation.Orb;
 
 namespace AgentSpeed.Presentation.Settings.Orbs;
 
 /// <summary>A connected display: its key (Windows <c>DeviceName|WxH</c>), work area in physical pixels and scale (dpi / 96).</summary>
-public readonly record struct OrbDisplay(string Key, RectD Work, double Scale, bool IsMain);
+/// <param name="OrbSizeFactor">Floating-orb size adjustment computed from the display bounds and effective DPI.</param>
+public readonly record struct OrbDisplay(string Key, RectD Work, double Scale, bool IsMain, double OrbSizeFactor = 1)
+{
+    public double DiameterFor(double size, OrbStyle style) => OrbSizing.Diameter(size, style, OrbSizeFactor);
+
+    public double RadiusFor(OrbDefinition orb) => DiameterFor(orb.Size, orb.Style) / 2 * OrbGeometry.ValidScale(Scale);
+}
 
 /// <summary>Where an orb's disc is: the display key, the center and the radius in physical pixels.</summary>
 public readonly record struct OrbLocation(string Display, PointD Center, double Radius);
@@ -53,7 +60,7 @@ public static class OrbArrangement
         foreach (var orb in document.Orbs.OrderBy(o => o.Visible ? 0 : 1))
         {
             var (record, display) = Pick(document, current, orb.Id, connected, main);
-            var radius = orb.RadiusPx(display.Scale);
+            var radius = display.RadiusFor(orb);
             if (!placed.TryGetValue(display.Key, out var others))
             {
                 placed[display.Key] = others = [];
@@ -96,7 +103,7 @@ public static class OrbArrangement
             return document;
         }
 
-        var record = OrbPositionRecord.FromCenter(display.Key, center, orb.RadiusPx(display.Scale), display.Work, display.Scale);
+        var record = OrbPositionRecord.FromCenter(display.Key, center, display.RadiusFor(orb), display.Work, display.Scale);
         return document.WithPosition(Key(connected.Values), orbId, record);
     }
 
@@ -126,7 +133,7 @@ public static class OrbArrangement
             display = scene.Main;
         }
 
-        var radius = orb.RadiusPx(display.Scale);
+        var radius = display.RadiusFor(orb);
         var center = OrbPlacement.PlaceNew(radius, anchor, scene.Others(display.Key, newId), display.Work, display.Scale);
         return Placed(document, scene, [(newId, display, center)]);
     }
@@ -149,7 +156,7 @@ public static class OrbArrangement
 
         var display = scene.Display(origin.Display);
         var children = childIds.Where(id => id != originId && document.Find(id) is not null).Distinct(StringComparer.Ordinal).ToArray();
-        var radii = children.Select(id => document.Find(id)!.RadiusPx(display.Scale)).ToArray();
+        var radii = children.Select(id => display.RadiusFor(document.Find(id)!)).ToArray();
         var exclude = children.Append(originId).ToHashSet(StringComparer.Ordinal);
         var otherIds = scene.OtherIds(display.Key, exclude);
         var others = otherIds.Select(id => new OrbDisc(scene.Locations[id].Center, scene.Locations[id].Radius)).ToArray();
@@ -201,7 +208,7 @@ public static class OrbArrangement
         }
 
         var display = scene.Main;
-        var radius = orb.RadiusPx(display.Scale);
+        var radius = display.RadiusFor(orb);
         var center = OrbPlacement.ResetPosition(radius, scene.Others(display.Key, orbId), display.Work, display.Scale);
         return Placed(document, scene, [(orbId, display, center)]);
     }
@@ -220,7 +227,7 @@ public static class OrbArrangement
             return null;
         }
 
-        return OrbMagnet.Drag(raw, orb.RadiusPx(display.Scale), scene.Others(display.Key, orbId), display.Work, display.Scale);
+        return OrbMagnet.Drag(raw, display.RadiusFor(orb), scene.Others(display.Key, orbId), display.Work, display.Scale);
     }
 
     /// <summary>
@@ -237,7 +244,7 @@ public static class OrbArrangement
             return null;
         }
 
-        var radius = orb.RadiusPx(display.Scale);
+        var radius = display.RadiusFor(orb);
         var center = OrbMagnet.Release(raw, radius, scene.Others(display.Key, orbId), display.Work, display.Scale);
         return new OrbLocation(display.Key, center, radius);
     }
@@ -319,7 +326,7 @@ public static class OrbArrangement
         var locations = ImmutableDictionary.CreateBuilder<string, OrbLocation>(StringComparer.Ordinal);
         foreach (var (id, display, center) in moves)
         {
-            var radius = document.Find(id)!.RadiusPx(display.Scale);
+            var radius = display.RadiusFor(document.Find(id)!);
             records.Add(new(id, OrbPositionRecord.FromCenter(display.Key, center, radius, display.Work, display.Scale)));
             locations[id] = new OrbLocation(display.Key, center, radius);
         }
@@ -347,7 +354,7 @@ public static class OrbArrangement
                 if (document.Find(id) is { } orb && double.IsFinite(center.X) && double.IsFinite(center.Y)
                     && DisplayAt(displays, center) is { } display && connected.TryGetValue(display.Key, out var known))
                 {
-                    locations[id] = new OrbLocation(known.Key, center, orb.RadiusPx(known.Scale));
+                    locations[id] = new OrbLocation(known.Key, center, known.RadiusFor(orb));
                 }
             }
         }

@@ -426,6 +426,11 @@ internal sealed class OrbManager : IDisposable
     public void OnDisplayChanged()
     {
         _clock.RefreshDisplay();
+        foreach (var entry in _entries.Values)
+        {
+            entry.Window.RefreshDisplay();
+        }
+
         PositionAll([]);
         ResolvePlates();
     }
@@ -872,7 +877,7 @@ internal sealed class OrbManager : IDisposable
     // ---- Positions ----
 
     private static IReadOnlyList<OrbDisplay> Displays() =>
-        Monitors.All().Select(m => new OrbDisplay(m.Key, m.WorkRect, m.Scale, m.IsPrimary)).ToArray();
+        Monitors.All().Select(m => m.OrbDisplay).ToArray();
 
     private void PositionAll(IReadOnlyCollection<string> fresh)
     {
@@ -1180,7 +1185,8 @@ internal sealed class OrbManager : IDisposable
         var monitor = Monitors.FromPoint(new POINT((int)entry.Window.Center.X, (int)entry.Window.Center.Y));
         var scale = monitor?.Scale ?? 1;
         _chip.SetContent(dots, UnavailableOf(entry), text, null, _theme.IsDark, AppFonts.XmlLanguageFor(_loc.LanguageCode));
-        _chip.PlaceNear(entry.Window.Center, orb.Size / 2 * scale, monitor?.WorkRect ?? new RectD(0, 0, 1920, 1080), scale, OtherDiscs(id, scale));
+        _chip.PlaceNear(entry.Window.Center, entry.Window.Surface.Diameter / 2 * scale,
+            monitor?.WorkRect ?? new RectD(0, 0, 1920, 1080), scale, OtherDiscs(id));
         _chip.Opacity = 1;
     }
 
@@ -1203,9 +1209,9 @@ internal sealed class OrbManager : IDisposable
         return set.Count <= 2 ? name : $"{OrbNaming.SourceName(set.First(), _loc)} +{set.Count - 1}";
     }
 
-    private IReadOnlyList<(PointD Center, double Radius)> OtherDiscs(string id, double scale) =>
+    private IReadOnlyList<(PointD Center, double Radius)> OtherDiscs(string id) =>
         _entries.Where(e => e.Key != id && e.Value.Window.HasCenter)
-            .Select(e => (e.Value.Window.Center, e.Value.Definition.Size / 2 * scale))
+            .Select(e => (e.Value.Window.Center, e.Value.Window.Surface.Diameter / 2 * e.Value.Window.DisplayScale))
             .ToArray();
 
     private void HideChip()
@@ -1257,8 +1263,8 @@ internal sealed class OrbManager : IDisposable
         var monitor = Monitors.FromPoint(new POINT((int)entry.Window.Center.X, (int)entry.Window.Center.Y));
         var scale = monitor?.Scale ?? 1;
         _undoChip.SetContent([], SourceSet.Empty, text, _loc["orbs.undo"], _theme.IsDark, AppFonts.XmlLanguageFor(_loc.LanguageCode));
-        _undoChip.PlaceNear(entry.Window.Center, entry.Definition.Size / 2 * scale, monitor?.WorkRect ?? new RectD(0, 0, 1920, 1080), scale,
-            OtherDiscs(undo.AnchorId, scale), stackOffset: 30 * scale);
+        _undoChip.PlaceNear(entry.Window.Center, entry.Window.Surface.Diameter / 2 * scale,
+            monitor?.WorkRect ?? new RectD(0, 0, 1920, 1080), scale, OtherDiscs(undo.AnchorId), stackOffset: 30 * scale);
         _undoChip.FadeIn(_theme.ReduceMotion);
     }
 

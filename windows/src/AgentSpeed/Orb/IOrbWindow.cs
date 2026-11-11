@@ -151,6 +151,9 @@ internal interface IOrbWindow
 
     void MoveTo(PointD center);
 
+    /// <summary>Reapplies the current monitor's size and DPI even when the center has not moved.</summary>
+    void RefreshDisplay();
+
     void AnimateTo(PointD center, double response = 0.35, double damping = 0.8, Action? done = null);
 
     void Appear();

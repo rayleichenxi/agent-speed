@@ -42,6 +42,7 @@ internal sealed class OrbWindow : Window, IOrbWindow
     };
     private nint _hwnd;
     private OrbWindowOptions _options;
+    private OrbSurfaceConfig? _config;
     private bool _passThrough;
     private bool _dragging;
     private bool _dragMoved;
@@ -301,6 +302,10 @@ internal sealed class OrbWindow : Window, IOrbWindow
 
     public void Configure(OrbSurfaceConfig config, OrbWindowOptions options)
     {
+        _config = config;
+        config = config.ForDisplay(_hasCenter
+            ? Monitors.FromPoint(new POINT((int)Math.Round(_center.X), (int)Math.Round(_center.Y)))
+            : Monitors.Primary());
         var sizeChanged = Math.Abs(config.Size - Surface.Diameter) > 0.01;
         Surface.Configure(config);
         if (sizeChanged)
@@ -540,6 +545,14 @@ internal sealed class OrbWindow : Window, IOrbWindow
         Height = diameter * 1.5;
     }
 
+    public void RefreshDisplay()
+    {
+        if (_hasCenter)
+        {
+            PlaceAt(_center);
+        }
+    }
+
     private void PlaceAt(PointD center)
     {
         _center = center;
@@ -550,6 +563,13 @@ internal sealed class OrbWindow : Window, IOrbWindow
         }
 
         var monitor = Monitors.FromPoint(new POINT((int)Math.Round(center.X), (int)Math.Round(center.Y)));
+        var diameter = _config is { } config ? monitor?.OrbDisplay.DiameterFor(config.Size, config.Style) ?? config.Size : Surface.Diameter;
+        if (Math.Abs(diameter - Surface.Diameter) > 0.01)
+        {
+            Surface.Resize(diameter);
+            ApplySize(diameter);
+        }
+
         var scale = monitor?.Scale ?? VisualTreeHelper.GetDpi(this).DpiScaleX;
         var size = (int)Math.Round(Surface.Diameter * 1.5 * scale);
         var left = (int)Math.Round(center.X - size / 2.0);

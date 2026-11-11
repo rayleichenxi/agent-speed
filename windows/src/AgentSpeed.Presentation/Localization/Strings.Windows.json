@@ -318,6 +318,12 @@
     "en": "Reset Position",
     "ja": "位置をリセット"
   },
+  "win.settings.orb.adaptiveSize": {
+    "zh-Hant": "此為基準大小，會依所在螢幕的解析度與系統縮放自動縮小。",
+    "zh-Hans": "此为基准大小，会根据所在屏幕的分辨率与系统缩放自动缩小。",
+    "en": "This is the base size. It automatically shrinks on smaller desktops based on screen resolution and display scaling.",
+    "ja": "これは基準サイズです。画面の解像度と表示スケールに応じて、小さなデスクトップでは自動的に縮小します。"
+  },
   "win.titles.preview.dashboard": {
     "zh-Hant": "面板",
     "zh-Hans": "面板",

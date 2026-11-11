@@ -621,7 +621,7 @@ internal sealed class BoardManager : IDisposable
     // ---- Positions ----
 
     private static IReadOnlyList<OrbDisplay> Displays() =>
-        Monitors.All().Select(m => new OrbDisplay(m.Key, m.WorkRect, m.Scale, m.IsPrimary)).ToArray();
+        Monitors.All().Select(m => m.OrbDisplay).ToArray();
 
     private void Position(IReadOnlyCollection<string> fresh)
     {

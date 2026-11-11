@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using AgentSpeed.Presentation.Layout;
+using AgentSpeed.Presentation.Settings.Orbs;
 
 namespace AgentSpeed.Interop;
 
@@ -15,6 +16,8 @@ internal sealed record MonitorInfo(nint Handle, string DeviceName, RECT Bounds, 
     public RectD WorkRect => new(WorkArea.Left, WorkArea.Top, WorkArea.Width, WorkArea.Height);
 
     public RectD BoundsRect => new(Bounds.Left, Bounds.Top, Bounds.Width, Bounds.Height);
+
+    public OrbDisplay OrbDisplay => new(Key, WorkRect, Scale, IsPrimary, OrbSizing.DisplayFactor(BoundsRect, Scale));
 }
 
 internal static unsafe class Monitors

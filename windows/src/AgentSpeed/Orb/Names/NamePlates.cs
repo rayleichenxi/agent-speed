@@ -61,13 +61,13 @@ internal sealed class NamePlates
             var work = monitor?.WorkRect ?? new RectD(0, 0, 1920, 1080);
             subjects[i] = new NamePlateSubject(
                 new PointD(orb.Center.X / scale, orb.Center.Y / scale),
-                orb.Definition.Size,
+                monitor?.OrbDisplay.DiameterFor(orb.Definition.Size, orb.Definition.Style) ?? orb.Window.Surface.Diameter,
                 new RectD(work.X / scale, work.Y / scale, work.Width / scale, work.Height / scale),
                 NamePlateRules.Shows(orb.Definition, settings));
         }
 
         NamePlateLayout Fit(int i, double budget) =>
-            NamePlateContent.Plate(orbs[i].Definition, availability, _loc, new NamePlateMetrics(orbs[i].Definition.Size), budget, type.Measure);
+            NamePlateContent.Plate(orbs[i].Definition, availability, _loc, new NamePlateMetrics(subjects[i].Size), budget, type.Measure);
 
         var placed = NamePlatePlacement.Resolve(subjects, (i, budget) => Fit(i, budget).Width);
         var seen = new HashSet<string>(StringComparer.Ordinal);
@@ -92,7 +92,7 @@ internal sealed class NamePlates
             var chip = NamePlateContent.Chip(orb.Definition, availability, _loc);
             var placement = new Placement(
                 Fit(i, spot.Budget),
-                NamePlateLayout.Of(chip, new NamePlateMetrics(orb.Definition.Size), type.Measure),
+                NamePlateLayout.Of(chip, new NamePlateMetrics(subjects[i].Size), type.Measure),
                 spot.Slot,
                 new Rect(spot.Rect.X - center.X, spot.Rect.Y - center.Y, spot.Rect.Width, spot.Rect.Height),
                 new Rect(area.X - center.X, area.Y - center.Y, area.Width, area.Height));
@@ -214,10 +214,10 @@ internal sealed class NamePlates
             var undoPlate = new OrbPlate(window, undoWindow, _clock);
             undoPlate.Arranged += (_, _) => PlaceAction(undoPlate, undoWindow);
             window.Attach(undoPlate);
-            _undo = new Undo(orb.Id, undoPlate, undoWindow, orb.Size, message);
+            _undo = new Undo(orb.Id, undoPlate, undoWindow, message);
         }
 
-        _undo = _undo with { Size = orb.Size, Message = message };
+        _undo = _undo with { Message = message };
         System.Windows.Automation.AutomationProperties.SetHelpText(_undo.Window.Action, message);
         _undo.Plate.SetStyle(Ink(), Typography(), _theme.ReduceMotion, orb.Opacity);
         _undo.Window.Follow(window.Options with { ClickThrough = false });
@@ -325,7 +325,7 @@ internal sealed class NamePlates
 
     private void Stack(Undo undo, OrbPlate plate)
     {
-        var metrics = new NamePlateMetrics(undo.Size);
+        var metrics = new NamePlateMetrics(plate.Window.Orb.Surface.Diameter);
         var layout = NamePlateLayout.Of(NamePlateContent.Undo(undo.Message, _loc), metrics, Typography().Measure);
         var anchor = plate.RestRect;
         var area = _placements.TryGetValue(undo.OrbId, out var placement) ? placement.Area : Rect.Empty;
@@ -366,5 +366,5 @@ internal sealed class NamePlates
 
     private sealed record Placement(NamePlateLayout Layout, NamePlateLayout Chip, NamePlateSlot Slot, Rect Rect, Rect Area);
 
-    private sealed record Undo(string OrbId, OrbPlate Plate, UndoPlateWindow Window, double Size, string Message);
+    private sealed record Undo(string OrbId, OrbPlate Plate, UndoPlateWindow Window, string Message);
 }

@@ -36,6 +36,7 @@ internal sealed class GpuOrbWindow : IOrbWindow, IOrbHostInput
     private readonly List<IOrbAttachment> _attachments = [];
     private readonly List<(nint Handle, PixelRect Rect)> _batch = [];
     private OrbWindowOptions _options;
+    private OrbSurfaceConfig? _config;
     private bool _passThrough;
     private bool _dragging;
     private bool _dragMoved;
@@ -209,6 +210,10 @@ internal sealed class GpuOrbWindow : IOrbWindow, IOrbHostInput
 
     public void Configure(OrbSurfaceConfig config, OrbWindowOptions options)
     {
+        _config = config;
+        config = config.ForDisplay(_hasCenter
+            ? Monitors.FromPoint(new POINT((int)Math.Round(_center.X), (int)Math.Round(_center.Y)))
+            : Monitors.Primary());
         var sizeChanged = Math.Abs(config.Size - _surface.Diameter) > 0.01;
         _surface.Configure(config);
         if (sizeChanged && _hasCenter)
@@ -543,6 +548,14 @@ internal sealed class GpuOrbWindow : IOrbWindow, IOrbHostInput
         }
     }
 
+    public void RefreshDisplay()
+    {
+        if (_hasCenter)
+        {
+            PlaceAt(_center);
+        }
+    }
+
     // ---- Placement ----
 
     private void PlaceAt(PointD center)
@@ -555,6 +568,12 @@ internal sealed class GpuOrbWindow : IOrbWindow, IOrbHostInput
         }
 
         var monitor = Monitors.FromPoint(new POINT((int)Math.Round(center.X), (int)Math.Round(center.Y)));
+        var diameter = _config is { } config ? monitor?.OrbDisplay.DiameterFor(config.Size, config.Style) ?? config.Size : _surface.Diameter;
+        if (Math.Abs(diameter - _surface.Diameter) > 0.01)
+        {
+            _surface.Resize(diameter);
+        }
+
         var scale = monitor?.Scale ?? DisplayScale;
         var size = (int)Math.Round(_surface.Diameter * 1.5 * scale);
         var left = (int)Math.Round(center.X - size / 2.0);

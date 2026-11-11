@@ -326,11 +326,14 @@
                             </Border>
                             <Slider Width="180" Minimum="{Binding SizeMinimum}" Maximum="240" TickFrequency="4" IsSnapToTickEnabled="True"
                                     SmallChange="4" LargeChange="24" VerticalAlignment="Center" Value="{Binding SizeValue, Mode=TwoWay}"
-                                    AutomationProperties.Name="{loc:Loc settings.orb.size}" />
+                                    AutomationProperties.Name="{loc:Loc settings.orb.size}"
+                                    AutomationProperties.HelpText="{loc:Loc win.settings.orb.adaptiveSize}" />
                             <TextBlock Text="{Binding SizeText}" MinWidth="52" TextAlignment="Right" VerticalAlignment="Center" Margin="10,0,0,0"
                                        Typography.NumeralAlignment="Tabular" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                         </StackPanel>
                     </DockPanel>
+                    <TextBlock Text="{loc:Loc win.settings.orb.adaptiveSize}" Style="{StaticResource CaptionText}"
+                               TextWrapping="Wrap" Margin="0,0,0,10" />
                     <Rectangle Style="{StaticResource Hairline}" />
                     <DockPanel MinHeight="48">
                         <TextBlock Text="{loc:Loc settings.orb.opacity}" VerticalAlignment="Center" FontSize="13" />

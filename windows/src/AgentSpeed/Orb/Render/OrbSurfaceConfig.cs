@@ -1,4 +1,5 @@
 using AgentSpeed.Core;
+using AgentSpeed.Interop;
 using AgentSpeed.Presentation.Colors;
 using AgentSpeed.Presentation.Motion;
 using AgentSpeed.Presentation.Orb;
@@ -24,4 +25,12 @@ internal sealed record OrbSurfaceConfig(
     double Redline,
     ReadoutTexts Texts,
     IReadOnlyList<SourceKind>? Sources,
-    SourceSet Unavailable);
+    SourceSet Unavailable)
+{
+    /// <summary>Only floating windows adapt to their monitor; previews keep the requested size.</summary>
+    public OrbSurfaceConfig ForDisplay(MonitorInfo? monitor)
+    {
+        var size = monitor?.OrbDisplay.DiameterFor(Size, Style) ?? Size;
+        return size == Size ? this : this with { Size = size };
+    }
+}

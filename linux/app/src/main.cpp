@@ -30,10 +30,13 @@
 #include "characters/character_library.hpp"
 #include "orbs/character_demo.hpp"
 #include "orbs/orb_manager.hpp"
+#include "orb/character/character_session.hpp"
 #include "orb/preview.hpp"
 #include "hero/hero_item.hpp"
 #include "preferences.hpp"
 #include "agentspeed/quota/codex.hpp"
+#include "agentspeed/quota/estimate/estimator.hpp"
+#include "agentspeed/quota/paths.hpp"
 #include "quota/quota_service.hpp"
 #include "quota/quota_view.hpp"
 #include "remote_hosts_view.hpp"
@@ -83,6 +86,7 @@ const BoardStore* gBoards = nullptr;
 const OrbsStore* gOrbs = nullptr;
 std::shared_ptr<agentspeed::remote::Feed> gRemoteFeed;
 std::shared_ptr<agentspeed::quota::CodexCollector> gCodexQuota;
+std::shared_ptr<agentspeed::quota::estimate::Estimator> gEstimator;
 
 WorkerOptions optionsFrom(const Preferences& prefs, const Catalog& catalog, const Strings& strings,
                           const std::shared_ptr<agentspeed::pricing::PriceBook>& prices) {
@@ -103,6 +107,7 @@ WorkerOptions optionsFrom(const Preferences& prefs, const Catalog& catalog, cons
     if (gOrbs) options.orbs = orbSpecs(*gOrbs);
     options.remoteFeed = gRemoteFeed;
     options.codexQuota = gCodexQuota;
+    options.estimator = gEstimator;
     return options;
 }
 
@@ -124,6 +129,14 @@ int main(int argc, char* argv[]) {
     QApplication::setQuitOnLastWindowClosed(false);
     QQuickStyle::setStyle(QStringLiteral("Fusion"));
     const bool softwareRendering = chooseGraphicsBackend();
+    // Development aid: AGENT_SPEED_ORB_SESSION=<script.json> with --orb-session=<folder> plays the living pack at
+    // AGENT_SPEED_ORB_PACK through the scripted session offscreen, saves its frames there and quits.
+    for (const auto& arg : app.arguments()) {
+        if (arg.startsWith(QStringLiteral("--orb-session="))) {
+            return orb::runCharacterSession(qEnvironmentVariable("AGENT_SPEED_ORB_SESSION"),
+                                            qEnvironmentVariable("AGENT_SPEED_ORB_PACK").toStdString(), arg.mid(14));
+        }
+    }
 
     const bool demo = app.arguments().contains(QStringLiteral("--demo"));
     const bool hidden = app.arguments().contains(QStringLiteral("--hidden"));
@@ -157,6 +170,11 @@ int main(int argc, char* argv[]) {
     remote.setSelectionStores(&orbStore, &boardStore);
     gRemoteFeed = remote.feed();
     gCodexQuota = std::make_shared<agentspeed::quota::CodexCollector>();
+    // QUOTAS 10: the quota estimate, its install id and estimate.json in `<data>/quota`; hosts get the account salt
+    // (REMOTE 11.1).
+    gEstimator = std::make_shared<agentspeed::quota::estimate::Estimator>(
+        agentspeed::quota::quotaFolderOf(agentspeed::quota::dataFolder(agentspeed::quota::processEnvironment())));
+    remote.setEstimateSalt(QString::fromStdString(gEstimator->saltText()));
 
     QThread thread;
     thread.setObjectName(QStringLiteral("monitor"));
@@ -193,6 +211,7 @@ int main(int argc, char* argv[]) {
     historyThread.setObjectName(QStringLiteral("history"));
     auto* historyWorker = new HistoryWorker(
         prices, QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + QStringLiteral("/history.sqlite"));
+    historyWorker->setEstimator(gEstimator);
     historyWorker->moveToThread(&historyThread);
     const auto pushHistoryScope = [&] {
         const auto config = prefs.monitorConfig();
@@ -262,8 +281,13 @@ int main(int argc, char* argv[]) {
     // shows fixed quotas of every route in demo mode (screenshots).
     QuotaView quotas(strings);
     if (demo && qEnvironmentVariableIsSet("AGENT_SPEED_QUOTA_DEMO")) quotas.loadDemo(QDateTime::currentMSecsSinceEpoch());
+    // QUOTAS 10.8: the estimate's amounts in the display currency.
+    const auto pushQuotaMoney = [&] { quotas.setMoney({prefs.currency(), catalog.rateFor(prefs.currency())}); };
+    pushQuotaMoney();
+    QObject::connect(&prefs, &Preferences::currencyChanged, &app, pushQuotaMoney);
+    QObject::connect(&catalog, &Catalog::changed, &app, pushQuotaMoney);
     orbs.setQuotas(&quotas);
-    QuotaService quotaService(prefs, quotas, remote, gCodexQuota);
+    QuotaService quotaService(prefs, quotas, remote, gCodexQuota, gEstimator);
     // DESIGN 13: the hosts as the settings, pickers, dashboard and history show them (outlives the engine).
     RemoteHostsView hostsView(remote, prefs, state, historyModel, strings);
     // DESIGN 5 資料來源: every source's location list.
@@ -303,6 +327,7 @@ int main(int argc, char* argv[]) {
     // DESIGN 11: live reporting, fed by every live engine tick.
     qRegisterMetaType<ReportTick>();
     ReportController report(prefs, strings, prices, QStandardPaths::writableLocation(QStandardPaths::AppDataLocation));
+    report.setEstimator(gEstimator);
     engine.rootContext()->setContextProperty(QStringLiteral("report"), &report);
     QObject::connect(worker, &MonitorWorker::reportTick, &report, &ReportController::onTick);
     engine.rootContext()->setContextProperty(QStringLiteral("lan"), &lan);

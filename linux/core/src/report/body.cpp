@@ -62,7 +62,7 @@ Json trafficJson(const TrafficSample& traffic, const std::optional<traffic::Rate
 
 std::vector<SourceKind> sourceOrder() {
     std::vector<SourceKind> out;
-    for (int k = 0; k <= static_cast<int>(SourceKind::QoderCli); ++k) out.push_back(static_cast<SourceKind>(k));
+    for (int k = 0; k <= static_cast<int>(SourceKind::CodeBuddyCode); ++k) out.push_back(static_cast<SourceKind>(k));
     return out;
 }
 
@@ -303,6 +303,25 @@ bool fits(const std::string& data, const Options& options) {
     return static_cast<int>(data.size()) <= options.bodyLimit && (!options.stream || messageBytes(data) <= static_cast<std::size_t>(options.stream->maxMessageBytes));
 }
 
+// REPORTING-EXTENSIONS 12: `tokenUsage` goes only to a service that advertises `quotaTokenUsage`.
+Json quotaEntries(const std::vector<Json>& entries, bool tokenUsage) {
+    if (tokenUsage) return Json::array(entries);
+    std::vector<Json> out;
+    out.reserve(entries.size());
+    for (const auto& entry : entries) {
+        if (entry.kind() != Json::Kind::Object || !entry.find("tokenUsage")) {
+            out.push_back(entry);
+            continue;
+        }
+        std::vector<Json::Member> members;
+        for (const auto& member : entry.members()) {
+            if (member.first != "tokenUsage") members.push_back(member);
+        }
+        out.push_back(Json::object(std::move(members)));
+    }
+    return Json::array(std::move(out));
+}
+
 }  // namespace
 
 const char* sectionName(Section section) {
@@ -458,6 +477,7 @@ Json body(const Envelope& envelope, const WindowContent& content, const Sample& 
     } else if (score == ScoreExtension::Legacy) {
         json.add("taskScore", legacyValue(perf.thinking));
     }
+    if (options.quotas) json.add("quotas", quotaEntries(*options.quotas, options.extensions.quotaTokenUsage));
     if (options.stream) {
         const bool mixed = sections.contains(Section::Traffic) && sample.traffic.status == TrafficStatus::Ok;
         json.add("realtime", realtime(mixed, envelope.sentAtMs, options.stream->observationAgeMs));
@@ -468,6 +488,18 @@ Json body(const Envelope& envelope, const WindowContent& content, const Sample& 
 Fitted fitted(const Envelope& envelope, const WindowContent& content, const Sample& sample, Options options) {
     auto document = body(envelope, content, sample, options);
     auto data = document.compact();
+    if (!fits(data, options) && options.quotas && options.extensions.quotaTokenUsage) {
+        options.extensions.quotaTokenUsage = false;
+        document = body(envelope, content, sample, options);
+        data = document.compact();
+    }
+    bool quotasDropped = false;
+    if (!fits(data, options) && options.quotas) {
+        options.quotas.reset();
+        quotasDropped = true;
+        document = body(envelope, content, sample, options);
+        data = document.compact();
+    }
     if (!fits(data, options) && (options.extensions.executionModes || options.extensions.modelHarnessRequests)) {
         options.extensions.executionModes = options.extensions.modelHarnessRequests = false;
         document = body(envelope, content, sample, options);
@@ -480,7 +512,7 @@ Fitted fitted(const Envelope& envelope, const WindowContent& content, const Samp
         document = body(envelope, content, sample, options);
         data = document.compact();
     }
-    return {std::move(document), std::move(data)};
+    return {std::move(document), std::move(data), quotasDropped};
 }
 
 }  // namespace agentspeed::report

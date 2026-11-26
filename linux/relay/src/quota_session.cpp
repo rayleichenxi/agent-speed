@@ -3,10 +3,12 @@
 #include <algorithm>
 #include <chrono>
 
+#include "agentspeed/quota/cli_cache.hpp"
 #include "agentspeed/quota/cli_quota.hpp"
 #include "agentspeed/quota/presence.hpp"
 #include "agentspeed/quota/vendor_service.hpp"
 #include "agentspeed/traffic_linux.hpp"
+#include "quota_accounts.hpp"
 #include "quota_bridge.hpp"
 #include "quota_lines.hpp"
 #include "quota_transport.hpp"
@@ -65,7 +67,8 @@ QuotaSession::QuotaSession(Output& out, std::set<SourceKind> enabled, QuotaOptio
       options_(std::move(options)),
       clock_(std::move(clock)),
       environment_(options_.environment ? options_.environment : quota::processEnvironment()),
-      codex_(std::make_shared<quota::CodexCollector>()) {
+      codex_(std::make_shared<quota::CodexCollector>()),
+      codexPlans_(std::make_shared<CodexPlans>()) {
     // Nothing is read before the app's config says what (QUOTAS 9.1).
     codex_->setEnabled(false);
 }
@@ -73,7 +76,10 @@ QuotaSession::QuotaSession(Output& out, std::set<SourceKind> enabled, QuotaOptio
 QuotaSession::~QuotaSession() = default;
 
 quota::CodexCollector::Observer QuotaSession::codexObserver() const {
-    return [codex = codex_](const json::Value& rateLimits, std::int64_t timestampMs) { codex->observe(rateLimits, timestampMs); };
+    return [codex = codex_, plans = codexPlans_](const json::Value& rateLimits, std::int64_t timestampMs) {
+        codex->observe(rateLimits, timestampMs);
+        plans->observe(rateLimits, timestampMs);
+    };
 }
 
 // The readers, made with the first config: a relay of an app without quotas never starts the transport's thread.
@@ -81,8 +87,11 @@ void QuotaSession::build() {
     const auto folder = absoluteFolder(options_.folder);
     bridge_ = std::make_unique<HostBridge>(folder, environment_, options_.self);
     cliFile_ = std::make_unique<quota::cli::FileReader>(bridge_->paths().quotaFile());
+    cliCache_ = std::make_unique<quota::cli::CacheReader>(quota::claudeAccountFile(environment_));
     codexMarker_ = std::make_unique<quota::SignInMarker>(quota::SignInKind::Codex, quota::codexAuthFile(environment_));
     claudeMarker_ = std::make_unique<quota::SignInMarker>(quota::SignInKind::ClaudeCode, quota::claudeAccountFile(environment_));
+    codexAccount_ = std::make_unique<AccountFile>(AccountKind::Codex, quota::codexAuthFile(environment_));
+    claudeAccount_ = std::make_unique<AccountFile>(AccountKind::ClaudeCode, quota::claudeAccountFile(environment_));
     traffic::Env env;
     env.platform = traffic::Platform::Linux;
     env.home = quota::homeFolder(environment_);
@@ -113,6 +122,9 @@ void QuotaSession::setConfig(const QuotaConfig& config) {
     }
     config_ = active;
     codex_->setEnabled(active.sources.contains(SourceKind::Codex));
+    codexPlans_->setEnabled(active.sources.contains(SourceKind::Codex));
+    // The rollouts seeded next count for the account in force; a new salt gives new keys.
+    refreshAccounts(clock_());
     bridgeCheckedMs_ = steadyMs();
     // Every config is answered with the bridge's state: the app waits for `off` before it lets a removed host go.
     sendBridge(bridge_->apply(config.claudeBridge, first));
@@ -164,9 +176,20 @@ void QuotaSession::refresh(std::int64_t nowMs, std::int64_t steady) {
         cliCheckedMs_ = steady;
         cliFile_->refresh(true);
     }
+    // REMOTE 11.3: the host's Claude Code usage cache with the signed-in marker's cadence (QUOTAS 5.6).
+    cliCache_->refresh(nowMs, cliOn);
     codexMarker_->refresh(nowMs, codexOn);
     claudeMarker_->refresh(nowMs, cliOn);
+    refreshAccounts(nowMs);
     vendors_->tick(quota::hostInputs(sources, config_->network, config_->grokLive, running_, nowMs));
+}
+
+// QUOTAS 10.1 and 10.2: the keys, plans and tiers of Codex and Claude Code, from their sign-in files.
+void QuotaSession::refreshAccounts(std::int64_t nowMs) {
+    const auto& sources = config_->sources;
+    codexAccount_->refresh(nowMs, sources.contains(SourceKind::Codex), config_->salt);
+    claudeAccount_->refresh(nowMs, sources.contains(SourceKind::ClaudeCode), config_->salt);
+    codexPlans_->setAccount(codexAccount_->facts().identity);
 }
 
 remote::HostQuota QuotaSession::reportOf(SourceKind source) const {
@@ -177,11 +200,18 @@ remote::HostQuota QuotaSession::reportOf(SourceKind source) const {
         case SourceKind::Codex:
             snapshot = codex_->snapshot();
             r.signedIn = codexMarker_->signedIn();
+            r.account = codexAccount_->facts().account;
+            if (snapshot) r.plan = codexPlans_->plan(snapshot->observedMs);
             break;
-        case SourceKind::ClaudeCode:
-            snapshot = cliFile_->snapshot();
+        case SourceKind::ClaudeCode: {
+            snapshot = quota::cli::joined(cliFile_->snapshot(), cliCache_->snapshot());
             r.signedIn = claudeMarker_->signedIn();
+            const auto& facts = claudeAccount_->facts();
+            r.account = facts.account;
+            r.plan = facts.plan;
+            r.tier = facts.tier;
             break;
+        }
         case SourceKind::GrokBuild:
             snapshot = readings.snapshot(source);
             r.signedIn = readings.signedIn(source);
@@ -217,16 +247,14 @@ void QuotaSession::report(std::int64_t nowMs) {
         auto r = reportOf(source);
         std::optional<quota::Snapshot> snapshot;
         if (r.snapshot.observedMs != 0) snapshot = r.snapshot;
-        if (sent != sent_.end() && sent->second.snapshot == snapshot && sent->second.running == r.running &&
-            sent->second.signedIn == r.signedIn && sent->second.status == r.status) {
-            continue;
-        }
+        Sent now{snapshot, r.running, r.signedIn, r.status, r.account, r.plan, r.tier};
+        if (sent != sent_.end() && sent->second == now) continue;
         if (sent != sent_.end() && hasWindows(sent->second.snapshot) && !hasWindows(snapshot)) lines.add(quotaRemovedLine(source));
         if (!snapshot) r.snapshot.observedMs = nowMs;
         auto text = quotaLine(r);
         if (text.empty()) continue;
         lines.add(std::move(text));
-        sent_[source] = Sent{snapshot, r.running, r.signedIn, r.status};
+        sent_[source] = std::move(now);
     }
 }
 

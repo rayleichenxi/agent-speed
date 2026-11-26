@@ -49,7 +49,7 @@ QString fill(QString text, const QStringList& args) {
 // METRICS 1 source order.
 QStringList sourceOrder() {
     QStringList keys;
-    for (int k = 0; k <= static_cast<int>(agentspeed::SourceKind::QoderCli); ++k) {
+    for (int k = 0; k <= static_cast<int>(agentspeed::SourceKind::CodeBuddyCode); ++k) {
         keys.push_back(QString::fromUtf8(agentspeed::sourceId(static_cast<agentspeed::SourceKind>(k))));
     }
     return keys;
@@ -92,6 +92,8 @@ OrbManager::OrbManager(const Strings& strings, const Preferences& prefs, OrbsSto
     connect(&Appearance::instance(), &Appearance::changed, this, &OrbManager::layoutPlates);
     connect(&prefs_, &Preferences::redlineChanged, this, &OrbManager::sync);
     connect(&prefs_, &Preferences::metricChanged, this, &OrbManager::sync);
+    celebratePeaks_ = prefs_.celebratePeaks();
+    connect(&prefs_, &Preferences::celebratePeaksChanged, this, [this] { setCelebratePeaks(prefs_.celebratePeaks()); });
     sync();
 }
 
@@ -271,6 +273,7 @@ QVariantList OrbManager::list() const {
         m.insert(QStringLiteral("alwaysOnTop"), c.alwaysOnTop);
         m.insert(QStringLiteral("clickThrough"), c.clickThrough);
         m.insert(QStringLiteral("fadeWhenIdle"), c.fadeWhenIdle);
+        m.insert(QStringLiteral("hideWhenIdle"), c.hideWhenIdle);
         m.insert(QStringLiteral("traffic"), c.traffic);
         m.insert(QStringLiteral("unit"), c.unit);
         m.insert(QStringLiteral("showName"), c.showName ? QVariant(*c.showName) : QVariant());
@@ -319,6 +322,7 @@ void OrbManager::sync() {
             orb.window->setCharacters(characters_);
             orb.window->forceDark(forcedDark_);
             orb.window->setEffectsLevel(effectsLevel_);
+            orb.window->setCelebratePeaks(celebratePeaks_);
             orb.plate = std::make_unique<NamePlate>();
             auto* window = orb.window.get();
             auto* plate = orb.plate.get();
@@ -359,6 +363,8 @@ void OrbManager::sync() {
             });
             connect(window, &QWindow::xChanged, this, [this] { plateTimer_.start(0); });
             connect(window, &QWindow::yChanged, this, [this] { plateTimer_.start(0); });
+            // Hide when idle (DESIGN 2): the name plate and the source chip go and come back with the orb.
+            connect(window, &orb::OrbWindow::idleHiddenChanged, this, [this] { plateTimer_.start(0); });
             created.push_back(c.id);
         }
         syncWindow(c, orb);
@@ -445,6 +451,11 @@ void OrbManager::setNames(const QString& names) {
     emit listChanged();
 }
 
+void OrbManager::setCelebratePeaks(bool on) {
+    celebratePeaks_ = on;
+    for (auto& [id, orb] : orbs_) orb.window->setCelebratePeaks(on);
+}
+
 void OrbManager::setEffectsLevel(int level) {
     level = std::clamp(level, 0, 3);
     if (level == effectsLevel_) return;
@@ -484,6 +495,8 @@ void OrbManager::set(const QString& id, const QString& key, const QVariant& valu
         c.clickThrough = value.toBool();
     } else if (key == QLatin1String("fadeWhenIdle")) {
         c.fadeWhenIdle = value.toBool();
+    } else if (key == QLatin1String("hideWhenIdle")) {
+        c.hideWhenIdle = value.toBool();
     } else if (key == QLatin1String("visible")) {
         c.visible = value.toBool();
     } else if (key == QLatin1String("traffic")) {
@@ -840,12 +853,13 @@ void OrbManager::placeAll() {
     layoutPlates();
 }
 
+// The discs on the screen, and those of orbs hidden when idle: they keep their place (DESIGN 2).
 std::vector<orb::Disc> OrbManager::discs(const QString& except) const {
     std::vector<orb::Disc> out;
     for (const auto& c : store_.orbs()) {
         if (c.id == except) continue;
         const auto it = orbs_.find(c.id);
-        if (it == orbs_.end() || !it->second.window->isVisible()) continue;
+        if (it == orbs_.end() || !(it->second.window->isVisible() || it->second.window->away())) continue;
         out.push_back({it->second.window->discCenter(), c.footprintDiameter() / 2});
     }
     return out;
@@ -941,7 +955,7 @@ void OrbManager::layoutPlates() {
         if (it == orbs_.end()) continue;
         auto& orb = it->second;
         auto* window = orb.window.get();
-        const bool visible = window->isVisible();
+        const bool visible = window->isVisible() && !window->idleHidden();
         const bool plate = platesShown(c.id);
         const bool chipWanted = visible && (window->hovered() || window->dragging() || now < orb.chipUntil);
         const bool chip = chipWanted && (count() > 1 || !c.tracksAll() || !c.tracksAllHosts());

@@ -1712,6 +1712,313 @@
     }
    ]
   },
+  "antigravityServers": [
+   {
+    "platform": "macos",
+    "executable": "/Applications/Antigravity.app/Contents/Resources/bin/language_server",
+    "arguments": [
+     "language_server",
+     "--standalone",
+     "--override_ide_name",
+     "antigravity",
+     "--subclient_type",
+     "hub",
+     "--https_server_port",
+     "0",
+     "--csrf_token",
+     "csrf-token-1",
+     "--app_data_dir",
+     "antigravity"
+    ],
+    "expected": true
+   },
+   {
+    "platform": "macos",
+    "executable": "/Applications/Antigravity.app/Contents/Resources/bin/language_server",
+    "arguments": [
+     "language_server"
+    ],
+    "expected": true
+   },
+   {
+    "platform": "macos",
+    "executable": "/usr/local/bin/language_server",
+    "arguments": [
+     "language_server",
+     "--stdio"
+    ],
+    "expected": false
+   },
+   {
+    "platform": "macos",
+    "executable": "/opt/lsp/language_server",
+    "arguments": [
+     "language_server",
+     "--app_data_dir",
+     "/Users/me/.gemini/antigravity"
+    ],
+    "expected": true
+   },
+   {
+    "platform": "macos",
+    "executable": "/opt/lsp/language_server",
+    "arguments": [
+     "language_server",
+     "--app_data_dir=/Users/me/.gemini/Antigravity-IDE"
+    ],
+    "expected": true
+   },
+   {
+    "platform": "macos",
+    "executable": "/opt/lsp/language_server",
+    "arguments": [
+     "language_server",
+     "--app_data_dir",
+     "/tmp/other",
+     "--name",
+     "x"
+    ],
+    "expected": false
+   },
+   {
+    "platform": "macos",
+    "executable": "/opt/lsp/language_server",
+    "arguments": [
+     "language_server",
+     "--antigravity"
+    ],
+    "expected": false
+   },
+   {
+    "platform": "macos",
+    "executable": "/Applications/Antigravity IDE.app/Contents/Resources/app/extensions/antigravity/bin/language_server_macos_arm",
+    "arguments": [
+     "language_server_macos_arm"
+    ],
+    "expected": true
+   },
+   {
+    "platform": "macos",
+    "executable": "/Users/me/.local/share/agy/language_server_macos_arm",
+    "arguments": [
+     "x",
+     "--app_data_dir",
+     "antigravity-cli"
+    ],
+    "expected": true
+   },
+   {
+    "platform": "macos",
+    "executable": "/usr/local/bin/language_serverx",
+    "arguments": [
+     "language_serverx",
+     "--app_data_dir",
+     "antigravity"
+    ],
+    "expected": false
+   },
+   {
+    "platform": "macos",
+    "executable": "/usr/local/bin/Language_Server",
+    "arguments": [
+     "Language_Server",
+     "--app_data_dir",
+     "antigravity"
+    ],
+    "expected": false
+   },
+   {
+    "platform": "windows",
+    "executable": "C:\\Users\\me\\AppData\\Local\\Programs\\Antigravity\\resources\\bin\\language_server.exe",
+    "arguments": [
+     "language_server.exe",
+     "--app_data_dir",
+     "antigravity"
+    ],
+    "expected": true
+   },
+   {
+    "platform": "windows",
+    "executable": "C:\\Tools\\LANGUAGE_SERVER.EXE",
+    "arguments": [
+     "LANGUAGE_SERVER.EXE",
+     "--app_data_dir=antigravity"
+    ],
+    "expected": true
+   },
+   {
+    "platform": "windows",
+    "executable": "C:\\Tools\\language_server.exe",
+    "arguments": [
+     "language_server.exe"
+    ],
+    "expected": false
+   }
+  ],
+  "antigravityCli": [
+   {
+    "name": "observed",
+    "stdout": "{\"status\": \"SUCCESS\", \"response\": \"group\\tbucket\\tremaining\\n\", \"num_turns\": 0, \"usage\": {\"input_tokens\": 0, \"output_tokens\": 0, \"total_tokens\": 0}, \"command\": {\"name\": \"usage\", \"data\": {\"groups\": [{\"name\": \"Gemini Models\", \"buckets\": [{\"id\": \"gemini-weekly\", \"name\": \"Weekly Limit Remaining\", \"window\": \"weekly\", \"remaining_fraction\": 0.9548, \"reset_time\": \"2026-11-21T02:28:26Z\"}]}, {\"name\": \"Claude and GPT models\", \"buckets\": [{\"id\": \"3p-weekly\", \"window\": \"weekly\", \"remaining_fraction\": 1, \"reset_time\": \"2026-11-21T08:37:43Z\"}]}]}}}\n",
+    "expected": [
+     {
+      "kind": "sevenDay",
+      "name": "Gemini",
+      "minutes": 10080,
+      "usedPercent": 4.52,
+      "resetsAtMs": 1795228106000
+     },
+     {
+      "kind": "sevenDay",
+      "name": "Claude/GPT",
+      "minutes": 10080,
+      "usedPercent": 0.0,
+      "resetsAtMs": 1795250263000
+     }
+    ]
+   },
+   {
+    "name": "mixedNames",
+    "stdout": "{\"status\": \"SUCCESS\", \"command\": {\"name\": \"usage\", \"data\": {\"groups\": [{\"displayName\": \"Gemini 4 Argon\", \"name\": \"ignored\", \"buckets\": [{\"id\": \"argon-5h\", \"remainingFraction\": 0.5, \"remaining_fraction\": 0.9, \"reset_time\": 1794800000}, {\"id\": \"argon-weekly\", \"remaining_fraction\": 0.25, \"disabled\": true}, {\"id\": \"argon-daily\", \"remaining_fraction\": 0.1}, {\"bucketId\": \"weekly\", \"id\": \"5h\", \"remaining\": {\"remainingFraction\": 0.8}}]}, \"not a group\", {\"name\": \"Gemini Models\", \"buckets\": [{\"name\": \"Five hour\", \"remaining_fraction\": \"0.5\"}]}]}}}",
+    "expected": [
+     {
+      "kind": "fiveHour",
+      "name": "Gemini Argon",
+      "minutes": 300,
+      "usedPercent": 50.0,
+      "resetsAtMs": 1794800000000
+     },
+     {
+      "kind": "sevenDay",
+      "name": "Gemini Argon",
+      "minutes": 10080,
+      "usedPercent": 20.0,
+      "resetsAtMs": null
+     }
+    ]
+   },
+   {
+    "name": "failedStatus",
+    "stdout": "{\"status\": \"ERROR\", \"response\": \"group\\tbucket\\tremaining\\n\", \"num_turns\": 0, \"usage\": {\"input_tokens\": 0, \"output_tokens\": 0, \"total_tokens\": 0}, \"command\": {\"name\": \"usage\", \"data\": {\"groups\": [{\"name\": \"Gemini Models\", \"buckets\": [{\"id\": \"gemini-weekly\", \"name\": \"Weekly Limit Remaining\", \"window\": \"weekly\", \"remaining_fraction\": 0.9548, \"reset_time\": \"2026-11-21T02:28:26Z\"}]}, {\"name\": \"Claude and GPT models\", \"buckets\": [{\"id\": \"3p-weekly\", \"window\": \"weekly\", \"remaining_fraction\": 1, \"reset_time\": \"2026-11-21T08:37:43Z\"}]}]}}}",
+    "expected": null
+   },
+   {
+    "name": "otherCommand",
+    "stdout": "{\"status\": \"SUCCESS\", \"response\": \"group\\tbucket\\tremaining\\n\", \"num_turns\": 0, \"usage\": {\"input_tokens\": 0, \"output_tokens\": 0, \"total_tokens\": 0}, \"command\": {\"name\": \"help\", \"data\": {\"groups\": [{\"name\": \"Gemini Models\", \"buckets\": [{\"id\": \"gemini-weekly\", \"name\": \"Weekly Limit Remaining\", \"window\": \"weekly\", \"remaining_fraction\": 0.9548, \"reset_time\": \"2026-11-21T02:28:26Z\"}]}, {\"name\": \"Claude and GPT models\", \"buckets\": [{\"id\": \"3p-weekly\", \"window\": \"weekly\", \"remaining_fraction\": 1, \"reset_time\": \"2026-11-21T08:37:43Z\"}]}]}}}",
+    "expected": null
+   },
+   {
+    "name": "dataNotAnObject",
+    "stdout": "{\"status\": \"SUCCESS\", \"response\": \"group\\tbucket\\tremaining\\n\", \"num_turns\": 0, \"usage\": {\"input_tokens\": 0, \"output_tokens\": 0, \"total_tokens\": 0}, \"command\": {\"name\": \"usage\", \"data\": []}}",
+    "expected": null
+   },
+   {
+    "name": "noCommand",
+    "stdout": "{\"status\": \"SUCCESS\", \"response\": \"Weekly 95%\"}",
+    "expected": null
+   },
+   {
+    "name": "noWindows",
+    "stdout": "{\"status\": \"SUCCESS\", \"response\": \"group\\tbucket\\tremaining\\n\", \"num_turns\": 0, \"usage\": {\"input_tokens\": 0, \"output_tokens\": 0, \"total_tokens\": 0}, \"command\": {\"name\": \"usage\", \"data\": {\"groups\": []}}}",
+    "expected": null
+   },
+   {
+    "name": "notJson",
+    "stdout": "Please sign in to Antigravity: https://accounts.google.com/...\n",
+    "expected": null
+   },
+   {
+    "name": "empty",
+    "stdout": "",
+    "expected": null
+   },
+   {
+    "name": "array",
+    "stdout": "[]",
+    "expected": null
+   }
+  ],
+  "agyVersions": [
+   {
+    "text": "1.5.9\n",
+    "version": [
+     1,
+     5,
+     9
+    ],
+    "supported": true
+   },
+   {
+    "text": "1.1.11",
+    "version": [
+     1,
+     1,
+     11
+    ],
+    "supported": true
+   },
+   {
+    "text": "1.1.10",
+    "version": [
+     1,
+     1,
+     10
+    ],
+    "supported": false
+   },
+   {
+    "text": "1.10.0",
+    "version": [
+     1,
+     10,
+     0
+    ],
+    "supported": true
+   },
+   {
+    "text": "  2.0.0  ",
+    "version": [
+     2,
+     0,
+     0
+    ],
+    "supported": true
+   },
+   {
+    "text": "1.2",
+    "version": null,
+    "supported": false
+   },
+   {
+    "text": "v1.5.9",
+    "version": null,
+    "supported": false
+   },
+   {
+    "text": "agy 1.5.9",
+    "version": null,
+    "supported": false
+   },
+   {
+    "text": "1.5.9-beta",
+    "version": null,
+    "supported": false
+   },
+   {
+    "text": "1.5.9\n1.6.0",
+    "version": null,
+    "supported": false
+   },
+   {
+    "text": "",
+    "version": null,
+    "supported": false
+   },
+   {
+    "text": "1.5.x",
+    "version": null,
+    "supported": false
+   }
+  ],
   "kimiCurrent": {
    "body": {
     "usages": {
@@ -2181,6 +2488,1528 @@
    "site": "qoder.com",
    "nowS": 1794338773,
    "expected": "sid=a1; csrf=b2; region=sg"
+  }
+ },
+ "claudeCodeCache": {
+  "files": [
+   {
+    "name": "observed",
+    "text": "{\n  \"numStartups\": 412,\n  \"theme\": \"dark\",\n  \"tipsHistory\": {\n    \"memory-command\": 3\n  },\n  \"projects\": {\n    \"/Users/me/work/app\": {\n      \"allowedTools\": [],\n      \"history\": [\n        {\n          \"display\": \"fix the build\"\n        }\n      ],\n      \"cachedUsageUtilization\": {\n        \"fetchedAtMs\": 1,\n        \"utilization\": {}\n      }\n    }\n  },\n  \"oauthAccount\": {\n    \"accountUuid\": \"6f1c2a7e-0b3d-4c5e-9f8a-1b2c3d4e5f60\",\n    \"emailAddress\": \"user@example.com\",\n    \"organizationUuid\": \"1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d\",\n    \"organizationType\": \"claude_max\",\n    \"organizationRateLimitTier\": \"default_claude_max_20x\"\n  },\n  \"userID\": \"0000000000000000000000000000000000000000000000000000000000000000\",\n  \"cachedUsageUtilization\": {\n    \"fetchedAtMs\": 1794330373747,\n    \"accountUuid\": \"6f1c2a7e-0b3d-4c5e-9f8a-1b2c3d4e5f60\",\n    \"utilization\": {\n      \"five_hour\": {\n        \"utilization\": 42,\n        \"resets_at\": \"2026-11-10T20:59:59.593791+00:00\"\n      },\n      \"seven_day\": {\n        \"utilization\": 78,\n        \"resets_at\": \"2026-11-14T01:59:59.593809+00:00\"\n      },\n      \"seven_day_oauth_apps\": null,\n      \"seven_day_opus\": null,\n      \"seven_day_sonnet\": null,\n      \"iguana_necktie\": null,\n      \"extra_usage\": {\n        \"is_enabled\": false,\n        \"monthly_limit\": null\n      },\n      \"limits\": [\n        {\n          \"kind\": \"session\",\n          \"percent\": 42,\n          \"resets_at\": \"2026-11-10T20:59:59.593791+00:00\",\n          \"scope\": null,\n          \"is_active\": false,\n          \"severity\": \"normal\",\n          \"group\": \"session\"\n        },\n        {\n          \"kind\": \"weekly_all\",\n          \"percent\": 78,\n          \"resets_at\": \"2026-11-14T01:59:59.593809+00:00\",\n          \"scope\": null,\n          \"is_active\": false,\n          \"severity\": \"warning\",\n          \"group\": \"weekly\"\n        },\n        {\n          \"kind\": \"weekly_scoped\",\n          \"percent\": 100,\n          \"resets_at\": \"2026-11-14T01:59:59.593936+00:00\",\n          \"scope\": {\n            \"model\": {\n              \"id\": null,\n              \"display_name\": \"Fable\"\n            },\n            \"surface\": null\n          },\n          \"is_active\": true,\n          \"severity\": \"critical\",\n          \"group\": \"weekly\"\n        }\n      ]\n    }\n  }\n}\n",
+    "expected": {
+     "source": "claudeCode",
+     "observedMs": 1794330373747,
+     "windows": [
+      {
+       "kind": "fiveHour",
+       "name": null,
+       "minutes": 300,
+       "usedPercent": 42.0,
+       "resetsAtMs": 1794344399593
+      },
+      {
+       "kind": "sevenDay",
+       "name": null,
+       "minutes": 10080,
+       "usedPercent": 78.0,
+       "resetsAtMs": 1794621599593
+      },
+      {
+       "kind": "modelWeek",
+       "name": "Fable",
+       "minutes": 10080,
+       "usedPercent": 100.0,
+       "resetsAtMs": 1794621599593
+      }
+     ]
+    }
+   },
+   {
+    "name": "noOauthAccount",
+    "text": "{\n  \"numStartups\": 412,\n  \"theme\": \"dark\",\n  \"tipsHistory\": {\n    \"memory-command\": 3\n  },\n  \"projects\": {\n    \"/Users/me/work/app\": {\n      \"allowedTools\": [],\n      \"history\": [\n        {\n          \"display\": \"fix the build\"\n        }\n      ],\n      \"cachedUsageUtilization\": {\n        \"fetchedAtMs\": 1,\n        \"utilization\": {}\n      }\n    }\n  },\n  \"userID\": \"0000000000000000000000000000000000000000000000000000000000000000\",\n  \"cachedUsageUtilization\": {\n    \"fetchedAtMs\": 1794330373747,\n    \"accountUuid\": \"6f1c2a7e-0b3d-4c5e-9f8a-1b2c3d4e5f60\",\n    \"utilization\": {\n      \"five_hour\": {\n        \"utilization\": 42,\n        \"resets_at\": \"2026-11-10T20:59:59.593791+00:00\"\n      },\n      \"seven_day\": {\n        \"utilization\": 78,\n        \"resets_at\": \"2026-11-14T01:59:59.593809+00:00\"\n      },\n      \"seven_day_oauth_apps\": null,\n      \"seven_day_opus\": null,\n      \"seven_day_sonnet\": null,\n      \"iguana_necktie\": null,\n      \"extra_usage\": {\n        \"is_enabled\": false,\n        \"monthly_limit\": null\n      },\n      \"limits\": [\n        {\n          \"kind\": \"session\",\n          \"percent\": 42,\n          \"resets_at\": \"2026-11-10T20:59:59.593791+00:00\",\n          \"scope\": null,\n          \"is_active\": false,\n          \"severity\": \"normal\",\n          \"group\": \"session\"\n        },\n        {\n          \"kind\": \"weekly_all\",\n          \"percent\": 78,\n          \"resets_at\": \"2026-11-14T01:59:59.593809+00:00\",\n          \"scope\": null,\n          \"is_active\": false,\n          \"severity\": \"warning\",\n          \"group\": \"weekly\"\n        },\n        {\n          \"kind\": \"weekly_scoped\",\n          \"percent\": 100,\n          \"resets_at\": \"2026-11-14T01:59:59.593936+00:00\",\n          \"scope\": {\n            \"model\": {\n              \"id\": null,\n              \"display_name\": \"Fable\"\n            },\n            \"surface\": null\n          },\n          \"is_active\": true,\n          \"severity\": \"critical\",\n          \"group\": \"weekly\"\n        }\n      ]\n    }\n  }\n}\n",
+    "expected": {
+     "source": "claudeCode",
+     "observedMs": 1794330373747,
+     "windows": [
+      {
+       "kind": "fiveHour",
+       "name": null,
+       "minutes": 300,
+       "usedPercent": 42.0,
+       "resetsAtMs": 1794344399593
+      },
+      {
+       "kind": "sevenDay",
+       "name": null,
+       "minutes": 10080,
+       "usedPercent": 78.0,
+       "resetsAtMs": 1794621599593
+      },
+      {
+       "kind": "modelWeek",
+       "name": "Fable",
+       "minutes": 10080,
+       "usedPercent": 100.0,
+       "resetsAtMs": 1794621599593
+      }
+     ]
+    }
+   },
+   {
+    "name": "oauthAccountNotAnObject",
+    "text": "{\n  \"numStartups\": 412,\n  \"theme\": \"dark\",\n  \"tipsHistory\": {\n    \"memory-command\": 3\n  },\n  \"projects\": {\n    \"/Users/me/work/app\": {\n      \"allowedTools\": [],\n      \"history\": [\n        {\n          \"display\": \"fix the build\"\n        }\n      ],\n      \"cachedUsageUtilization\": {\n        \"fetchedAtMs\": 1,\n        \"utilization\": {}\n      }\n    }\n  },\n  \"oauthAccount\": \"signed out\",\n  \"userID\": \"0000000000000000000000000000000000000000000000000000000000000000\",\n  \"cachedUsageUtilization\": {\n    \"fetchedAtMs\": 1794330373747,\n    \"accountUuid\": \"6f1c2a7e-0b3d-4c5e-9f8a-1b2c3d4e5f60\",\n    \"utilization\": {\n      \"five_hour\": {\n        \"utilization\": 42,\n        \"resets_at\": \"2026-11-10T20:59:59.593791+00:00\"\n      },\n      \"seven_day\": {\n        \"utilization\": 78,\n        \"resets_at\": \"2026-11-14T01:59:59.593809+00:00\"\n      },\n      \"seven_day_oauth_apps\": null,\n      \"seven_day_opus\": null,\n      \"seven_day_sonnet\": null,\n      \"iguana_necktie\": null,\n      \"extra_usage\": {\n        \"is_enabled\": false,\n        \"monthly_limit\": null\n      },\n      \"limits\": [\n        {\n          \"kind\": \"session\",\n          \"percent\": 42,\n          \"resets_at\": \"2026-11-10T20:59:59.593791+00:00\",\n          \"scope\": null,\n          \"is_active\": false,\n          \"severity\": \"normal\",\n          \"group\": \"session\"\n        },\n        {\n          \"kind\": \"weekly_all\",\n          \"percent\": 78,\n          \"resets_at\": \"2026-11-14T01:59:59.593809+00:00\",\n          \"scope\": null,\n          \"is_active\": false,\n          \"severity\": \"warning\",\n          \"group\": \"weekly\"\n        },\n        {\n          \"kind\": \"weekly_scoped\",\n          \"percent\": 100,\n          \"resets_at\": \"2026-11-14T01:59:59.593936+00:00\",\n          \"scope\": {\n            \"model\": {\n              \"id\": null,\n              \"display_name\": \"Fable\"\n            },\n            \"surface\": null\n          },\n          \"is_active\": true,\n          \"severity\": \"critical\",\n          \"group\": \"weekly\"\n        }\n      ]\n    }\n  }\n}\n",
+    "expected": {
+     "source": "claudeCode",
+     "observedMs": 1794330373747,
+     "windows": [
+      {
+       "kind": "fiveHour",
+       "name": null,
+       "minutes": 300,
+       "usedPercent": 42.0,
+       "resetsAtMs": 1794344399593
+      },
+      {
+       "kind": "sevenDay",
+       "name": null,
+       "minutes": 10080,
+       "usedPercent": 78.0,
+       "resetsAtMs": 1794621599593
+      },
+      {
+       "kind": "modelWeek",
+       "name": "Fable",
+       "minutes": 10080,
+       "usedPercent": 100.0,
+       "resetsAtMs": 1794621599593
+      }
+     ]
+    }
+   },
+   {
+    "name": "noCachedUuid",
+    "text": "{\n  \"numStartups\": 412,\n  \"theme\": \"dark\",\n  \"tipsHistory\": {\n    \"memory-command\": 3\n  },\n  \"projects\": {\n    \"/Users/me/work/app\": {\n      \"allowedTools\": [],\n      \"history\": [\n        {\n          \"display\": \"fix the build\"\n        }\n      ],\n      \"cachedUsageUtilization\": {\n        \"fetchedAtMs\": 1,\n        \"utilization\": {}\n      }\n    }\n  },\n  \"oauthAccount\": {\n    \"accountUuid\": \"6f1c2a7e-0b3d-4c5e-9f8a-1b2c3d4e5f60\",\n    \"emailAddress\": \"user@example.com\",\n    \"organizationUuid\": \"1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d\",\n    \"organizationType\": \"claude_max\",\n    \"organizationRateLimitTier\": \"default_claude_max_20x\"\n  },\n  \"userID\": \"0000000000000000000000000000000000000000000000000000000000000000\",\n  \"cachedUsageUtilization\": {\n    \"fetchedAtMs\": 1794330373747,\n    \"utilization\": {\n      \"five_hour\": {\n        \"utilization\": 42,\n        \"resets_at\": \"2026-11-10T20:59:59.593791+00:00\"\n      },\n      \"seven_day\": {\n        \"utilization\": 78,\n        \"resets_at\": \"2026-11-14T01:59:59.593809+00:00\"\n      },\n      \"seven_day_oauth_apps\": null,\n      \"seven_day_opus\": null,\n      \"seven_day_sonnet\": null,\n      \"iguana_necktie\": null,\n      \"extra_usage\": {\n        \"is_enabled\": false,\n        \"monthly_limit\": null\n      },\n      \"limits\": [\n        {\n          \"kind\": \"session\",\n          \"percent\": 42,\n          \"resets_at\": \"2026-11-10T20:59:59.593791+00:00\",\n          \"scope\": null,\n          \"is_active\": false,\n          \"severity\": \"normal\",\n          \"group\": \"session\"\n        },\n        {\n          \"kind\": \"weekly_all\",\n          \"percent\": 78,\n          \"resets_at\": \"2026-11-14T01:59:59.593809+00:00\",\n          \"scope\": null,\n          \"is_active\": false,\n          \"severity\": \"warning\",\n          \"group\": \"weekly\"\n        },\n        {\n          \"kind\": \"weekly_scoped\",\n          \"percent\": 100,\n          \"resets_at\": \"2026-11-14T01:59:59.593936+00:00\",\n          \"scope\": {\n            \"model\": {\n              \"id\": null,\n              \"display_name\": \"Fable\"\n            },\n            \"surface\": null\n          },\n          \"is_active\": true,\n          \"severity\": \"critical\",\n          \"group\": \"weekly\"\n        }\n      ]\n    }\n  }\n}\n",
+    "expected": {
+     "source": "claudeCode",
+     "observedMs": 1794330373747,
+     "windows": [
+      {
+       "kind": "fiveHour",
+       "name": null,
+       "minutes": 300,
+       "usedPercent": 42.0,
+       "resetsAtMs": 1794344399593
+      },
+      {
+       "kind": "sevenDay",
+       "name": null,
+       "minutes": 10080,
+       "usedPercent": 78.0,
+       "resetsAtMs": 1794621599593
+      },
+      {
+       "kind": "modelWeek",
+       "name": "Fable",
+       "minutes": 10080,
+       "usedPercent": 100.0,
+       "resetsAtMs": 1794621599593
+      }
+     ]
+    }
+   },
+   {
+    "name": "emptyCachedUuid",
+    "text": "{\n  \"numStartups\": 412,\n  \"theme\": \"dark\",\n  \"tipsHistory\": {\n    \"memory-command\": 3\n  },\n  \"projects\": {\n    \"/Users/me/work/app\": {\n      \"allowedTools\": [],\n      \"history\": [\n        {\n          \"display\": \"fix the build\"\n        }\n      ],\n      \"cachedUsageUtilization\": {\n        \"fetchedAtMs\": 1,\n        \"utilization\": {}\n      }\n    }\n  },\n  \"oauthAccount\": {\n    \"accountUuid\": \"6f1c2a7e-0b3d-4c5e-9f8a-1b2c3d4e5f60\",\n    \"emailAddress\": \"user@example.com\",\n    \"organizationUuid\": \"1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d\",\n    \"organizationType\": \"claude_max\",\n    \"organizationRateLimitTier\": \"default_claude_max_20x\"\n  },\n  \"userID\": \"0000000000000000000000000000000000000000000000000000000000000000\",\n  \"cachedUsageUtilization\": {\n    \"fetchedAtMs\": 1794330373747,\n    \"accountUuid\": \"\",\n    \"utilization\": {\n      \"five_hour\": {\n        \"utilization\": 42,\n        \"resets_at\": \"2026-11-10T20:59:59.593791+00:00\"\n      },\n      \"seven_day\": {\n        \"utilization\": 78,\n        \"resets_at\": \"2026-11-14T01:59:59.593809+00:00\"\n      },\n      \"seven_day_oauth_apps\": null,\n      \"seven_day_opus\": null,\n      \"seven_day_sonnet\": null,\n      \"iguana_necktie\": null,\n      \"extra_usage\": {\n        \"is_enabled\": false,\n        \"monthly_limit\": null\n      },\n      \"limits\": [\n        {\n          \"kind\": \"session\",\n          \"percent\": 42,\n          \"resets_at\": \"2026-11-10T20:59:59.593791+00:00\",\n          \"scope\": null,\n          \"is_active\": false,\n          \"severity\": \"normal\",\n          \"group\": \"session\"\n        },\n        {\n          \"kind\": \"weekly_all\",\n          \"percent\": 78,\n          \"resets_at\": \"2026-11-14T01:59:59.593809+00:00\",\n          \"scope\": null,\n          \"is_active\": false,\n          \"severity\": \"warning\",\n          \"group\": \"weekly\"\n        },\n        {\n          \"kind\": \"weekly_scoped\",\n          \"percent\": 100,\n          \"resets_at\": \"2026-11-14T01:59:59.593936+00:00\",\n          \"scope\": {\n            \"model\": {\n              \"id\": null,\n              \"display_name\": \"Fable\"\n            },\n            \"surface\": null\n          },\n          \"is_active\": true,\n          \"severity\": \"critical\",\n          \"group\": \"weekly\"\n        }\n      ]\n    }\n  }\n}\n",
+    "expected": {
+     "source": "claudeCode",
+     "observedMs": 1794330373747,
+     "windows": [
+      {
+       "kind": "fiveHour",
+       "name": null,
+       "minutes": 300,
+       "usedPercent": 42.0,
+       "resetsAtMs": 1794344399593
+      },
+      {
+       "kind": "sevenDay",
+       "name": null,
+       "minutes": 10080,
+       "usedPercent": 78.0,
+       "resetsAtMs": 1794621599593
+      },
+      {
+       "kind": "modelWeek",
+       "name": "Fable",
+       "minutes": 10080,
+       "usedPercent": 100.0,
+       "resetsAtMs": 1794621599593
+      }
+     ]
+    }
+   },
+   {
+    "name": "cachedUuidNotAString",
+    "text": "{\n  \"numStartups\": 412,\n  \"theme\": \"dark\",\n  \"tipsHistory\": {\n    \"memory-command\": 3\n  },\n  \"projects\": {\n    \"/Users/me/work/app\": {\n      \"allowedTools\": [],\n      \"history\": [\n        {\n          \"display\": \"fix the build\"\n        }\n      ],\n      \"cachedUsageUtilization\": {\n        \"fetchedAtMs\": 1,\n        \"utilization\": {}\n      }\n    }\n  },\n  \"oauthAccount\": {\n    \"accountUuid\": \"6f1c2a7e-0b3d-4c5e-9f8a-1b2c3d4e5f60\",\n    \"emailAddress\": \"user@example.com\",\n    \"organizationUuid\": \"1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d\",\n    \"organizationType\": \"claude_max\",\n    \"organizationRateLimitTier\": \"default_claude_max_20x\"\n  },\n  \"userID\": \"0000000000000000000000000000000000000000000000000000000000000000\",\n  \"cachedUsageUtilization\": {\n    \"fetchedAtMs\": 1794330373747,\n    \"accountUuid\": 7,\n    \"utilization\": {\n      \"five_hour\": {\n        \"utilization\": 42,\n        \"resets_at\": \"2026-11-10T20:59:59.593791+00:00\"\n      },\n      \"seven_day\": {\n        \"utilization\": 78,\n        \"resets_at\": \"2026-11-14T01:59:59.593809+00:00\"\n      },\n      \"seven_day_oauth_apps\": null,\n      \"seven_day_opus\": null,\n      \"seven_day_sonnet\": null,\n      \"iguana_necktie\": null,\n      \"extra_usage\": {\n        \"is_enabled\": false,\n        \"monthly_limit\": null\n      },\n      \"limits\": [\n        {\n          \"kind\": \"session\",\n          \"percent\": 42,\n          \"resets_at\": \"2026-11-10T20:59:59.593791+00:00\",\n          \"scope\": null,\n          \"is_active\": false,\n          \"severity\": \"normal\",\n          \"group\": \"session\"\n        },\n        {\n          \"kind\": \"weekly_all\",\n          \"percent\": 78,\n          \"resets_at\": \"2026-11-14T01:59:59.593809+00:00\",\n          \"scope\": null,\n          \"is_active\": false,\n          \"severity\": \"warning\",\n          \"group\": \"weekly\"\n        },\n        {\n          \"kind\": \"weekly_scoped\",\n          \"percent\": 100,\n          \"resets_at\": \"2026-11-14T01:59:59.593936+00:00\",\n          \"scope\": {\n            \"model\": {\n              \"id\": null,\n              \"display_name\": \"Fable\"\n            },\n            \"surface\": null\n          },\n          \"is_active\": true,\n          \"severity\": \"critical\",\n          \"group\": \"weekly\"\n        }\n      ]\n    }\n  }\n}\n",
+    "expected": {
+     "source": "claudeCode",
+     "observedMs": 1794330373747,
+     "windows": [
+      {
+       "kind": "fiveHour",
+       "name": null,
+       "minutes": 300,
+       "usedPercent": 42.0,
+       "resetsAtMs": 1794344399593
+      },
+      {
+       "kind": "sevenDay",
+       "name": null,
+       "minutes": 10080,
+       "usedPercent": 78.0,
+       "resetsAtMs": 1794621599593
+      },
+      {
+       "kind": "modelWeek",
+       "name": "Fable",
+       "minutes": 10080,
+       "usedPercent": 100.0,
+       "resetsAtMs": 1794621599593
+      }
+     ]
+    }
+   },
+   {
+    "name": "otherAccount",
+    "text": "{\n  \"numStartups\": 412,\n  \"theme\": \"dark\",\n  \"tipsHistory\": {\n    \"memory-command\": 3\n  },\n  \"projects\": {\n    \"/Users/me/work/app\": {\n      \"allowedTools\": [],\n      \"history\": [\n        {\n          \"display\": \"fix the build\"\n        }\n      ],\n      \"cachedUsageUtilization\": {\n        \"fetchedAtMs\": 1,\n        \"utilization\": {}\n      }\n    }\n  },\n  \"oauthAccount\": {\n    \"accountUuid\": \"6f1c2a7e-0b3d-4c5e-9f8a-1b2c3d4e5f60\",\n    \"emailAddress\": \"user@example.com\",\n    \"organizationUuid\": \"1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d\",\n    \"organizationType\": \"claude_max\",\n    \"organizationRateLimitTier\": \"default_claude_max_20x\"\n  },\n  \"userID\": \"0000000000000000000000000000000000000000000000000000000000000000\",\n  \"cachedUsageUtilization\": {\n    \"fetchedAtMs\": 1794330373747,\n    \"accountUuid\": \"0d9e8f7a-6b5c-4d3e-8f2a-9b8c7d6e5f40\",\n    \"utilization\": {\n      \"five_hour\": {\n        \"utilization\": 42,\n        \"resets_at\": \"2026-11-10T20:59:59.593791+00:00\"\n      },\n      \"seven_day\": {\n        \"utilization\": 78,\n        \"resets_at\": \"2026-11-14T01:59:59.593809+00:00\"\n      },\n      \"seven_day_oauth_apps\": null,\n      \"seven_day_opus\": null,\n      \"seven_day_sonnet\": null,\n      \"iguana_necktie\": null,\n      \"extra_usage\": {\n        \"is_enabled\": false,\n        \"monthly_limit\": null\n      },\n      \"limits\": [\n        {\n          \"kind\": \"session\",\n          \"percent\": 42,\n          \"resets_at\": \"2026-11-10T20:59:59.593791+00:00\",\n          \"scope\": null,\n          \"is_active\": false,\n          \"severity\": \"normal\",\n          \"group\": \"session\"\n        },\n        {\n          \"kind\": \"weekly_all\",\n          \"percent\": 78,\n          \"resets_at\": \"2026-11-14T01:59:59.593809+00:00\",\n          \"scope\": null,\n          \"is_active\": false,\n          \"severity\": \"warning\",\n          \"group\": \"weekly\"\n        },\n        {\n          \"kind\": \"weekly_scoped\",\n          \"percent\": 100,\n          \"resets_at\": \"2026-11-14T01:59:59.593936+00:00\",\n          \"scope\": {\n            \"model\": {\n              \"id\": null,\n              \"display_name\": \"Fable\"\n            },\n            \"surface\": null\n          },\n          \"is_active\": true,\n          \"severity\": \"critical\",\n          \"group\": \"weekly\"\n        }\n      ]\n    }\n  }\n}\n",
+    "expected": null
+   },
+   {
+    "name": "otherAccountBeforeOauthAccount",
+    "text": "{\n  \"cachedUsageUtilization\": {\n    \"fetchedAtMs\": 1794330373747,\n    \"accountUuid\": \"0d9e8f7a-6b5c-4d3e-8f2a-9b8c7d6e5f40\",\n    \"utilization\": {\n      \"five_hour\": {\n        \"utilization\": 42,\n        \"resets_at\": \"2026-11-10T20:59:59.593791+00:00\"\n      },\n      \"seven_day\": {\n        \"utilization\": 78,\n        \"resets_at\": \"2026-11-14T01:59:59.593809+00:00\"\n      },\n      \"seven_day_oauth_apps\": null,\n      \"seven_day_opus\": null,\n      \"seven_day_sonnet\": null,\n      \"iguana_necktie\": null,\n      \"extra_usage\": {\n        \"is_enabled\": false,\n        \"monthly_limit\": null\n      },\n      \"limits\": [\n        {\n          \"kind\": \"session\",\n          \"percent\": 42,\n          \"resets_at\": \"2026-11-10T20:59:59.593791+00:00\",\n          \"scope\": null,\n          \"is_active\": false,\n          \"severity\": \"normal\",\n          \"group\": \"session\"\n        },\n        {\n          \"kind\": \"weekly_all\",\n          \"percent\": 78,\n          \"resets_at\": \"2026-11-14T01:59:59.593809+00:00\",\n          \"scope\": null,\n          \"is_active\": false,\n          \"severity\": \"warning\",\n          \"group\": \"weekly\"\n        },\n        {\n          \"kind\": \"weekly_scoped\",\n          \"percent\": 100,\n          \"resets_at\": \"2026-11-14T01:59:59.593936+00:00\",\n          \"scope\": {\n            \"model\": {\n              \"id\": null,\n              \"display_name\": \"Fable\"\n            },\n            \"surface\": null\n          },\n          \"is_active\": true,\n          \"severity\": \"critical\",\n          \"group\": \"weekly\"\n        }\n      ]\n    }\n  },\n  \"numStartups\": 412,\n  \"theme\": \"dark\",\n  \"tipsHistory\": {\n    \"memory-command\": 3\n  },\n  \"projects\": {\n    \"/Users/me/work/app\": {\n      \"allowedTools\": [],\n      \"history\": [\n        {\n          \"display\": \"fix the build\"\n        }\n      ],\n      \"cachedUsageUtilization\": {\n        \"fetchedAtMs\": 1,\n        \"utilization\": {}\n      }\n    }\n  },\n  \"oauthAccount\": {\n    \"accountUuid\": \"6f1c2a7e-0b3d-4c5e-9f8a-1b2c3d4e5f60\",\n    \"emailAddress\": \"user@example.com\",\n    \"organizationUuid\": \"1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d\",\n    \"organizationType\": \"claude_max\",\n    \"organizationRateLimitTier\": \"default_claude_max_20x\"\n  },\n  \"userID\": \"0000000000000000000000000000000000000000000000000000000000000000\"\n}\n",
+    "expected": null
+   },
+   {
+    "name": "oauthAccountWithoutUuid",
+    "text": "{\n  \"numStartups\": 412,\n  \"theme\": \"dark\",\n  \"tipsHistory\": {\n    \"memory-command\": 3\n  },\n  \"projects\": {\n    \"/Users/me/work/app\": {\n      \"allowedTools\": [],\n      \"history\": [\n        {\n          \"display\": \"fix the build\"\n        }\n      ],\n      \"cachedUsageUtilization\": {\n        \"fetchedAtMs\": 1,\n        \"utilization\": {}\n      }\n    }\n  },\n  \"oauthAccount\": {\n    \"emailAddress\": \"user@example.com\"\n  },\n  \"userID\": \"0000000000000000000000000000000000000000000000000000000000000000\",\n  \"cachedUsageUtilization\": {\n    \"fetchedAtMs\": 1794330373747,\n    \"accountUuid\": \"6f1c2a7e-0b3d-4c5e-9f8a-1b2c3d4e5f60\",\n    \"utilization\": {\n      \"five_hour\": {\n        \"utilization\": 42,\n        \"resets_at\": \"2026-11-10T20:59:59.593791+00:00\"\n      },\n      \"seven_day\": {\n        \"utilization\": 78,\n        \"resets_at\": \"2026-11-14T01:59:59.593809+00:00\"\n      },\n      \"seven_day_oauth_apps\": null,\n      \"seven_day_opus\": null,\n      \"seven_day_sonnet\": null,\n      \"iguana_necktie\": null,\n      \"extra_usage\": {\n        \"is_enabled\": false,\n        \"monthly_limit\": null\n      },\n      \"limits\": [\n        {\n          \"kind\": \"session\",\n          \"percent\": 42,\n          \"resets_at\": \"2026-11-10T20:59:59.593791+00:00\",\n          \"scope\": null,\n          \"is_active\": false,\n          \"severity\": \"normal\",\n          \"group\": \"session\"\n        },\n        {\n          \"kind\": \"weekly_all\",\n          \"percent\": 78,\n          \"resets_at\": \"2026-11-14T01:59:59.593809+00:00\",\n          \"scope\": null,\n          \"is_active\": false,\n          \"severity\": \"warning\",\n          \"group\": \"weekly\"\n        },\n        {\n          \"kind\": \"weekly_scoped\",\n          \"percent\": 100,\n          \"resets_at\": \"2026-11-14T01:59:59.593936+00:00\",\n          \"scope\": {\n            \"model\": {\n              \"id\": null,\n              \"display_name\": \"Fable\"\n            },\n            \"surface\": null\n          },\n          \"is_active\": true,\n          \"severity\": \"critical\",\n          \"group\": \"weekly\"\n        }\n      ]\n    }\n  }\n}\n",
+    "expected": {
+     "source": "claudeCode",
+     "observedMs": 1794330373747,
+     "windows": [
+      {
+       "kind": "fiveHour",
+       "name": null,
+       "minutes": 300,
+       "usedPercent": 42.0,
+       "resetsAtMs": 1794344399593
+      },
+      {
+       "kind": "sevenDay",
+       "name": null,
+       "minutes": 10080,
+       "usedPercent": 78.0,
+       "resetsAtMs": 1794621599593
+      },
+      {
+       "kind": "modelWeek",
+       "name": "Fable",
+       "minutes": 10080,
+       "usedPercent": 100.0,
+       "resetsAtMs": 1794621599593
+      }
+     ]
+    }
+   },
+   {
+    "name": "fetchedAtFraction",
+    "text": "{\n  \"numStartups\": 412,\n  \"theme\": \"dark\",\n  \"tipsHistory\": {\n    \"memory-command\": 3\n  },\n  \"projects\": {\n    \"/Users/me/work/app\": {\n      \"allowedTools\": [],\n      \"history\": [\n        {\n          \"display\": \"fix the build\"\n        }\n      ],\n      \"cachedUsageUtilization\": {\n        \"fetchedAtMs\": 1,\n        \"utilization\": {}\n      }\n    }\n  },\n  \"oauthAccount\": {\n    \"accountUuid\": \"6f1c2a7e-0b3d-4c5e-9f8a-1b2c3d4e5f60\",\n    \"emailAddress\": \"user@example.com\",\n    \"organizationUuid\": \"1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d\",\n    \"organizationType\": \"claude_max\",\n    \"organizationRateLimitTier\": \"default_claude_max_20x\"\n  },\n  \"userID\": \"0000000000000000000000000000000000000000000000000000000000000000\",\n  \"cachedUsageUtilization\": {\n    \"fetchedAtMs\": 1794330373747.875,\n    \"accountUuid\": \"6f1c2a7e-0b3d-4c5e-9f8a-1b2c3d4e5f60\",\n    \"utilization\": {\n      \"five_hour\": {\n        \"utilization\": 42,\n        \"resets_at\": \"2026-11-10T20:59:59.593791+00:00\"\n      },\n      \"seven_day\": {\n        \"utilization\": 78,\n        \"resets_at\": \"2026-11-14T01:59:59.593809+00:00\"\n      },\n      \"seven_day_oauth_apps\": null,\n      \"seven_day_opus\": null,\n      \"seven_day_sonnet\": null,\n      \"iguana_necktie\": null,\n      \"extra_usage\": {\n        \"is_enabled\": false,\n        \"monthly_limit\": null\n      },\n      \"limits\": [\n        {\n          \"kind\": \"session\",\n          \"percent\": 42,\n          \"resets_at\": \"2026-11-10T20:59:59.593791+00:00\",\n          \"scope\": null,\n          \"is_active\": false,\n          \"severity\": \"normal\",\n          \"group\": \"session\"\n        },\n        {\n          \"kind\": \"weekly_all\",\n          \"percent\": 78,\n          \"resets_at\": \"2026-11-14T01:59:59.593809+00:00\",\n          \"scope\": null,\n          \"is_active\": false,\n          \"severity\": \"warning\",\n          \"group\": \"weekly\"\n        },\n        {\n          \"kind\": \"weekly_scoped\",\n          \"percent\": 100,\n          \"resets_at\": \"2026-11-14T01:59:59.593936+00:00\",\n          \"scope\": {\n            \"model\": {\n              \"id\": null,\n              \"display_name\": \"Fable\"\n            },\n            \"surface\": null\n          },\n          \"is_active\": true,\n          \"severity\": \"critical\",\n          \"group\": \"weekly\"\n        }\n      ]\n    }\n  }\n}\n",
+    "expected": {
+     "source": "claudeCode",
+     "observedMs": 1794330373747,
+     "windows": [
+      {
+       "kind": "fiveHour",
+       "name": null,
+       "minutes": 300,
+       "usedPercent": 42.0,
+       "resetsAtMs": 1794344399593
+      },
+      {
+       "kind": "sevenDay",
+       "name": null,
+       "minutes": 10080,
+       "usedPercent": 78.0,
+       "resetsAtMs": 1794621599593
+      },
+      {
+       "kind": "modelWeek",
+       "name": "Fable",
+       "minutes": 10080,
+       "usedPercent": 100.0,
+       "resetsAtMs": 1794621599593
+      }
+     ]
+    }
+   },
+   {
+    "name": "fetchedAtString",
+    "text": "{\n  \"numStartups\": 412,\n  \"theme\": \"dark\",\n  \"tipsHistory\": {\n    \"memory-command\": 3\n  },\n  \"projects\": {\n    \"/Users/me/work/app\": {\n      \"allowedTools\": [],\n      \"history\": [\n        {\n          \"display\": \"fix the build\"\n        }\n      ],\n      \"cachedUsageUtilization\": {\n        \"fetchedAtMs\": 1,\n        \"utilization\": {}\n      }\n    }\n  },\n  \"oauthAccount\": {\n    \"accountUuid\": \"6f1c2a7e-0b3d-4c5e-9f8a-1b2c3d4e5f60\",\n    \"emailAddress\": \"user@example.com\",\n    \"organizationUuid\": \"1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d\",\n    \"organizationType\": \"claude_max\",\n    \"organizationRateLimitTier\": \"default_claude_max_20x\"\n  },\n  \"userID\": \"0000000000000000000000000000000000000000000000000000000000000000\",\n  \"cachedUsageUtilization\": {\n    \"fetchedAtMs\": \"1794330373747\",\n    \"accountUuid\": \"6f1c2a7e-0b3d-4c5e-9f8a-1b2c3d4e5f60\",\n    \"utilization\": {\n      \"five_hour\": {\n        \"utilization\": 42,\n        \"resets_at\": \"2026-11-10T20:59:59.593791+00:00\"\n      },\n      \"seven_day\": {\n        \"utilization\": 78,\n        \"resets_at\": \"2026-11-14T01:59:59.593809+00:00\"\n      },\n      \"seven_day_oauth_apps\": null,\n      \"seven_day_opus\": null,\n      \"seven_day_sonnet\": null,\n      \"iguana_necktie\": null,\n      \"extra_usage\": {\n        \"is_enabled\": false,\n        \"monthly_limit\": null\n      },\n      \"limits\": [\n        {\n          \"kind\": \"session\",\n          \"percent\": 42,\n          \"resets_at\": \"2026-11-10T20:59:59.593791+00:00\",\n          \"scope\": null,\n          \"is_active\": false,\n          \"severity\": \"normal\",\n          \"group\": \"session\"\n        },\n        {\n          \"kind\": \"weekly_all\",\n          \"percent\": 78,\n          \"resets_at\": \"2026-11-14T01:59:59.593809+00:00\",\n          \"scope\": null,\n          \"is_active\": false,\n          \"severity\": \"warning\",\n          \"group\": \"weekly\"\n        },\n        {\n          \"kind\": \"weekly_scoped\",\n          \"percent\": 100,\n          \"resets_at\": \"2026-11-14T01:59:59.593936+00:00\",\n          \"scope\": {\n            \"model\": {\n              \"id\": null,\n              \"display_name\": \"Fable\"\n            },\n            \"surface\": null\n          },\n          \"is_active\": true,\n          \"severity\": \"critical\",\n          \"group\": \"weekly\"\n        }\n      ]\n    }\n  }\n}\n",
+    "expected": null
+   },
+   {
+    "name": "fetchedAtBoolean",
+    "text": "{\n  \"numStartups\": 412,\n  \"theme\": \"dark\",\n  \"tipsHistory\": {\n    \"memory-command\": 3\n  },\n  \"projects\": {\n    \"/Users/me/work/app\": {\n      \"allowedTools\": [],\n      \"history\": [\n        {\n          \"display\": \"fix the build\"\n        }\n      ],\n      \"cachedUsageUtilization\": {\n        \"fetchedAtMs\": 1,\n        \"utilization\": {}\n      }\n    }\n  },\n  \"oauthAccount\": {\n    \"accountUuid\": \"6f1c2a7e-0b3d-4c5e-9f8a-1b2c3d4e5f60\",\n    \"emailAddress\": \"user@example.com\",\n    \"organizationUuid\": \"1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d\",\n    \"organizationType\": \"claude_max\",\n    \"organizationRateLimitTier\": \"default_claude_max_20x\"\n  },\n  \"userID\": \"0000000000000000000000000000000000000000000000000000000000000000\",\n  \"cachedUsageUtilization\": {\n    \"fetchedAtMs\": true,\n    \"accountUuid\": \"6f1c2a7e-0b3d-4c5e-9f8a-1b2c3d4e5f60\",\n    \"utilization\": {\n      \"five_hour\": {\n        \"utilization\": 42,\n        \"resets_at\": \"2026-11-10T20:59:59.593791+00:00\"\n      },\n      \"seven_day\": {\n        \"utilization\": 78,\n        \"resets_at\": \"2026-11-14T01:59:59.593809+00:00\"\n      },\n      \"seven_day_oauth_apps\": null,\n      \"seven_day_opus\": null,\n      \"seven_day_sonnet\": null,\n      \"iguana_necktie\": null,\n      \"extra_usage\": {\n        \"is_enabled\": false,\n        \"monthly_limit\": null\n      },\n      \"limits\": [\n        {\n          \"kind\": \"session\",\n          \"percent\": 42,\n          \"resets_at\": \"2026-11-10T20:59:59.593791+00:00\",\n          \"scope\": null,\n          \"is_active\": false,\n          \"severity\": \"normal\",\n          \"group\": \"session\"\n        },\n        {\n          \"kind\": \"weekly_all\",\n          \"percent\": 78,\n          \"resets_at\": \"2026-11-14T01:59:59.593809+00:00\",\n          \"scope\": null,\n          \"is_active\": false,\n          \"severity\": \"warning\",\n          \"group\": \"weekly\"\n        },\n        {\n          \"kind\": \"weekly_scoped\",\n          \"percent\": 100,\n          \"resets_at\": \"2026-11-14T01:59:59.593936+00:00\",\n          \"scope\": {\n            \"model\": {\n              \"id\": null,\n              \"display_name\": \"Fable\"\n            },\n            \"surface\": null\n          },\n          \"is_active\": true,\n          \"severity\": \"critical\",\n          \"group\": \"weekly\"\n        }\n      ]\n    }\n  }\n}\n",
+    "expected": null
+   },
+   {
+    "name": "fetchedAtBefore2000",
+    "text": "{\n  \"numStartups\": 412,\n  \"theme\": \"dark\",\n  \"tipsHistory\": {\n    \"memory-command\": 3\n  },\n  \"projects\": {\n    \"/Users/me/work/app\": {\n      \"allowedTools\": [],\n      \"history\": [\n        {\n          \"display\": \"fix the build\"\n        }\n      ],\n      \"cachedUsageUtilization\": {\n        \"fetchedAtMs\": 1,\n        \"utilization\": {}\n      }\n    }\n  },\n  \"oauthAccount\": {\n    \"accountUuid\": \"6f1c2a7e-0b3d-4c5e-9f8a-1b2c3d4e5f60\",\n    \"emailAddress\": \"user@example.com\",\n    \"organizationUuid\": \"1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d\",\n    \"organizationType\": \"claude_max\",\n    \"organizationRateLimitTier\": \"default_claude_max_20x\"\n  },\n  \"userID\": \"0000000000000000000000000000000000000000000000000000000000000000\",\n  \"cachedUsageUtilization\": {\n    \"fetchedAtMs\": 946684799999,\n    \"accountUuid\": \"6f1c2a7e-0b3d-4c5e-9f8a-1b2c3d4e5f60\",\n    \"utilization\": {\n      \"five_hour\": {\n        \"utilization\": 42,\n        \"resets_at\": \"2026-11-10T20:59:59.593791+00:00\"\n      },\n      \"seven_day\": {\n        \"utilization\": 78,\n        \"resets_at\": \"2026-11-14T01:59:59.593809+00:00\"\n      },\n      \"seven_day_oauth_apps\": null,\n      \"seven_day_opus\": null,\n      \"seven_day_sonnet\": null,\n      \"iguana_necktie\": null,\n      \"extra_usage\": {\n        \"is_enabled\": false,\n        \"monthly_limit\": null\n      },\n      \"limits\": [\n        {\n          \"kind\": \"session\",\n          \"percent\": 42,\n          \"resets_at\": \"2026-11-10T20:59:59.593791+00:00\",\n          \"scope\": null,\n          \"is_active\": false,\n          \"severity\": \"normal\",\n          \"group\": \"session\"\n        },\n        {\n          \"kind\": \"weekly_all\",\n          \"percent\": 78,\n          \"resets_at\": \"2026-11-14T01:59:59.593809+00:00\",\n          \"scope\": null,\n          \"is_active\": false,\n          \"severity\": \"warning\",\n          \"group\": \"weekly\"\n        },\n        {\n          \"kind\": \"weekly_scoped\",\n          \"percent\": 100,\n          \"resets_at\": \"2026-11-14T01:59:59.593936+00:00\",\n          \"scope\": {\n            \"model\": {\n              \"id\": null,\n              \"display_name\": \"Fable\"\n            },\n            \"surface\": null\n          },\n          \"is_active\": true,\n          \"severity\": \"critical\",\n          \"group\": \"weekly\"\n        }\n      ]\n    }\n  }\n}\n",
+    "expected": null
+   },
+   {
+    "name": "fetchedAtAfter2100",
+    "text": "{\n  \"numStartups\": 412,\n  \"theme\": \"dark\",\n  \"tipsHistory\": {\n    \"memory-command\": 3\n  },\n  \"projects\": {\n    \"/Users/me/work/app\": {\n      \"allowedTools\": [],\n      \"history\": [\n        {\n          \"display\": \"fix the build\"\n        }\n      ],\n      \"cachedUsageUtilization\": {\n        \"fetchedAtMs\": 1,\n        \"utilization\": {}\n      }\n    }\n  },\n  \"oauthAccount\": {\n    \"accountUuid\": \"6f1c2a7e-0b3d-4c5e-9f8a-1b2c3d4e5f60\",\n    \"emailAddress\": \"user@example.com\",\n    \"organizationUuid\": \"1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d\",\n    \"organizationType\": \"claude_max\",\n    \"organizationRateLimitTier\": \"default_claude_max_20x\"\n  },\n  \"userID\": \"0000000000000000000000000000000000000000000000000000000000000000\",\n  \"cachedUsageUtilization\": {\n    \"fetchedAtMs\": 4133980800000,\n    \"accountUuid\": \"6f1c2a7e-0b3d-4c5e-9f8a-1b2c3d4e5f60\",\n    \"utilization\": {\n      \"five_hour\": {\n        \"utilization\": 42,\n        \"resets_at\": \"2026-11-10T20:59:59.593791+00:00\"\n      },\n      \"seven_day\": {\n        \"utilization\": 78,\n        \"resets_at\": \"2026-11-14T01:59:59.593809+00:00\"\n      },\n      \"seven_day_oauth_apps\": null,\n      \"seven_day_opus\": null,\n      \"seven_day_sonnet\": null,\n      \"iguana_necktie\": null,\n      \"extra_usage\": {\n        \"is_enabled\": false,\n        \"monthly_limit\": null\n      },\n      \"limits\": [\n        {\n          \"kind\": \"session\",\n          \"percent\": 42,\n          \"resets_at\": \"2026-11-10T20:59:59.593791+00:00\",\n          \"scope\": null,\n          \"is_active\": false,\n          \"severity\": \"normal\",\n          \"group\": \"session\"\n        },\n        {\n          \"kind\": \"weekly_all\",\n          \"percent\": 78,\n          \"resets_at\": \"2026-11-14T01:59:59.593809+00:00\",\n          \"scope\": null,\n          \"is_active\": false,\n          \"severity\": \"warning\",\n          \"group\": \"weekly\"\n        },\n        {\n          \"kind\": \"weekly_scoped\",\n          \"percent\": 100,\n          \"resets_at\": \"2026-11-14T01:59:59.593936+00:00\",\n          \"scope\": {\n            \"model\": {\n              \"id\": null,\n              \"display_name\": \"Fable\"\n            },\n            \"surface\": null\n          },\n          \"is_active\": true,\n          \"severity\": \"critical\",\n          \"group\": \"weekly\"\n        }\n      ]\n    }\n  }\n}\n",
+    "expected": null
+   },
+   {
+    "name": "fetchedAtMissing",
+    "text": "{\n  \"numStartups\": 412,\n  \"theme\": \"dark\",\n  \"tipsHistory\": {\n    \"memory-command\": 3\n  },\n  \"projects\": {\n    \"/Users/me/work/app\": {\n      \"allowedTools\": [],\n      \"history\": [\n        {\n          \"display\": \"fix the build\"\n        }\n      ],\n      \"cachedUsageUtilization\": {\n        \"fetchedAtMs\": 1,\n        \"utilization\": {}\n      }\n    }\n  },\n  \"oauthAccount\": {\n    \"accountUuid\": \"6f1c2a7e-0b3d-4c5e-9f8a-1b2c3d4e5f60\",\n    \"emailAddress\": \"user@example.com\",\n    \"organizationUuid\": \"1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d\",\n    \"organizationType\": \"claude_max\",\n    \"organizationRateLimitTier\": \"default_claude_max_20x\"\n  },\n  \"userID\": \"0000000000000000000000000000000000000000000000000000000000000000\",\n  \"cachedUsageUtilization\": {\n    \"accountUuid\": \"6f1c2a7e-0b3d-4c5e-9f8a-1b2c3d4e5f60\",\n    \"utilization\": {\n      \"five_hour\": {\n        \"utilization\": 42,\n        \"resets_at\": \"2026-11-10T20:59:59.593791+00:00\"\n      },\n      \"seven_day\": {\n        \"utilization\": 78,\n        \"resets_at\": \"2026-11-14T01:59:59.593809+00:00\"\n      },\n      \"seven_day_oauth_apps\": null,\n      \"seven_day_opus\": null,\n      \"seven_day_sonnet\": null,\n      \"iguana_necktie\": null,\n      \"extra_usage\": {\n        \"is_enabled\": false,\n        \"monthly_limit\": null\n      },\n      \"limits\": [\n        {\n          \"kind\": \"session\",\n          \"percent\": 42,\n          \"resets_at\": \"2026-11-10T20:59:59.593791+00:00\",\n          \"scope\": null,\n          \"is_active\": false,\n          \"severity\": \"normal\",\n          \"group\": \"session\"\n        },\n        {\n          \"kind\": \"weekly_all\",\n          \"percent\": 78,\n          \"resets_at\": \"2026-11-14T01:59:59.593809+00:00\",\n          \"scope\": null,\n          \"is_active\": false,\n          \"severity\": \"warning\",\n          \"group\": \"weekly\"\n        },\n        {\n          \"kind\": \"weekly_scoped\",\n          \"percent\": 100,\n          \"resets_at\": \"2026-11-14T01:59:59.593936+00:00\",\n          \"scope\": {\n            \"model\": {\n              \"id\": null,\n              \"display_name\": \"Fable\"\n            },\n            \"surface\": null\n          },\n          \"is_active\": true,\n          \"severity\": \"critical\",\n          \"group\": \"weekly\"\n        }\n      ]\n    }\n  }\n}\n",
+    "expected": null
+   },
+   {
+    "name": "utilizationArray",
+    "text": "{\n  \"numStartups\": 412,\n  \"theme\": \"dark\",\n  \"tipsHistory\": {\n    \"memory-command\": 3\n  },\n  \"projects\": {\n    \"/Users/me/work/app\": {\n      \"allowedTools\": [],\n      \"history\": [\n        {\n          \"display\": \"fix the build\"\n        }\n      ],\n      \"cachedUsageUtilization\": {\n        \"fetchedAtMs\": 1,\n        \"utilization\": {}\n      }\n    }\n  },\n  \"oauthAccount\": {\n    \"accountUuid\": \"6f1c2a7e-0b3d-4c5e-9f8a-1b2c3d4e5f60\",\n    \"emailAddress\": \"user@example.com\",\n    \"organizationUuid\": \"1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d\",\n    \"organizationType\": \"claude_max\",\n    \"organizationRateLimitTier\": \"default_claude_max_20x\"\n  },\n  \"userID\": \"0000000000000000000000000000000000000000000000000000000000000000\",\n  \"cachedUsageUtilization\": {\n    \"fetchedAtMs\": 1794330373747,\n    \"accountUuid\": \"6f1c2a7e-0b3d-4c5e-9f8a-1b2c3d4e5f60\",\n    \"utilization\": [\n      {\n        \"five_hour\": {\n          \"utilization\": 42,\n          \"resets_at\": \"2026-11-10T20:59:59.593791+00:00\"\n        },\n        \"seven_day\": {\n          \"utilization\": 78,\n          \"resets_at\": \"2026-11-14T01:59:59.593809+00:00\"\n        },\n        \"seven_day_oauth_apps\": null,\n        \"seven_day_opus\": null,\n        \"seven_day_sonnet\": null,\n        \"iguana_necktie\": null,\n        \"extra_usage\": {\n          \"is_enabled\": false,\n          \"monthly_limit\": null\n        },\n        \"limits\": [\n          {\n            \"kind\": \"session\",\n            \"percent\": 42,\n            \"resets_at\": \"2026-11-10T20:59:59.593791+00:00\",\n            \"scope\": null,\n            \"is_active\": false,\n            \"severity\": \"normal\",\n            \"group\": \"session\"\n          },\n          {\n            \"kind\": \"weekly_all\",\n            \"percent\": 78,\n            \"resets_at\": \"2026-11-14T01:59:59.593809+00:00\",\n            \"scope\": null,\n            \"is_active\": false,\n            \"severity\": \"warning\",\n            \"group\": \"weekly\"\n          },\n          {\n            \"kind\": \"weekly_scoped\",\n            \"percent\": 100,\n            \"resets_at\": \"2026-11-14T01:59:59.593936+00:00\",\n            \"scope\": {\n              \"model\": {\n                \"id\": null,\n                \"display_name\": \"Fable\"\n              },\n              \"surface\": null\n            },\n            \"is_active\": true,\n            \"severity\": \"critical\",\n            \"group\": \"weekly\"\n          }\n        ]\n      }\n    ]\n  }\n}\n",
+    "expected": null
+   },
+   {
+    "name": "utilizationMissing",
+    "text": "{\n  \"numStartups\": 412,\n  \"theme\": \"dark\",\n  \"tipsHistory\": {\n    \"memory-command\": 3\n  },\n  \"projects\": {\n    \"/Users/me/work/app\": {\n      \"allowedTools\": [],\n      \"history\": [\n        {\n          \"display\": \"fix the build\"\n        }\n      ],\n      \"cachedUsageUtilization\": {\n        \"fetchedAtMs\": 1,\n        \"utilization\": {}\n      }\n    }\n  },\n  \"oauthAccount\": {\n    \"accountUuid\": \"6f1c2a7e-0b3d-4c5e-9f8a-1b2c3d4e5f60\",\n    \"emailAddress\": \"user@example.com\",\n    \"organizationUuid\": \"1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d\",\n    \"organizationType\": \"claude_max\",\n    \"organizationRateLimitTier\": \"default_claude_max_20x\"\n  },\n  \"userID\": \"0000000000000000000000000000000000000000000000000000000000000000\",\n  \"cachedUsageUtilization\": {\n    \"fetchedAtMs\": 1794330373747,\n    \"accountUuid\": \"6f1c2a7e-0b3d-4c5e-9f8a-1b2c3d4e5f60\"\n  }\n}\n",
+    "expected": null
+   },
+   {
+    "name": "utilizationWithoutWindows",
+    "text": "{\n  \"numStartups\": 412,\n  \"theme\": \"dark\",\n  \"tipsHistory\": {\n    \"memory-command\": 3\n  },\n  \"projects\": {\n    \"/Users/me/work/app\": {\n      \"allowedTools\": [],\n      \"history\": [\n        {\n          \"display\": \"fix the build\"\n        }\n      ],\n      \"cachedUsageUtilization\": {\n        \"fetchedAtMs\": 1,\n        \"utilization\": {}\n      }\n    }\n  },\n  \"oauthAccount\": {\n    \"accountUuid\": \"6f1c2a7e-0b3d-4c5e-9f8a-1b2c3d4e5f60\",\n    \"emailAddress\": \"user@example.com\",\n    \"organizationUuid\": \"1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d\",\n    \"organizationType\": \"claude_max\",\n    \"organizationRateLimitTier\": \"default_claude_max_20x\"\n  },\n  \"userID\": \"0000000000000000000000000000000000000000000000000000000000000000\",\n  \"cachedUsageUtilization\": {\n    \"fetchedAtMs\": 1794330373747,\n    \"accountUuid\": \"6f1c2a7e-0b3d-4c5e-9f8a-1b2c3d4e5f60\",\n    \"utilization\": {\n      \"five_hour\": null,\n      \"limits\": []\n    }\n  }\n}\n",
+    "expected": {
+     "source": "claudeCode",
+     "observedMs": 1794330373747,
+     "windows": []
+    }
+   },
+   {
+    "name": "cacheNull",
+    "text": "{\n  \"numStartups\": 412,\n  \"theme\": \"dark\",\n  \"tipsHistory\": {\n    \"memory-command\": 3\n  },\n  \"projects\": {\n    \"/Users/me/work/app\": {\n      \"allowedTools\": [],\n      \"history\": [\n        {\n          \"display\": \"fix the build\"\n        }\n      ],\n      \"cachedUsageUtilization\": {\n        \"fetchedAtMs\": 1,\n        \"utilization\": {}\n      }\n    }\n  },\n  \"oauthAccount\": {\n    \"accountUuid\": \"6f1c2a7e-0b3d-4c5e-9f8a-1b2c3d4e5f60\",\n    \"emailAddress\": \"user@example.com\",\n    \"organizationUuid\": \"1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d\",\n    \"organizationType\": \"claude_max\",\n    \"organizationRateLimitTier\": \"default_claude_max_20x\"\n  },\n  \"userID\": \"0000000000000000000000000000000000000000000000000000000000000000\",\n  \"cachedUsageUtilization\": null\n}\n",
+    "expected": null
+   },
+   {
+    "name": "cacheArray",
+    "text": "{\n  \"numStartups\": 412,\n  \"theme\": \"dark\",\n  \"tipsHistory\": {\n    \"memory-command\": 3\n  },\n  \"projects\": {\n    \"/Users/me/work/app\": {\n      \"allowedTools\": [],\n      \"history\": [\n        {\n          \"display\": \"fix the build\"\n        }\n      ],\n      \"cachedUsageUtilization\": {\n        \"fetchedAtMs\": 1,\n        \"utilization\": {}\n      }\n    }\n  },\n  \"oauthAccount\": {\n    \"accountUuid\": \"6f1c2a7e-0b3d-4c5e-9f8a-1b2c3d4e5f60\",\n    \"emailAddress\": \"user@example.com\",\n    \"organizationUuid\": \"1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d\",\n    \"organizationType\": \"claude_max\",\n    \"organizationRateLimitTier\": \"default_claude_max_20x\"\n  },\n  \"userID\": \"0000000000000000000000000000000000000000000000000000000000000000\",\n  \"cachedUsageUtilization\": [\n    {\n      \"fetchedAtMs\": 1794330373747,\n      \"accountUuid\": \"6f1c2a7e-0b3d-4c5e-9f8a-1b2c3d4e5f60\",\n      \"utilization\": {\n        \"five_hour\": {\n          \"utilization\": 42,\n          \"resets_at\": \"2026-11-10T20:59:59.593791+00:00\"\n        },\n        \"seven_day\": {\n          \"utilization\": 78,\n          \"resets_at\": \"2026-11-14T01:59:59.593809+00:00\"\n        },\n        \"seven_day_oauth_apps\": null,\n        \"seven_day_opus\": null,\n        \"seven_day_sonnet\": null,\n        \"iguana_necktie\": null,\n        \"extra_usage\": {\n          \"is_enabled\": false,\n          \"monthly_limit\": null\n        },\n        \"limits\": [\n          {\n            \"kind\": \"session\",\n            \"percent\": 42,\n            \"resets_at\": \"2026-11-10T20:59:59.593791+00:00\",\n            \"scope\": null,\n            \"is_active\": false,\n            \"severity\": \"normal\",\n            \"group\": \"session\"\n          },\n          {\n            \"kind\": \"weekly_all\",\n            \"percent\": 78,\n            \"resets_at\": \"2026-11-14T01:59:59.593809+00:00\",\n            \"scope\": null,\n            \"is_active\": false,\n            \"severity\": \"warning\",\n            \"group\": \"weekly\"\n          },\n          {\n            \"kind\": \"weekly_scoped\",\n            \"percent\": 100,\n            \"resets_at\": \"2026-11-14T01:59:59.593936+00:00\",\n            \"scope\": {\n              \"model\": {\n                \"id\": null,\n                \"display_name\": \"Fable\"\n              },\n              \"surface\": null\n            },\n            \"is_active\": true,\n            \"severity\": \"critical\",\n            \"group\": \"weekly\"\n          }\n        ]\n      }\n    }\n  ]\n}\n",
+    "expected": null
+   },
+   {
+    "name": "noCache",
+    "text": "{\n  \"numStartups\": 412,\n  \"theme\": \"dark\",\n  \"tipsHistory\": {\n    \"memory-command\": 3\n  },\n  \"projects\": {\n    \"/Users/me/work/app\": {\n      \"allowedTools\": [],\n      \"history\": [\n        {\n          \"display\": \"fix the build\"\n        }\n      ],\n      \"cachedUsageUtilization\": {\n        \"fetchedAtMs\": 1,\n        \"utilization\": {}\n      }\n    }\n  },\n  \"oauthAccount\": {\n    \"accountUuid\": \"6f1c2a7e-0b3d-4c5e-9f8a-1b2c3d4e5f60\",\n    \"emailAddress\": \"user@example.com\",\n    \"organizationUuid\": \"1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d\",\n    \"organizationType\": \"claude_max\",\n    \"organizationRateLimitTier\": \"default_claude_max_20x\"\n  },\n  \"userID\": \"0000000000000000000000000000000000000000000000000000000000000000\"\n}\n",
+    "expected": null
+   },
+   {
+    "name": "notAnObject",
+    "text": "[1, 2]\n",
+    "expected": null
+   },
+   {
+    "name": "doesNotParse",
+    "text": "{\n  \"numStartups\": 412,\n  \"theme\": \"dark\",\n  \"tipsHistory\": {\n    \"memory-command\": 3\n  },\n  \"projects\": {\n    \"/Users/me/work/app\": {\n      \"allowedTools\": [],\n      \"history\": [\n        {\n          \"display\": \"fix the build\"\n        }\n      ],\n      \"cachedUsageUtilization\": {\n        \"fetchedAtMs\": 1,\n        \"utilization\": {}\n      }\n    }\n  },\n  \"oauthAccount\": {\n    \"accountUuid\": \"6f1c2a7e-0b3d-4c5e-9f8a-1b2c3d4e5f60\",\n    \"emailAddress\": \"user@example.com\",\n    \"organizationUuid\": \"1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d\",\n    \"organizationType\": \"claude_max\",\n    \"organizationRateLimitTier\": \"default_claude_max_20x\"\n  },\n  \"userID\": \"0000000000000000000000000000000000000000000000000000000000000000\",\n  \"cachedUsageUtilization\": {\n    \"fetchedAtMs\": 1794330373747,\n    \"accountUuid\": \"6f1c2a7e-0b3d-4c5e-9f8a-1b2c3d4e5f60\",\n    \"utilization\": {\n      \"five_hour\": {\n        \"utilization\": 42,\n        \"resets_at\": \"2026-11-10T20:59:59.593791+00:00\"\n      },\n      \"seven_day\": {\n        \"utilization\": 78,\n        \"resets_at\": \"2026-11-14T01:59:59.593809+00:00\"\n      },\n      \"seven_day_oauth_apps\": null,",
+    "expected": "unparsed"
+   },
+   {
+    "name": "empty",
+    "text": "",
+    "expected": "unparsed"
+   }
+  ],
+  "reads": {
+   "texts": [
+    "{\n  \"numStartups\": 412,\n  \"theme\": \"dark\",\n  \"tipsHistory\": {\n    \"memory-command\": 3\n  },\n  \"projects\": {\n    \"/Users/me/work/app\": {\n      \"allowedTools\": [],\n      \"history\": [\n        {\n          \"display\": \"fix the build\"\n        }\n      ],\n      \"cachedUsageUtilization\": {\n        \"fetchedAtMs\": 1,\n        \"utilization\": {}\n      }\n    }\n  },\n  \"oauthAccount\": {\n    \"accountUuid\": \"6f1c2a7e-0b3d-4c5e-9f8a-1b2c3d4e5f60\",\n    \"emailAddress\": \"user@example.com\",\n    \"organizationUuid\": \"1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d\",\n    \"organizationType\": \"claude_max\",\n    \"organizationRateLimitTier\": \"default_claude_max_20x\"\n  },\n  \"userID\": \"0000000000000000000000000000000000000000000000000000000000000000\",\n  \"cachedUsageUtilization\": {\n    \"fetchedAtMs\": 1794330373747,\n    \"accountUuid\": \"6f1c2a7e-0b3d-4c5e-9f8a-1b2c3d4e5f60\",\n    \"utilization\": {\n      \"five_hour\": {\n        \"utilization\": 42,\n        \"resets_at\": \"2026-11-10T20:59:59.593791+00:00\"\n      },\n      \"seven_day\": {\n        \"utilization\": 78,\n        \"resets_at\": \"2026-11-14T01:59:59.593809+00:00\"\n      },\n      \"seven_day_oauth_apps\": null,\n      \"seven_day_opus\": null,\n      \"seven_day_sonnet\": null,\n      \"iguana_necktie\": null,\n      \"extra_usage\": {\n        \"is_enabled\": false,\n        \"monthly_limit\": null\n      },\n      \"limits\": [\n        {\n          \"kind\": \"session\",\n          \"percent\": 42,\n          \"resets_at\": \"2026-11-10T20:59:59.593791+00:00\",\n          \"scope\": null,\n          \"is_active\": false,\n          \"severity\": \"normal\",\n          \"group\": \"session\"\n        },\n        {\n          \"kind\": \"weekly_all\",\n          \"percent\": 78,\n          \"resets_at\": \"2026-11-14T01:59:59.593809+00:00\",\n          \"scope\": null,\n          \"is_active\": false,\n          \"severity\": \"warning\",\n          \"group\": \"weekly\"\n        },\n        {\n          \"kind\": \"weekly_scoped\",\n          \"percent\": 100,\n          \"resets_at\": \"2026-11-14T01:59:59.593936+00:00\",\n          \"scope\": {\n            \"model\": {\n              \"id\": null,\n              \"display_name\": \"Fable\"\n            },\n            \"surface\": null\n          },\n          \"is_active\": true,\n          \"severity\": \"critical\",\n          \"group\": \"weekly\"\n        }\n      ]\n    }\n  }\n}\n",
+    "{\n  \"numStartups\": 412,\n  \"theme\": \"dark\",\n  \"tipsHistory\": {\n    \"memory-command\": 3\n  },\n  \"projec",
+    "{\n  \"numStartups\": 412,\n  \"theme\": \"dark\",\n  \"tipsHistory\": {\n    \"memory-command\": 3\n  },\n  \"projects\": {\n    \"/Users/me/work/app\": {\n      \"allowedTools\": [],\n      \"history\": [\n        {\n          \"display\": \"fix the build\"\n        }\n      ],\n      \"cachedUsageUtilization\": {\n        \"fetchedAtMs\": 1,\n        \"utilization\": {}\n      }\n    }\n  },\n  \"oauthAccount\": {\n    \"accountUuid\": \"6f1c2a7e-0b3d-4c5e-9f8a-1b2c3d4e5f60\",\n    \"emailAddress\": \"user@example.com\",\n    \"organizationUuid\": \"1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d\",\n    \"organizationType\": \"claude_max\",\n    \"organizationRateLimitTier\": \"default_claude_max_20x\"\n  },\n  \"userID\": \"0000000000000000000000000000000000000000000000000000000000000000\",\n  \"cachedUsageUtilization\": {\n    \"fetchedAtMs\": 1794330373747,\n    \"accountUuid\": \"0d9e8f7a-6b5c-4d3e-8f2a-9b8c7d6e5f40\",\n    \"utilization\": {\n      \"five_hour\": {\n        \"utilization\": 42,\n        \"resets_at\": \"2026-11-10T20:59:59.593791+00:00\"\n      },\n      \"seven_day\": {\n        \"utilization\": 78,\n        \"resets_at\": \"2026-11-14T01:59:59.593809+00:00\"\n      },\n      \"seven_day_oauth_apps\": null,\n      \"seven_day_opus\": null,\n      \"seven_day_sonnet\": null,\n      \"iguana_necktie\": null,\n      \"extra_usage\": {\n        \"is_enabled\": false,\n        \"monthly_limit\": null\n      },\n      \"limits\": [\n        {\n          \"kind\": \"session\",\n          \"percent\": 42,\n          \"resets_at\": \"2026-11-10T20:59:59.593791+00:00\",\n          \"scope\": null,\n          \"is_active\": false,\n          \"severity\": \"normal\",\n          \"group\": \"session\"\n        },\n        {\n          \"kind\": \"weekly_all\",\n          \"percent\": 78,\n          \"resets_at\": \"2026-11-14T01:59:59.593809+00:00\",\n          \"scope\": null,\n          \"is_active\": false,\n          \"severity\": \"warning\",\n          \"group\": \"weekly\"\n        },\n        {\n          \"kind\": \"weekly_scoped\",\n          \"percent\": 100,\n          \"resets_at\": \"2026-11-14T01:59:59.593936+00:00\",\n          \"scope\": {\n            \"model\": {\n              \"id\": null,\n              \"display_name\": \"Fable\"\n            },\n            \"surface\": null\n          },\n          \"is_active\": true,\n          \"severity\": \"critical\",\n          \"group\": \"weekly\"\n        }\n      ]\n    }\n  }\n}\n",
+    "{\n  \"numStartups\": 412,\n  \"theme\": \"dark\",\n  \"tipsHistory\": {\n    \"memory-command\": 3\n  },\n  \"projects\": {\n    \"/Users/me/work/app\": {\n      \"allowedTools\": [],\n      \"history\": [\n        {\n          \"display\": \"fix the build\"\n        }\n      ],\n      \"cachedUsageUtilization\": {\n        \"fetchedAtMs\": 1,\n        \"utilization\": {}\n      }\n    }\n  },\n  \"oauthAccount\": {\n    \"accountUuid\": \"6f1c2a7e-0b3d-4c5e-9f8a-1b2c3d4e5f60\",\n    \"emailAddress\": \"user@example.com\",\n    \"organizationUuid\": \"1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d\",\n    \"organizationType\": \"claude_max\",\n    \"organizationRateLimitTier\": \"default_claude_max_20x\"\n  },\n  \"userID\": \"0000000000000000000000000000000000000000000000000000000000000000\",\n  \"cachedUsageUtilization\": {\n    \"fetchedAtMs\": 1794330373747,\n    \"accountUuid\": \"6f1c2a7e-0b3d-4c5e-9f8a-1b2c3d4e5f60\",\n    \"utilization\": {\n      \"five_hour\": {\n        \"utilization\": 42,\n        \"resets_at\": \"2026-11-10T20:59:59.593791+00:00\"\n      },\n      \"seven_day\": {\n        \"utilization\": 78,\n        \"resets_at\": \"2026-11-14T01:59:59.593809+00:00\"\n      },\n      \"seven_day_oauth_apps\": null,\n      \"seven_day_opus\": null,\n      \"seven_day_sonnet\": null,\n      \"iguana_necktie\": null,\n      \"extra_usage\": {\n        \"is_enabled\": false,\n        \"monthly_limit\": null\n      },\n      \"limits\": [\n        {\n          \"kind\": \"session\",\n          \"percent\": 42,\n          \"resets_at\": \"2026-11-10T20:59:59.593791+00:00\",\n          \"scope\": null,\n          \"is_active\": false,\n          \"severity\": \"normal\",\n          \"group\": \"session\"\n        },\n        {\n          \"kind\": \"weekly_all\",\n          \"percent\": 78,\n          \"resets_at\": \"2026-11-14T01:59:59.593809+00:00\",\n          \"scope\": null,\n          \"is_active\": false,\n          \"severity\": \"warning\",\n          \"group\": \"weekly\"\n        },\n        {\n          \"kind\": \"weekly_scoped\",\n          \"percent\": 100,\n          \"resets_at\": \"2026-11-14T01:59:59.593936+00:00\",\n          \"scope\": {\n            \"model\": {\n              \"id\": null,\n              \"display_name\": \"Fable\"\n            },\n            \"surface\": null\n          },\n          \"is_active\": true,\n          \"severity\": \"critical\",\n          \"group\": \"weekly\"\n        }\n      ]\n    }\n  }",
+    "{\n  \"numStartups\": 412,\n  \"theme\": \"dark\",\n  \"tipsHistory\": {\n    \"memory-command\": 3\n  },\n  \"projects\": {\n    \"/Users/me/work/app\": {\n      \"allowedTools\": [],\n      \"history\": [\n        {\n          \"display\": \"fix the build\"\n        }\n      ],\n      \"cachedUsageUtilization\": {\n        \"fetchedAtMs\": 1,\n        \"utilization\": {}\n      }\n    }\n  },\n  \"oauthAccount\": {\n    \"accountUuid\": \"6f1c2a7e-0b3d-4c5e-9f8a-1b2c3d4e5f60\",\n    \"emailAddress\": \"user@example.com\",\n    \"organizationUuid\": \"1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d\",\n    \"organizationType\": \"claude_max\",\n    \"organizationRateLimitTier\": \"default_claude_max_20x\"\n  },\n  \"userID\": \"0000000000000000000000000000000000000000000000000000000000000000\",\n  \"cachedUsageUtilization\": {\n    \"fetchedAtMs\": 1794330373747,\n    \"accountUuid\": \"6f1c2a7e-0b3d-4c5e-9f8a-1b2c3d4e5f60\",\n    \"utilization\": {\n      \"five_hour\": {\n        \"utilization\": 42,\n        \"resets_at\": \"2026-11-10T20:59:59.593791+00:00\"\n      },\n      \"seven_day\": {\n        \"utilization\": 78,\n        \"resets_at\": \"2026-11-14T01:59:59.593809+00:00\"\n      },\n      \"seven_day_oauth_apps\": null,\n      \"seven_day_opus\": null,\n      \"seven_day_sonnet\": null,\n      \"iguana_necktie\": null,\n      \"extra_usage\": {\n        \"is_enabled\": false,\n        \"monthly_limit\": null\n      },\n      \"limits\": [\n        {\n          \"kind\": \"session\",\n          \"percent\": 42,\n          \"resets_at\": \"2026-11-10T20:59:59.593791+00:00\",\n          \"scope\": null,\n          \"is_active\": false,\n          \"severity\": \"normal\",\n          \"group\": \"session\"\n        },\n        {\n          \"kind\": \"weekly_all\",\n          \"percent\": 78,\n          \"resets_at\": \"2026-11-14T01:59:59.593809+00:00\",\n          \"scope\": null,\n          \"is_active\": false,\n          \"severity\": \"warning\",\n          \"group\": \"weekly\"\n        },\n        {\n          \"kind\": \"weekly_scoped\",\n          \"percent\": 100,\n          \"resets_at\": \"2026-11-14T01:59:59.593936+00:00\",\n          \"scope\": {\n            \"model\": {\n              \"id\": null,\n              \"display_name\": \"Fable\"\n            },\n            \"surface\": null\n          },\n          \"is_active\": true,\n          \"severity\": \"critical\",\n          \"group\": \"weekly\"\n        }\n      ]\n    }\n  }\n}\n"
+   ],
+   "expected": [
+    {
+     "source": "claudeCode",
+     "observedMs": 1794330373747,
+     "windows": [
+      {
+       "kind": "fiveHour",
+       "name": null,
+       "minutes": 300,
+       "usedPercent": 42.0,
+       "resetsAtMs": 1794344399593
+      },
+      {
+       "kind": "sevenDay",
+       "name": null,
+       "minutes": 10080,
+       "usedPercent": 78.0,
+       "resetsAtMs": 1794621599593
+      },
+      {
+       "kind": "modelWeek",
+       "name": "Fable",
+       "minutes": 10080,
+       "usedPercent": 100.0,
+       "resetsAtMs": 1794621599593
+      }
+     ]
+    },
+    {
+     "source": "claudeCode",
+     "observedMs": 1794330373747,
+     "windows": [
+      {
+       "kind": "fiveHour",
+       "name": null,
+       "minutes": 300,
+       "usedPercent": 42.0,
+       "resetsAtMs": 1794344399593
+      },
+      {
+       "kind": "sevenDay",
+       "name": null,
+       "minutes": 10080,
+       "usedPercent": 78.0,
+       "resetsAtMs": 1794621599593
+      },
+      {
+       "kind": "modelWeek",
+       "name": "Fable",
+       "minutes": 10080,
+       "usedPercent": 100.0,
+       "resetsAtMs": 1794621599593
+      }
+     ]
+    },
+    null,
+    null,
+    {
+     "source": "claudeCode",
+     "observedMs": 1794330373747,
+     "windows": [
+      {
+       "kind": "fiveHour",
+       "name": null,
+       "minutes": 300,
+       "usedPercent": 42.0,
+       "resetsAtMs": 1794344399593
+      },
+      {
+       "kind": "sevenDay",
+       "name": null,
+       "minutes": 10080,
+       "usedPercent": 78.0,
+       "resetsAtMs": 1794621599593
+      },
+      {
+       "kind": "modelWeek",
+       "name": "Fable",
+       "minutes": 10080,
+       "usedPercent": 100.0,
+       "resetsAtMs": 1794621599593
+      }
+     ]
+    }
+   ]
+  },
+  "joins": [
+   {
+    "name": "observed",
+    "bridge": {
+     "source": "claudeCode",
+     "observedMs": 1794338473000,
+     "windows": [
+      {
+       "kind": "fiveHour",
+       "name": null,
+       "minutes": 300,
+       "usedPercent": 52.0,
+       "resetsAtMs": 1794344400000
+      },
+      {
+       "kind": "sevenDay",
+       "name": null,
+       "minutes": 10080,
+       "usedPercent": 80.0,
+       "resetsAtMs": 1794621600000
+      }
+     ]
+    },
+    "cache": {
+     "source": "claudeCode",
+     "observedMs": 1794330373747,
+     "windows": [
+      {
+       "kind": "fiveHour",
+       "name": null,
+       "minutes": 300,
+       "usedPercent": 42.0,
+       "resetsAtMs": 1794344399593
+      },
+      {
+       "kind": "sevenDay",
+       "name": null,
+       "minutes": 10080,
+       "usedPercent": 78.0,
+       "resetsAtMs": 1794621599593
+      },
+      {
+       "kind": "modelWeek",
+       "name": "Fable",
+       "minutes": 10080,
+       "usedPercent": 100.0,
+       "resetsAtMs": 1794621599593
+      }
+     ]
+    },
+    "expected": {
+     "source": "claudeCode",
+     "observedMs": 1794338473000,
+     "windows": [
+      {
+       "kind": "fiveHour",
+       "name": null,
+       "minutes": 300,
+       "usedPercent": 52.0,
+       "resetsAtMs": 1794344400000,
+       "observedMs": 1794338473000
+      },
+      {
+       "kind": "sevenDay",
+       "name": null,
+       "minutes": 10080,
+       "usedPercent": 80.0,
+       "resetsAtMs": 1794621600000,
+       "observedMs": 1794338473000
+      },
+      {
+       "kind": "modelWeek",
+       "name": "Fable",
+       "minutes": 10080,
+       "usedPercent": 100.0,
+       "resetsAtMs": 1794621599593,
+       "observedMs": 1794330373747
+      }
+     ]
+    }
+   },
+   {
+    "name": "cacheHigherInTheSameWindow",
+    "bridge": {
+     "source": "claudeCode",
+     "observedMs": 1794338473000,
+     "windows": [
+      {
+       "kind": "fiveHour",
+       "name": null,
+       "minutes": 300,
+       "usedPercent": 52.0,
+       "resetsAtMs": 1794344400000
+      },
+      {
+       "kind": "sevenDay",
+       "name": null,
+       "minutes": 10080,
+       "usedPercent": 80.0,
+       "resetsAtMs": 1794621600000
+      }
+     ]
+    },
+    "cache": {
+     "source": "claudeCode",
+     "observedMs": 1794330373747,
+     "windows": [
+      {
+       "kind": "sevenDay",
+       "name": null,
+       "minutes": 10080,
+       "usedPercent": 81.0,
+       "resetsAtMs": 1794621599593
+      },
+      {
+       "kind": "modelWeek",
+       "name": "Fable",
+       "minutes": 10080,
+       "usedPercent": 100.0,
+       "resetsAtMs": 1794621599593
+      }
+     ]
+    },
+    "expected": {
+     "source": "claudeCode",
+     "observedMs": 1794338473000,
+     "windows": [
+      {
+       "kind": "fiveHour",
+       "name": null,
+       "minutes": 300,
+       "usedPercent": 52.0,
+       "resetsAtMs": 1794344400000,
+       "observedMs": 1794338473000
+      },
+      {
+       "kind": "sevenDay",
+       "name": null,
+       "minutes": 10080,
+       "usedPercent": 81.0,
+       "resetsAtMs": 1794621599593,
+       "observedMs": 1794338473000
+      },
+      {
+       "kind": "modelWeek",
+       "name": "Fable",
+       "minutes": 10080,
+       "usedPercent": 100.0,
+       "resetsAtMs": 1794621599593,
+       "observedMs": 1794330373747
+      }
+     ]
+    }
+   },
+   {
+    "name": "tieKeepsTheBridge",
+    "bridge": {
+     "source": "claudeCode",
+     "observedMs": 1794338473000,
+     "windows": [
+      {
+       "kind": "sevenDay",
+       "name": null,
+       "minutes": 10080,
+       "usedPercent": 80.0,
+       "resetsAtMs": 1794621600000
+      }
+     ]
+    },
+    "cache": {
+     "source": "claudeCode",
+     "observedMs": 1794330373747,
+     "windows": [
+      {
+       "kind": "sevenDay",
+       "name": null,
+       "minutes": 10080,
+       "usedPercent": 80.0,
+       "resetsAtMs": 1794621659000
+      }
+     ]
+    },
+    "expected": {
+     "source": "claudeCode",
+     "observedMs": 1794338473000,
+     "windows": [
+      {
+       "kind": "sevenDay",
+       "name": null,
+       "minutes": 10080,
+       "usedPercent": 80.0,
+       "resetsAtMs": 1794621600000,
+       "observedMs": 1794338473000
+      }
+     ]
+    }
+   },
+   {
+    "name": "sixtySecondsApart",
+    "bridge": {
+     "source": "claudeCode",
+     "observedMs": 1794338473000,
+     "windows": [
+      {
+       "kind": "fiveHour",
+       "name": null,
+       "minutes": 300,
+       "usedPercent": 52.0,
+       "resetsAtMs": 1794344400000
+      },
+      {
+       "kind": "sevenDay",
+       "name": null,
+       "minutes": 10080,
+       "usedPercent": 80.0,
+       "resetsAtMs": 1794621600000
+      }
+     ]
+    },
+    "cache": {
+     "source": "claudeCode",
+     "observedMs": 1794330373747,
+     "windows": [
+      {
+       "kind": "fiveHour",
+       "name": null,
+       "minutes": 300,
+       "usedPercent": 60.0,
+       "resetsAtMs": 1794344460000
+      },
+      {
+       "kind": "sevenDay",
+       "name": null,
+       "minutes": 10080,
+       "usedPercent": 85.0,
+       "resetsAtMs": 1794621660001
+      }
+     ]
+    },
+    "expected": {
+     "source": "claudeCode",
+     "observedMs": 1794338473000,
+     "windows": [
+      {
+       "kind": "fiveHour",
+       "name": null,
+       "minutes": 300,
+       "usedPercent": 60.0,
+       "resetsAtMs": 1794344460000,
+       "observedMs": 1794338473000
+      },
+      {
+       "kind": "sevenDay",
+       "name": null,
+       "minutes": 10080,
+       "usedPercent": 85.0,
+       "resetsAtMs": 1794621660001,
+       "observedMs": 1794330373747
+      }
+     ]
+    }
+   },
+   {
+    "name": "cacheInANewerPeriod",
+    "bridge": {
+     "source": "claudeCode",
+     "observedMs": 1794338473000,
+     "windows": [
+      {
+       "kind": "fiveHour",
+       "name": null,
+       "minutes": 300,
+       "usedPercent": 97.0,
+       "resetsAtMs": 1794326400000
+      },
+      {
+       "kind": "sevenDay",
+       "name": null,
+       "minutes": 10080,
+       "usedPercent": 80.0,
+       "resetsAtMs": 1794621600000
+      }
+     ]
+    },
+    "cache": {
+     "source": "claudeCode",
+     "observedMs": 1794330373747,
+     "windows": [
+      {
+       "kind": "fiveHour",
+       "name": null,
+       "minutes": 300,
+       "usedPercent": 3.0,
+       "resetsAtMs": 1794344400000
+      }
+     ]
+    },
+    "expected": {
+     "source": "claudeCode",
+     "observedMs": 1794338473000,
+     "windows": [
+      {
+       "kind": "fiveHour",
+       "name": null,
+       "minutes": 300,
+       "usedPercent": 3.0,
+       "resetsAtMs": 1794344400000,
+       "observedMs": 1794330373747
+      },
+      {
+       "kind": "sevenDay",
+       "name": null,
+       "minutes": 10080,
+       "usedPercent": 80.0,
+       "resetsAtMs": 1794621600000,
+       "observedMs": 1794338473000
+      }
+     ]
+    }
+   },
+   {
+    "name": "bridgeInANewerPeriod",
+    "bridge": {
+     "source": "claudeCode",
+     "observedMs": 1794338473000,
+     "windows": [
+      {
+       "kind": "fiveHour",
+       "name": null,
+       "minutes": 300,
+       "usedPercent": 4.0,
+       "resetsAtMs": 1794362400000
+      },
+      {
+       "kind": "sevenDay",
+       "name": null,
+       "minutes": 10080,
+       "usedPercent": 80.0,
+       "resetsAtMs": 1794621600000
+      }
+     ]
+    },
+    "cache": {
+     "source": "claudeCode",
+     "observedMs": 1794330373747,
+     "windows": [
+      {
+       "kind": "fiveHour",
+       "name": null,
+       "minutes": 300,
+       "usedPercent": 42.0,
+       "resetsAtMs": 1794344400000
+      },
+      {
+       "kind": "sevenDay",
+       "name": null,
+       "minutes": 10080,
+       "usedPercent": 99.0,
+       "resetsAtMs": 1794621539000
+      }
+     ]
+    },
+    "expected": {
+     "source": "claudeCode",
+     "observedMs": 1794338473000,
+     "windows": [
+      {
+       "kind": "fiveHour",
+       "name": null,
+       "minutes": 300,
+       "usedPercent": 4.0,
+       "resetsAtMs": 1794362400000,
+       "observedMs": 1794338473000
+      },
+      {
+       "kind": "sevenDay",
+       "name": null,
+       "minutes": 10080,
+       "usedPercent": 80.0,
+       "resetsAtMs": 1794621600000,
+       "observedMs": 1794338473000
+      }
+     ]
+    }
+   },
+   {
+    "name": "bridgeOlderThanTheCache",
+    "bridge": {
+     "source": "claudeCode",
+     "observedMs": 1794330313747,
+     "windows": [
+      {
+       "kind": "fiveHour",
+       "name": null,
+       "minutes": 300,
+       "usedPercent": 52.0,
+       "resetsAtMs": 1794344400000
+      },
+      {
+       "kind": "sevenDay",
+       "name": null,
+       "minutes": 10080,
+       "usedPercent": 80.0,
+       "resetsAtMs": 1794621600000
+      }
+     ]
+    },
+    "cache": {
+     "source": "claudeCode",
+     "observedMs": 1794330373747,
+     "windows": [
+      {
+       "kind": "fiveHour",
+       "name": null,
+       "minutes": 300,
+       "usedPercent": 42.0,
+       "resetsAtMs": 1794344399593
+      },
+      {
+       "kind": "sevenDay",
+       "name": null,
+       "minutes": 10080,
+       "usedPercent": 78.0,
+       "resetsAtMs": 1794621599593
+      },
+      {
+       "kind": "modelWeek",
+       "name": "Fable",
+       "minutes": 10080,
+       "usedPercent": 100.0,
+       "resetsAtMs": 1794621599593
+      }
+     ]
+    },
+    "expected": {
+     "source": "claudeCode",
+     "observedMs": 1794330373747,
+     "windows": [
+      {
+       "kind": "fiveHour",
+       "name": null,
+       "minutes": 300,
+       "usedPercent": 52.0,
+       "resetsAtMs": 1794344400000,
+       "observedMs": 1794330373747
+      },
+      {
+       "kind": "sevenDay",
+       "name": null,
+       "minutes": 10080,
+       "usedPercent": 80.0,
+       "resetsAtMs": 1794621600000,
+       "observedMs": 1794330373747
+      },
+      {
+       "kind": "modelWeek",
+       "name": "Fable",
+       "minutes": 10080,
+       "usedPercent": 100.0,
+       "resetsAtMs": 1794621599593,
+       "observedMs": 1794330373747
+      }
+     ]
+    }
+   },
+   {
+    "name": "nullResets",
+    "bridge": {
+     "source": "claudeCode",
+     "observedMs": 1794338473000,
+     "windows": [
+      {
+       "kind": "fiveHour",
+       "name": null,
+       "minutes": 300,
+       "usedPercent": 52.0,
+       "resetsAtMs": 1794344400000
+      },
+      {
+       "kind": "sevenDay",
+       "name": null,
+       "minutes": 10080,
+       "usedPercent": 80.0,
+       "resetsAtMs": 1794621600000
+      }
+     ]
+    },
+    "cache": {
+     "source": "claudeCode",
+     "observedMs": 1794330373747,
+     "windows": [
+      {
+       "kind": "fiveHour",
+       "name": null,
+       "minutes": 300,
+       "usedPercent": 90.0,
+       "resetsAtMs": null
+      },
+      {
+       "kind": "modelWeek",
+       "name": "Opus",
+       "minutes": 10080,
+       "usedPercent": 12.0,
+       "resetsAtMs": null
+      }
+     ]
+    },
+    "expected": {
+     "source": "claudeCode",
+     "observedMs": 1794338473000,
+     "windows": [
+      {
+       "kind": "fiveHour",
+       "name": null,
+       "minutes": 300,
+       "usedPercent": 52.0,
+       "resetsAtMs": 1794344400000,
+       "observedMs": 1794338473000
+      },
+      {
+       "kind": "sevenDay",
+       "name": null,
+       "minutes": 10080,
+       "usedPercent": 80.0,
+       "resetsAtMs": 1794621600000,
+       "observedMs": 1794338473000
+      },
+      {
+       "kind": "modelWeek",
+       "name": "Opus",
+       "minutes": 10080,
+       "usedPercent": 12.0,
+       "resetsAtMs": null,
+       "observedMs": 1794330373747
+      }
+     ]
+    }
+   },
+   {
+    "name": "cacheOnly",
+    "bridge": null,
+    "cache": {
+     "source": "claudeCode",
+     "observedMs": 1794330373747,
+     "windows": [
+      {
+       "kind": "fiveHour",
+       "name": null,
+       "minutes": 300,
+       "usedPercent": 42.0,
+       "resetsAtMs": 1794344399593
+      },
+      {
+       "kind": "sevenDay",
+       "name": null,
+       "minutes": 10080,
+       "usedPercent": 78.0,
+       "resetsAtMs": 1794621599593
+      },
+      {
+       "kind": "modelWeek",
+       "name": "Fable",
+       "minutes": 10080,
+       "usedPercent": 100.0,
+       "resetsAtMs": 1794621599593
+      }
+     ]
+    },
+    "expected": {
+     "source": "claudeCode",
+     "observedMs": 1794330373747,
+     "windows": [
+      {
+       "kind": "fiveHour",
+       "name": null,
+       "minutes": 300,
+       "usedPercent": 42.0,
+       "resetsAtMs": 1794344399593
+      },
+      {
+       "kind": "sevenDay",
+       "name": null,
+       "minutes": 10080,
+       "usedPercent": 78.0,
+       "resetsAtMs": 1794621599593
+      },
+      {
+       "kind": "modelWeek",
+       "name": "Fable",
+       "minutes": 10080,
+       "usedPercent": 100.0,
+       "resetsAtMs": 1794621599593
+      }
+     ]
+    }
+   },
+   {
+    "name": "bridgeOnly",
+    "bridge": {
+     "source": "claudeCode",
+     "observedMs": 1794338473000,
+     "windows": [
+      {
+       "kind": "fiveHour",
+       "name": null,
+       "minutes": 300,
+       "usedPercent": 52.0,
+       "resetsAtMs": 1794344400000
+      },
+      {
+       "kind": "sevenDay",
+       "name": null,
+       "minutes": 10080,
+       "usedPercent": 80.0,
+       "resetsAtMs": 1794621600000
+      }
+     ]
+    },
+    "cache": null,
+    "expected": {
+     "source": "claudeCode",
+     "observedMs": 1794338473000,
+     "windows": [
+      {
+       "kind": "fiveHour",
+       "name": null,
+       "minutes": 300,
+       "usedPercent": 52.0,
+       "resetsAtMs": 1794344400000
+      },
+      {
+       "kind": "sevenDay",
+       "name": null,
+       "minutes": 10080,
+       "usedPercent": 80.0,
+       "resetsAtMs": 1794621600000
+      }
+     ]
+    }
+   },
+   {
+    "name": "noWindows",
+    "bridge": {
+     "source": "claudeCode",
+     "observedMs": 1794338473000,
+     "windows": []
+    },
+    "cache": {
+     "source": "claudeCode",
+     "observedMs": 1794330373747,
+     "windows": []
+    },
+    "expected": {
+     "source": "claudeCode",
+     "observedMs": 1794338473000,
+     "windows": []
+    }
+   },
+   {
+    "name": "neither",
+    "bridge": null,
+    "cache": null,
+    "expected": null
+   }
+  ],
+  "feed": [
+   {
+    "snapshot": {
+     "source": "claudeCode",
+     "observedMs": 1794338473000,
+     "windows": [
+      {
+       "kind": "fiveHour",
+       "name": null,
+       "minutes": 300,
+       "usedPercent": 52.0,
+       "resetsAtMs": 1794344400000,
+       "observedMs": 1794338473000
+      },
+      {
+       "kind": "sevenDay",
+       "name": null,
+       "minutes": 10080,
+       "usedPercent": 80.0,
+       "resetsAtMs": 1794621600000,
+       "observedMs": 1794338473000
+      },
+      {
+       "kind": "modelWeek",
+       "name": "Fable",
+       "minutes": 10080,
+       "usedPercent": 100.0,
+       "resetsAtMs": 1794621599593,
+       "observedMs": 1794330373747
+      }
+     ]
+    },
+    "expected": [
+     {
+      "observedMs": 1794330373747,
+      "windows": [
+       {
+        "kind": "modelWeek",
+        "name": "Fable",
+        "minutes": 10080,
+        "usedPercent": 100.0,
+        "resetsAtMs": 1794621599593
+       }
+      ]
+     },
+     {
+      "observedMs": 1794338473000,
+      "windows": [
+       {
+        "kind": "fiveHour",
+        "name": null,
+        "minutes": 300,
+        "usedPercent": 52.0,
+        "resetsAtMs": 1794344400000
+       },
+       {
+        "kind": "sevenDay",
+        "name": null,
+        "minutes": 10080,
+        "usedPercent": 80.0,
+        "resetsAtMs": 1794621600000
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "snapshot": {
+     "source": "claudeCode",
+     "observedMs": 1794338473000,
+     "windows": [
+      {
+       "kind": "fiveHour",
+       "name": null,
+       "minutes": 300,
+       "usedPercent": 52.0,
+       "resetsAtMs": 1794344400000,
+       "observedMs": 1794338473000
+      },
+      {
+       "kind": "sevenDay",
+       "name": null,
+       "minutes": 10080,
+       "usedPercent": 80.0,
+       "resetsAtMs": 1794621600000,
+       "observedMs": 1794338473000
+      },
+      {
+       "kind": "modelWeek",
+       "name": "Fable",
+       "minutes": 10080,
+       "usedPercent": 100.0,
+       "resetsAtMs": 1794621599593,
+       "observedMs": 1794330373747
+      }
+     ]
+    },
+    "expected": []
+   },
+   {
+    "snapshot": {
+     "source": "claudeCode",
+     "observedMs": 1794338503000,
+     "windows": [
+      {
+       "kind": "fiveHour",
+       "name": null,
+       "minutes": 300,
+       "usedPercent": 53.0,
+       "resetsAtMs": 1794344400000,
+       "observedMs": 1794338503000
+      },
+      {
+       "kind": "sevenDay",
+       "name": null,
+       "minutes": 10080,
+       "usedPercent": 80.0,
+       "resetsAtMs": 1794621600000,
+       "observedMs": 1794338503000
+      },
+      {
+       "kind": "modelWeek",
+       "name": "Fable",
+       "minutes": 10080,
+       "usedPercent": 100.0,
+       "resetsAtMs": 1794621599593,
+       "observedMs": 1794330373747
+      }
+     ]
+    },
+    "expected": [
+     {
+      "observedMs": 1794338503000,
+      "windows": [
+       {
+        "kind": "fiveHour",
+        "name": null,
+        "minutes": 300,
+        "usedPercent": 53.0,
+        "resetsAtMs": 1794344400000
+       },
+       {
+        "kind": "sevenDay",
+        "name": null,
+        "minutes": 10080,
+        "usedPercent": 80.0,
+        "resetsAtMs": 1794621600000
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "snapshot": {
+     "source": "claudeCode",
+     "observedMs": 1794338503000,
+     "windows": [
+      {
+       "kind": "fiveHour",
+       "name": null,
+       "minutes": 300,
+       "usedPercent": 53.0,
+       "resetsAtMs": 1794344400000,
+       "observedMs": 1794338503000
+      },
+      {
+       "kind": "sevenDay",
+       "name": null,
+       "minutes": 10080,
+       "usedPercent": 81.0,
+       "resetsAtMs": 1794621600000,
+       "observedMs": 1794338503000
+      },
+      {
+       "kind": "modelWeek",
+       "name": "Fable",
+       "minutes": 10080,
+       "usedPercent": 100.0,
+       "resetsAtMs": 1794621599593,
+       "observedMs": 1794338483000
+      }
+     ]
+    },
+    "expected": [
+     {
+      "observedMs": 1794338483000,
+      "windows": [
+       {
+        "kind": "modelWeek",
+        "name": "Fable",
+        "minutes": 10080,
+        "usedPercent": 100.0,
+        "resetsAtMs": 1794621599593
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "snapshot": {
+     "source": "claudeCode",
+     "observedMs": 1794338533000,
+     "windows": [
+      {
+       "kind": "fiveHour",
+       "name": null,
+       "minutes": 300,
+       "usedPercent": 54.0,
+       "resetsAtMs": 1794344400000,
+       "observedMs": 1794338533000
+      },
+      {
+       "kind": "sevenDay",
+       "name": null,
+       "minutes": 10080,
+       "usedPercent": 80.0,
+       "resetsAtMs": 1794621600000,
+       "observedMs": 1794338503000
+      },
+      {
+       "kind": "modelWeek",
+       "name": "Fable",
+       "minutes": 10080,
+       "usedPercent": 100.0,
+       "resetsAtMs": 1794621599593,
+       "observedMs": 1794338533000
+      }
+     ]
+    },
+    "expected": [
+     {
+      "observedMs": 1794338533000,
+      "windows": [
+       {
+        "kind": "fiveHour",
+        "name": null,
+        "minutes": 300,
+        "usedPercent": 54.0,
+        "resetsAtMs": 1794344400000
+       },
+       {
+        "kind": "modelWeek",
+        "name": "Fable",
+        "minutes": 10080,
+        "usedPercent": 100.0,
+        "resetsAtMs": 1794621599593
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "snapshot": {
+     "source": "claudeCode",
+     "observedMs": 1794338503000,
+     "windows": [
+      {
+       "kind": "fiveHour",
+       "name": null,
+       "minutes": 300,
+       "usedPercent": 2.0,
+       "resetsAtMs": 1794362400000,
+       "observedMs": 1794338493000
+      },
+      {
+       "kind": "sevenDay",
+       "name": null,
+       "minutes": 10080,
+       "usedPercent": 80.0,
+       "resetsAtMs": 1794621600000,
+       "observedMs": 1794338503000
+      }
+     ]
+    },
+    "expected": []
+   }
+  ],
+  "ages": {
+   "nowMs": 1794338773000,
+   "snapshot": {
+    "source": "claudeCode",
+    "observedMs": 1794338473000,
+    "windows": [
+     {
+      "kind": "fiveHour",
+      "name": null,
+      "minutes": 300,
+      "usedPercent": 52.0,
+      "resetsAtMs": 1794344400000,
+      "observedMs": 1794338473000
+     },
+     {
+      "kind": "sevenDay",
+      "name": null,
+      "minutes": 10080,
+      "usedPercent": 80.0,
+      "resetsAtMs": 1794621600000,
+      "observedMs": 1794338473000
+     },
+     {
+      "kind": "modelWeek",
+      "name": "Fable",
+      "minutes": 10080,
+      "usedPercent": 100.0,
+      "resetsAtMs": 1794621599593,
+      "observedMs": 1794330373747
+     }
+    ]
+   },
+   "expected": [
+    {
+     "label": "5h",
+     "observedMs": 1794338473000,
+     "age": {
+      "zh-Hant": null,
+      "zh-Hans": null,
+      "en": null,
+      "ja": null
+     }
+    },
+    {
+     "label": "7d",
+     "observedMs": 1794338473000,
+     "age": {
+      "zh-Hant": null,
+      "zh-Hans": null,
+      "en": null,
+      "ja": null
+     }
+    },
+    {
+     "label": "Fable 7d",
+     "observedMs": 1794330373747,
+     "age": {
+      "zh-Hant": "2 小時前更新",
+      "zh-Hans": "2 小时前更新",
+      "en": "updated 2 h ago",
+      "ja": "2時間前に更新"
+     }
+    }
+   ],
+   "shown": [
+    {
+     "label": "5h",
+     "percent": 52,
+     "bar": 52.0,
+     "resetsAtMs": 1794344400000,
+     "passed": false
+    },
+    {
+     "label": "7d",
+     "percent": 80,
+     "bar": 80.0,
+     "resetsAtMs": 1794621600000,
+     "passed": false
+    },
+    {
+     "label": "Fable 7d",
+     "percent": 100,
+     "bar": 100.0,
+     "resetsAtMs": 1794621599593,
+     "passed": false
+    }
+   ]
+  },
+  "cacheOnlyAges": {
+   "nowMs": 1794338773000,
+   "snapshot": {
+    "source": "claudeCode",
+    "observedMs": 1794330373747,
+    "windows": [
+     {
+      "kind": "fiveHour",
+      "name": null,
+      "minutes": 300,
+      "usedPercent": 42.0,
+      "resetsAtMs": 1794344399593
+     },
+     {
+      "kind": "sevenDay",
+      "name": null,
+      "minutes": 10080,
+      "usedPercent": 78.0,
+      "resetsAtMs": 1794621599593
+     },
+     {
+      "kind": "modelWeek",
+      "name": "Fable",
+      "minutes": 10080,
+      "usedPercent": 100.0,
+      "resetsAtMs": 1794621599593
+     }
+    ]
+   },
+   "expected": [
+    {
+     "label": "5h",
+     "observedMs": 1794330373747,
+     "age": {
+      "zh-Hant": "2 小時前更新",
+      "zh-Hans": "2 小时前更新",
+      "en": "updated 2 h ago",
+      "ja": "2時間前に更新"
+     }
+    },
+    {
+     "label": "7d",
+     "observedMs": 1794330373747,
+     "age": {
+      "zh-Hant": "2 小時前更新",
+      "zh-Hans": "2 小时前更新",
+      "en": "updated 2 h ago",
+      "ja": "2時間前に更新"
+     }
+    },
+    {
+     "label": "Fable 7d",
+     "observedMs": 1794330373747,
+     "age": {
+      "zh-Hant": "2 小時前更新",
+      "zh-Hans": "2 小时前更新",
+      "en": "updated 2 h ago",
+      "ja": "2時間前に更新"
+     }
+    }
+   ]
   }
  },
  "percents": [

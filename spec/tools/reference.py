@@ -68,6 +68,12 @@ GEMINI_SANITIZE = re.compile(r"[^A-Za-z0-9_-]")
 GEMINI_CANCELLED = "Request cancelled."
 OMP_COPY_MS = 2000
 AG_BLOB_MAX = 1024 * 1024
+# An oversized gen_metadata row up to AG_SKIM_MAX bytes is skimmed (METRICS 4.8): at most AG_SKIM_READS reads of field
+# headers, step indices up to AG_SKIM_STEPS bytes and model names up to AG_SKIM_NAME bytes.
+AG_SKIM_MAX = 64 * 1024 * 1024
+AG_SKIM_READS = 4096
+AG_SKIM_STEPS = 64 * 1024
+AG_SKIM_NAME = 4096
 AG_TOKEN_MAX = 10_000_000
 AG_OPEN = {1, 2, 8, 9, 11}
 AG_FAILED = {6, 7, 12}
@@ -220,6 +226,7 @@ class FileState:
         self.prev_legacy = None
         # claude, qoder cli (METRICS 4.19: its source never changes)
         self.precise = False
+        self.qoder_starts = {}  # qoder cli: the start a key's first usage-less line consumed (issue #73)
         if source == "qoderCli":
             self.source_decided = True
         # deepseek, gemini
@@ -273,7 +280,8 @@ class FileState:
         # workbuddy
         self.cwd = None
         self.open_calls = OrderedDict()
-        if source in WB_FOLDERS:
+        self.wb_measured = set()  # keys whose start came from measured attempts
+        if source in WB_SOURCES:
             self.source_decided = True
             rel = [p for p in re.split(r"[\\/]", os.path.relpath(path, root) if root else path) if p]
             self.is_subagent = len(rel) == 4 and rel[2] == "subagents"
@@ -533,11 +541,15 @@ def claude_line(state, obj, dedupe):
             if not state.precise:
                 state.pending = ts
             state.phase, state.in_flight = "generating", state.pending
+    elif kind == "system" and obj.get("subtype") == "api_error":
+        if state.phase == "generating":
+            state.in_flight = None
     elif kind == "assistant" and qoder_cli:
         qoder_cli_assistant(state, obj, dedupe, ts)
     elif kind == "assistant":
         message = obj.get("message") if isinstance(obj.get("message"), dict) else {}
         if message.get("model") == "<synthetic>":
+            claude_api_error(state, obj)
             return
         key = message.get("id") or obj.get("requestId") or obj.get("uuid")
         if not isinstance(key, str) or not key:
@@ -584,6 +596,12 @@ def claude_line(state, obj, dedupe):
             state.phase, state.in_flight = "idle", None
 
 
+def claude_api_error(state, obj):
+    """A synthetic assistant line with `isApiErrorMessage` ends the turn (METRICS 4.1, assistant step 1)."""
+    if obj.get("isApiErrorMessage") is True:
+        state.phase, state.pending, state.precise, state.in_flight = "idle", None, False, None
+
+
 def qoder_cli_tokens(usage):
     """Claude's tokens (3.2) except `input`: Qoder's `input_tokens` already includes the cache when it covers it."""
     tokens = claude_tokens(usage)
@@ -598,6 +616,7 @@ def qoder_cli_assistant(state, obj, dedupe, ts):
     effort or speed facts, `firstMs` null (one line per call, written when the call ends)."""
     message = obj.get("message") if isinstance(obj.get("message"), dict) else {}
     if message.get("model") == "<synthetic>":
+        claude_api_error(state, obj)
         return
     raw = message.get("id") or obj.get("uuid")
     if not isinstance(raw, str) or not raw:
@@ -617,7 +636,8 @@ def qoder_cli_assistant(state, obj, dedupe, ts):
         tokens = None
     if tokens is not None:
         if resp is None:
-            emit(state, key, state.pending, ts, tokens, message.get("model"), stop is not None)
+            begin = state.qoder_starts.pop(key) if key in state.qoder_starts else state.pending
+            emit(state, key, begin, ts, tokens, message.get("model"), stop is not None)
             state.pending, state.precise = None, False
             resp = state.responses[key]
         else:
@@ -632,6 +652,8 @@ def qoder_cli_assistant(state, obj, dedupe, ts):
         if resp is not None:
             resp["final"] = resp["final"] or stop is not None
             note_completed(state, resp)
+        elif key not in state.qoder_starts:
+            state.qoder_starts[key] = state.pending
         state.pending, state.precise = None, False
         if isinstance(message.get("model"), str) and message["model"]:
             state.model = message["model"]
@@ -640,7 +662,7 @@ def qoder_cli_assistant(state, obj, dedupe, ts):
     if stop == "tool_use" or (stop is None and has_tool_use):
         state.phase, state.in_flight = "tools", None
     elif stop is None or stop == "pause_turn":
-        begin = resp["startMs"] if resp is not None else start
+        begin = resp["startMs"] if resp is not None else state.qoder_starts.get(key, start)
         state.phase, state.in_flight = "generating", begin if begin is not None else ts
     else:
         state.phase, state.in_flight = "idle", None
@@ -758,7 +780,8 @@ def process_file(state, dedupe, start_offset=0, max_lines=None):
     if state.source == "droid":
         return droid_read(state, dedupe, start_offset, max_lines)
     handler = {"codex": codex_line, "deepseek": dsh_event, "gemini": gemini_record, "omp": omp_line, "pi": pi_line,
-               "workbuddy": workbuddy_line, "workbuddyAi": workbuddy_line}.get(state.source, claude_line)
+               "workbuddy": workbuddy_line, "workbuddyAi": workbuddy_line,
+               "codebuddyCode": workbuddy_line}.get(state.source, claude_line)
     if state.source in ("omp", "pi") and start_offset > 0:
         omp_read_header(state, dedupe)
     if state.path.endswith(".zstd"):
@@ -2693,6 +2716,7 @@ class DroidTail:
 # ----------------------------------------------------------------------------- WorkBuddy (METRICS 4.9)
 
 WB_FOLDERS = OrderedDict([("workbuddy", ".workbuddy"), ("workbuddyAi", ".workbuddy-ai")])
+WB_SOURCES = ("workbuddy", "workbuddyAi", "codebuddyCode")  # the sources that write this format (4.9, 4.20)
 WB_USER_PREFIXES = ("custom:", "custom-local:")
 
 
@@ -2745,6 +2769,20 @@ def wb_idle(state):
     state.open_calls.clear()
 
 
+def wb_measured(pd, ts):
+    """(measured start, first token) of the call's last attempt in `rawUsage.model_calls` (4.9 Timing model)."""
+    raw = pd.get("rawUsage")
+    attempts = raw.get("model_calls") if isinstance(raw, dict) else None
+    if not isinstance(attempts, list) or not attempts or not isinstance(attempts[-1], dict):
+        return None, None
+    duration, ttft = attempts[-1].get("duration_ms"), attempts[-1].get("time_to_first_token_ms")
+    if not finite(duration) or trunc64(duration) <= 0:
+        return None, None
+    start = max(ts - trunc64(duration), INT64_MIN)
+    first = start + trunc64(ttft) if finite(ttft) and 0 < trunc64(ttft) <= trunc64(duration) else None
+    return start, first
+
+
 def wb_response(state, key, pd, ts, dedupe):
     """Creates or merges the response of one model call from a line that carries usage (4.9 step 3)."""
     if not isinstance(pd.get("usage"), dict) and not isinstance(pd.get("rawUsage"), dict):
@@ -2753,18 +2791,25 @@ def wb_response(state, key, pd, ts, dedupe):
     if tokens["input"] == 0 and tokens["output"] == 0:
         return
     model, provider = wb_model(pd)
+    measured, first = wb_measured(pd, ts)
     resp = state.responses.get(key)
     if resp is None:
         dedupe.claim(key, state.path)
-        emit(state, key, state.pending, ts, tokens, model, provider=provider)
+        emit(state, key, state.pending if measured is None else measured, ts, tokens, model, provider=provider,
+             first=first)
         state.pending = None
         resp = state.responses[key]
+        if measured is not None:
+            state.wb_measured.add(key)
     else:
         resp["endMs"] = max(resp["endMs"], ts)
         for f in TOKEN_FIELDS:
             resp[f] = max(resp[f], tokens.get(f, 0))
         resp["model"] = model or resp["model"]
         resp["provider"] = provider or resp["provider"]
+        if measured is not None and key not in state.wb_measured:
+            state.wb_measured.add(key)
+            resp["startMs"], resp["firstMs"] = measured, first
         note_completed(state, resp)
     state.model = resp["model"] or state.model
 
@@ -2855,6 +2900,18 @@ def workbuddy_roots(home=None, settings=None):
         path = chosen or os.path.join(home, folder)
         roots.append((source, path if os.path.basename(path) == "projects" else os.path.join(path, "projects")))
     return roots
+
+
+def codebuddy_root(home=None, setting=None, env=None):
+    """(source, projects folder) of CodeBuddy Code (METRICS 4.20): `$CODEBUDDY_CONFIG_DIR` when not blank, else
+    `~/.codebuddy`; a setting names a config folder or its `projects` folder."""
+    env = os.environ if env is None else env
+    chosen = (setting or "").rstrip("/\\")
+    if chosen:
+        return "codebuddyCode", chosen if os.path.basename(chosen) == "projects" else os.path.join(chosen, "projects")
+    var = env.get("CODEBUDDY_CONFIG_DIR") or ""
+    return "codebuddyCode", os.path.join(var if var.strip() else os.path.join(home or os.path.expanduser("~"),
+                                                                             ".codebuddy"), "projects")
 
 
 def discover_workbuddy(projects, limit=20_000):
@@ -3136,6 +3193,96 @@ def ag_generation(data):
                 response=pb_str(chat, 19) or None, label=pb_str(chat, 21) or None)
 
 
+def ag_skim(state, db, rowid, length):
+    """The generation of an oversized gen_metadata row, read in pieces from the blob (incremental blob reads where the
+    runtime has them, else substr): None and counted malformed when it does not skim (METRICS 4.8)."""
+    blob = db.blobopen("gen_metadata", "data", rowid, readonly=True) if hasattr(db, "blobopen") else None
+
+    def read(pos, size):
+        if blob is not None:
+            blob.seek(pos)
+            return blob.read(size)
+        (chunk,) = db.execute("SELECT substr(data, ?, ?) FROM gen_metadata WHERE rowid = ?",
+                              (pos + 1, size, rowid)).fetchone()
+        return bytes(chunk)
+    try:
+        return ag_skim_generation(read, length)
+    except (ValueError, sqlite3.DatabaseError):
+        state.malformed += 1
+        return None
+    finally:
+        if blob is not None:
+            blob.close()
+
+
+def ag_skim_generation(read, length):
+    """Step indices and models of a CortexStepGeneratorMetadata of `length` bytes from its field headers alone: every
+    other field is passed over by its length, so only the headers, `step_indices` and the last `chat_model`'s
+    `response_model` and `model_display_name` are read (`read(pos, size)` returns those bytes). Raises ValueError when
+    the message is malformed, the reads exceed AG_SKIM_READS or step_indices AG_SKIM_STEPS bytes; a model name over
+    AG_SKIM_NAME bytes counts as missing."""
+    reads = [0]
+
+    def take(pos, size):
+        reads[0] += 1
+        if reads[0] > AG_SKIM_READS:
+            raise ValueError("too many fields to skim")
+        chunk = read(pos, size)
+        if len(chunk) != size:
+            raise ValueError("short read")
+        return chunk
+
+    def field(pos, end):
+        head = take(pos, min(20, end - pos))
+        key, i = pb_varint(head, 0)
+        number, wire = key >> 3, key & 7
+        if number == 0:
+            raise ValueError("field 0")
+        if wire == 0:
+            value, j = pb_varint(head, i)
+            return number, wire, value, pos + j
+        if wire in (1, 5):
+            size = 8 if wire == 1 else 4
+            if pos + i + size > end:
+                raise ValueError("truncated fixed field")
+            return number, wire, None, pos + i + size
+        if wire == 2:
+            size, j = pb_varint(head, i)
+            if size > end - pos - j:
+                raise ValueError("truncated length-delimited field")
+            return number, wire, (pos + j, size), pos + j + size
+        raise ValueError("wire type %d" % wire)
+
+    steps, response, label, pos = [], "", "", 0
+    while pos < length:
+        number, wire, value, pos = field(pos, length)
+        if number == 2 and wire == 0:
+            steps.append(value)
+        elif number == 2 and wire == 2:
+            start, size = value
+            if size > AG_SKIM_STEPS:
+                raise ValueError("step indices too long")
+            data = take(start, size) if size else b""
+            i = 0
+            while i < len(data):
+                item, i = pb_varint(data, i)
+                steps.append(item)
+        elif number == 1 and wire == 2:
+            start, size = value
+            response = label = ""
+            sub = start
+            while sub < start + size:
+                inner, kind, part, sub = field(sub, start + size)
+                if inner in (19, 21) and kind == 2:
+                    at, n = part
+                    text = take(at, n).decode("utf-8", "replace") if 0 < n <= AG_SKIM_NAME else ""
+                    if inner == 19:
+                        response = text
+                    else:
+                        label = text
+    return dict(steps=set(steps), model=response or label or None, response=response or None, label=label or None)
+
+
 def ag_executor(data):
     fields = pb_fields(data)
     planner = pb_msg(pb_msg(fields, 10) or [], 1) or []
@@ -3205,10 +3352,12 @@ def antigravity_state(db_path, dedupe):
         if traj:
             st.project, st.is_subagent, st.parent_session = traj["project"], traj["subagent"], traj["parent"]
         st.file_created = created
-        gens = [g for _, blob in ag_last_per_idx(ag_rows(
-                    db, "SELECT idx, CASE WHEN typeof(size) = 'integer' AND size <= %d AND length(data) <= %d THEN data "
-                        "END FROM gen_metadata WHERE idx > -1 ORDER BY idx, rowid" % (AG_BLOB_MAX, AG_BLOB_MAX)))
-                for g in [ag_decode(st, blob, ag_generation)] if g]
+        gens = [g for _, rowid, blob, length in ag_last_per_idx(ag_rows(
+                    db, "SELECT idx, rowid, CASE WHEN typeof(size) = 'integer' AND size <= %d AND length(data) <= %d "
+                        "THEN data END, CASE WHEN typeof(data) = 'blob' THEN length(data) END FROM gen_metadata "
+                        "WHERE idx > -1 ORDER BY idx, rowid" % (AG_BLOB_MAX, AG_BLOB_MAX)))
+                for g in [ag_decode(st, blob, ag_generation) if blob is not None
+                          else ag_skim(st, db, rowid, length) if length and length <= AG_SKIM_MAX else None] if g]
         execs = [dict(e, idx=idx) for idx, blob in ag_last_per_idx(ag_rows(
                     db, "SELECT idx, CASE WHEN length(data) <= %d THEN data END FROM executor_metadata WHERE idx > -1 "
                         "ORDER BY idx, rowid" % AG_BLOB_MAX))
@@ -3737,6 +3886,13 @@ def check_fixtures():
             failures.append("workbuddy discover: expected %r got %r" % (wb["discover"], found))
         failures += check_traces(root, expected, wb["traces"])
         failures += check_workbuddy_roots()
+    cb = expected.get("codebuddyCode")
+    if cb:
+        found = sorted(os.path.relpath(p, root).replace(os.sep, "/") for p in discover_workbuddy(fixture_cb_root(root)[1]))
+        if found != cb["discover"]:
+            failures.append("codebuddyCode discover: expected %r got %r" % (cb["discover"], found))
+        failures += check_traces(root, expected, cb["traces"])
+        failures += check_codebuddy_roots()
     hm = expected.get("hermes")
     if hm:
         failures += check_hermes(root, hm, dedupe)
@@ -4413,6 +4569,31 @@ def check_workbuddy_roots():
     return failures
 
 
+def check_codebuddy_roots():
+    """The config folder: `$CODEBUDDY_CONFIG_DIR` when not blank, else `~/.codebuddy`; a setting names a config folder
+    or its `projects` folder."""
+    failures = []
+    home = os.path.join(os.sep, "home", "dev")
+    cases = [
+        ({}, None, os.path.join(home, ".codebuddy", "projects")),
+        ({"CODEBUDDY_CONFIG_DIR": "/data/cb"}, None, "/data/cb/projects"),
+        ({"CODEBUDDY_CONFIG_DIR": "/data/cb/projects"}, None, "/data/cb/projects/projects"),
+        ({"CODEBUDDY_CONFIG_DIR": " \t"}, None, os.path.join(home, ".codebuddy", "projects")),
+        ({"CODEBUDDY_CONFIG_DIR": "/data/cb"}, "/work/cb/", "/work/cb/projects"),
+        ({}, "/work/cb/projects", "/work/cb/projects"),
+    ]
+    for env, setting, want in cases:
+        got = codebuddy_root(home, setting, env)
+        if got != ("codebuddyCode", want):
+            failures.append("codebuddyCode root %r %r: expected %r got %r" % (env, setting, want, got))
+    return failures
+
+
+def fixture_cb_root(root):
+    """The fixture folder `codebuddy` plays a CodeBuddy Code config folder (`~/.codebuddy`)."""
+    return codebuddy_root(setting=os.path.join(root, "codebuddy"))
+
+
 def fixture_wb_roots(root):
     """The fixture folder `workbuddy` plays the home folder of both WorkBuddy editions."""
     return workbuddy_roots(os.path.join(root, "workbuddy"))
@@ -4435,6 +4616,8 @@ def fixture_source(rel):
         return "droid"
     if rel.startswith("qoder-cli/"):
         return "qoderCli"
+    if rel.startswith("codebuddy/"):
+        return "codebuddyCode"
     for prefix, source in (("codex/", "codex"), ("dsh/", "deepseek"), ("gemini/", "gemini"), ("omp/", "omp"), ("pi/", "pi"),
                            ("workbuddy/.workbuddy/", "workbuddy"), ("workbuddy/.workbuddy-ai/", "workbuddyAi")):
         if rel.startswith(prefix):
@@ -4471,13 +4654,16 @@ def fixture_context(root, state):
         state.configured_facts = workbuddy_configured(os.path.join(data, "settings.json"))
         state.session_facts = workbuddy_session_fact(os.path.join(data, "workbuddy.db"),
                                                      os.path.basename(state.path)[:-len(".jsonl")])
+    elif state.source == "codebuddyCode":
+        state.configured_facts = workbuddy_configured(os.path.join(root, "codebuddy", "settings.json"))
 
 
 def fixture_state(root, rel):
     path = os.path.join(root, rel)
     source = fixture_source(rel)
-    if source in WB_FOLDERS:
-        return FileState(path, source, next((r for _, r in fixture_wb_roots(root) if path.startswith(r + os.sep)), None))
+    if source in WB_SOURCES:
+        roots = fixture_wb_roots(root) + [fixture_cb_root(root)]
+        return FileState(path, source, next((r for _, r in roots if path.startswith(r + os.sep)), None))
     omp_root = next((r for r in fixture_omp_roots(root) if path.startswith(r + os.sep)), None)
     return FileState(path, source, omp_root if source == "omp" else None)
 
@@ -4502,7 +4688,8 @@ def fixture_history(root, expected, config=HISTORY_PRICES):
                                          os.path.join(copy, "dsh", "sessions"), os.path.join(copy, "opencode", "opencode.db"),
                                          [os.path.join(copy, "gemini", "tmp")], fixture_omp_roots(copy),
                                          antigravity_stores(gemini_dir=os.path.join(copy, "antigravity")),
-                                         fixture_wb_roots(copy), pi_dirs=fixture_pi_roots(copy),
+                                         fixture_wb_roots(copy) + [fixture_cb_root(copy)],
+                                         pi_dirs=fixture_pi_roots(copy),
                                          openclaw_dbs=[db for r in fixture_openclaw_dirs(copy) for db in
                                                        discover_openclaw(r)],
                                          hermes_dirs=fixture_hermes_dirs(copy), hermes_tz=hermes_zone(expected),
@@ -4868,6 +5055,8 @@ def main():
     parser.add_argument("--workbuddy", default=None, help="WorkBuddy data folder (~/.workbuddy) or its projects folder")
     parser.add_argument("--workbuddy-ai", default=None,
                         help="WorkBuddy AI data folder (~/.workbuddy-ai) or its projects folder")
+    parser.add_argument("--codebuddy-code", default=None,
+                        help="CodeBuddy Code config folder (~/.codebuddy) or its projects folder")
     parser.add_argument("--openclaw", default=None,
                         help="OpenClaw state folder, agent folder or openclaw-agent.sqlite (replaces the automatic roots)")
     parser.add_argument("--droid", default=None,
@@ -4910,7 +5099,8 @@ def main():
     hermes_dirs = hermes_setting_folders(args.hermes) if args.hermes else hermes_log_folders(hermes_home())
     ag_stores = ([s for a in args.antigravity for s in antigravity_stores(setting=a)] if args.antigravity
                  else antigravity_stores())
-    wb_roots = workbuddy_roots(settings={"workbuddy": args.workbuddy, "workbuddyAi": args.workbuddy_ai})
+    wb_roots = workbuddy_roots(settings={"workbuddy": args.workbuddy, "workbuddyAi": args.workbuddy_ai}) + [
+        codebuddy_root(home, args.codebuddy_code)]
     zcode_root = args.zcode or os.path.join(os.environ.get("ZCODE_DATA_BASE_DIR") or home, ".zcode", "cli", "db")
     kimi_root = args.kimi or os.path.join(os.environ.get("KIMI_CODE_HOME") or os.path.join(home, ".kimi-code"), "sessions")
     grok_root = args.grok or os.path.join(os.environ.get("GROK_HOME") or os.path.join(home, ".grok"), "sessions")

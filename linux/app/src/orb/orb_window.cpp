@@ -7,6 +7,8 @@
 #include <QAccessible>
 #include <QActionGroup>
 #include <QCursor>
+#include <QDateTime>
+#include <QEnterEvent>
 #include <QGuiApplication>
 #include <QHash>
 #include <QMenu>
@@ -27,6 +29,7 @@
 #include "characters/character_library.hpp"
 #include "orb/character/character_assets.hpp"
 #include "orb/character/character_style.hpp"
+#include "orb/character/screen_lock.hpp"
 #include "format.hpp"
 #include "heat.hpp"
 #include "source_colors.hpp"
@@ -95,6 +98,10 @@ OrbWindow::OrbWindow(const Strings& strings, const QString& id) : QOpenGLWindow(
     });
     follow_.setInterval(16);
     connect(&follow_, &QTimer::timeout, this, &OrbWindow::follow);
+    figureTimer_.setSingleShot(true);
+    connect(&figureTimer_, &QTimer::timeout, this, &OrbWindow::figureDue);
+    characterLive_->pointer = [this] { return pointerLocal(); };
+    (void)ScreenLock::shared();
     hintTimer_.setSingleShot(true);
     connect(&hintTimer_, &QTimer::timeout, this, [this] {
         if (unitHover_) QToolTip::showText(QCursor::pos(), strings_.t(QStringLiteral("orbs.unit.toggleHint")));
@@ -106,6 +113,7 @@ OrbWindow::OrbWindow(const Strings& strings, const QString& id) : QOpenGLWindow(
 }
 
 OrbWindow::~OrbWindow() {
+    characterLive_->pointer = nullptr;
     if (glReady_) {
         makeCurrent();
         renderer_.release();
@@ -113,7 +121,10 @@ OrbWindow::~OrbWindow() {
     }
 }
 
-void OrbWindow::placeAt(QPointF globalCenter) { setPosition((globalCenter - center()).toPoint()); }
+void OrbWindow::placeAt(QPointF globalCenter) {
+    ++placements_;
+    setPosition((globalCenter - center()).toPoint());
+}
 
 bool OrbWindow::dark() const {
     return forcedDark_ || Appearance::instance().dark();
@@ -146,6 +157,7 @@ QString OrbWindow::networkScope() const {
 
 void OrbWindow::resizeToFootprint(QPointF discCenter) {
     resize(qCeil(side()), qCeil(side()));
+    ++placements_;
     setPosition((discCenter - center()).toPoint());
     bodyDirty_ = true;
     applyShape();
@@ -190,21 +202,41 @@ bool OrbWindow::openGLAvailable() const {
 }
 
 void OrbWindow::setShown(bool visible) {
+    if (visible != shown_) {
+        // An orb the user hides is no longer away; turning its visible or the master switch on brings back an orb hidden
+        // when idle and starts its 60 s again.
+        away_ = false;
+        if (visible) {
+            idle_.rearmHide(now());
+            updateIdle(true);
+        }
+    }
     shown_ = visible;
-    if (visible == isVisible()) return;
+    if ((visible && !away_) == isVisible()) return;
     if (visible && !openGLAvailable()) {
         qWarning("the floating orb needs OpenGL, which is not available here");
         return;
     }
     if (visible) {
-        resumePending_ = true;
-        show();
-        QTimer::singleShot(60, this, [this] { applyShape(); });
+        showInPlace();
     } else {
         hide();
         frameTimer_.stop();
         wakeTimer_.stop();
     }
+}
+
+// Shows the window where it is placed: some window managers place a window anew when it is mapped again, so a move that
+// is not ours within the first 60 ms is undone.
+void OrbWindow::showInPlace() {
+    const QPoint at = position();
+    const int placement = placements_;
+    resumePending_ = true;
+    show();
+    QTimer::singleShot(60, this, [this, at, placement] {
+        applyShape();
+        if (isVisible() && placement == placements_ && !dragging_ && !snap_ && !follow_.isActive() && position() != at) setPosition(at);
+    });
 }
 
 void OrbWindow::apply(const OrbConfig& config, const QString& name, int redline) {
@@ -217,10 +249,14 @@ void OrbWindow::apply(const OrbConfig& config, const QString& name, int redline)
     if (config.alwaysOnTop != alwaysOnTop_ || config.clickThrough != clickThrough_) {
         alwaysOnTop_ = config.alwaysOnTop;
         clickThrough_ = config.clickThrough;
+        if (clickThrough_) {
+            figureClick_.cancel();
+            figureTimer_.stop();
+        }
         applyFlags();
     }
     opacity_ = config.opacity;
-    fadeWhenIdle_ = config.fadeWhenIdle;
+    idle_.configure(config.fadeWhenIdle, config.hideWhenIdle, now());
     const QStringList sources = config.sources.value_or(QStringList());
     const QString theme = config.titleTheme.value_or(QString());
     const bool changed = sources != sources_ || config.unit != unit_ || theme != theme_ || config.traffic != traffic_ ||
@@ -232,7 +268,7 @@ void OrbWindow::apply(const OrbConfig& config, const QString& name, int redline)
     traffic_ = config.traffic;
     gauge_.setRedline(redline);
     applyOpacity();
-    updateFade();
+    updateIdle();
     updateLabel();
     if (unitChanged) announceUnit();
     if (changed || readoutsChanged) requestFrame();
@@ -277,15 +313,41 @@ void OrbWindow::setHighlighted(bool on) {
     requestFrame();
 }
 
-// The orb's opacity, × 55 % while every source is unavailable, × the fade when idle (DESIGN 2, 2b).
+// The orb's opacity, × 55 % while every source is unavailable, × the fade or the hide when idle (DESIGN 2, 2b).
 void OrbWindow::applyOpacity() {
-    const double opacity = opacity_ * (unavailable_.isEmpty() ? 1.0 : 0.55) * fadeMotion_.factor();
-    if (std::abs(QWindow::opacity() - opacity) > 0.0005) setOpacity(opacity);
+    const double opacity = opacity_ * (unavailable_.isEmpty() ? 1.0 : 0.55) * fadeMotion_.factor() * hideMotion_.factor();
+    // Exact, so a fade ends at its value (the 0.12 s return's last step is smaller than any threshold).
+    if (QWindow::opacity() != opacity) setOpacity(opacity);
 }
 
-// Fade when idle (DESIGN 2): the orb's tier idle for 60 s; activity, hover or a drag brings it back at once.
-void OrbWindow::updateFade() {
-    if (idleFade_.update(fadeWhenIdle_, gauge_.tier() == Tier::Idle, hovered_ || dragging_, now())) fadeMotion_.setFaded(idleFade_.faded());
+// Fade and hide when idle (DESIGN 2): the orb's tier idle for 60 s. Activity brings it back, and so do hover and a drag
+// while it is on the screen.
+void OrbWindow::updateIdle(bool cut) {
+    const bool wasHidden = idle_.hidden();
+    if (!idle_.update(gauge_.tier() == Tier::Idle, hovered_ || dragging_, !away_, now())) return;
+    fadeMotion_.setFaded(idle_.faded(), cut);
+    if (idle_.hidden() == wasHidden) return;
+    if (!idle_.hidden()) comeBack();
+    hideMotion_.setHidden(idle_.hidden(), cut);
+    emit idleHiddenChanged(id_);
+}
+
+// Hide when idle faded the orb out (DESIGN 2): the window leaves the screen, so nothing is drawn and the pointer passes
+// through; its position, its place among the orbs and its sources stay.
+void OrbWindow::leave() {
+    if (away_ || !shown_ || !idle_.hidden()) return;
+    away_ = true;
+    hide();
+    frameTimer_.stop();
+    wakeTimer_.stop();
+    emit idleHiddenChanged(id_);
+}
+
+// Back on the screen at its place, at 0 until the return brings its own opacity.
+void OrbWindow::comeBack() {
+    if (!away_) return;
+    away_ = false;
+    if (shown_ && openGLAvailable()) showInPlace();
 }
 
 void OrbWindow::setDiameter(double diameter) {
@@ -455,7 +517,7 @@ void OrbWindow::applySnapshot(const QVariantMap& snap) {
         if (!row.value(QStringLiteral("status")).toString().isEmpty()) unavailableSources_.push_back(row.value(QStringLiteral("source")).toString());
     }
     gauge_.update(unavailable_.isEmpty() ? snap.value(QStringLiteral("liveOutput")).toDouble() : 0.0, t);
-    updateFade();
+    updateIdle();
     if (dimChanged) applyOpacity();
     const auto e = effects();
     bool events = false;
@@ -474,6 +536,7 @@ void OrbWindow::applySnapshot(const QVariantMap& snap) {
         flare_.value = std::max(flare_.value, strength);
         events = true;
     }
+    if (snap.value(QStringLiteral("newPeak")).toBool() && isCharacter()) characterLive_->notePeak();
     if (snap.value(QStringLiteral("newPeak")).toBool() && e.celebrate) {
         peakStart_ = t;
         style_->celebrate(t);
@@ -600,6 +663,15 @@ void OrbWindow::applySnapshot(const QVariantMap& snap) {
 // CHARACTERS 7 and DESIGN 2a.6: which character this orb shows (locked, else the fastest live vendor with a pack,
 // held 3 s), and the facts its cards float.
 void OrbWindow::updateCharacter(const QVariantMap& snap, double time) {
+    // CHARACTERS 5, Behavior, Inputs: the phase, wait, idle time, hour and trouble of the orb's agents; the idle time
+    // counts from the orb's first reading while no response of its set ended.
+    const auto at = snap.value(QStringLiteral("nowMs"));
+    const qint64 wall = at.isValid() ? at.toLongLong() : QDateTime::currentMSecsSinceEpoch();
+    if (!characterActivity_) characterActivity_.emplace(wall);
+    if (characterActivity_->update(AgentFacts::fromAgents(snap.value(QStringLiteral("agents")).toList()))) characterLive_->noteTrouble();
+    characterLive_->update(*characterActivity_, time, wall);
+    characterLive_->celebratesPeaks = celebratePeaks_;
+
     std::map<std::string, double> rates;
     const auto vendorRates = snap.value(QStringLiteral("vendorRates")).toMap();
     for (auto it = vendorRates.begin(); it != vendorRates.end(); ++it) rates[it.key().toStdString()] = it.value().toDouble();
@@ -633,6 +705,11 @@ void OrbWindow::updateCharacter(const QVariantMap& snap, double time) {
         costCardNumber_.clear();
     }
     costCardAtLeast_ = flowing && snap.value(QStringLiteral("costPartial")).toBool();
+    const bool todayShown = snap.value(QStringLiteral("costTodayRequests")).toLongLong() > 0;
+    costTodayAmount_ = todayShown ? snap.value(QStringLiteral("costTodayAmount")).toString() : QString();
+    costTodayNumber_ = snap.value(QStringLiteral("costTodayNumber")).toString();
+    costTodayAtLeast_ = todayShown && snap.value(QStringLiteral("costTodayAtLeast")).toBool();
+    costTodayUnknown_ = todayShown && snap.value(QStringLiteral("costTodayUnknown")).toBool();
     costCardUnit_ = fill(strings_.t(QStringLiteral("cost.unitPerSecond")), {snap.value(QStringLiteral("costSymbol")).toString()});
 }
 
@@ -862,6 +939,14 @@ void OrbWindow::renderFrame() {
     in.resumed = resumed || resumeStyle_;
     resumeStyle_ = false;
     drawStyle(*style_, in, content, measure);
+    // Development aid: AGENT_SPEED_ORB_TRACE=1 prints a living character's state once a second (CHARACTERS 5, Behavior).
+    static const bool traceCharacter = qEnvironmentVariableIntValue("AGENT_SPEED_ORB_TRACE") == 1;
+    if (traceCharacter && t - characterTracedAt_ >= 1) {
+        if (const auto* character = dynamic_cast<const CharacterStyle*>(style_.get())) {
+            characterTracedAt_ = t;
+            qInfo("orb %s: %s", qPrintable(id_), qPrintable(character->behaviorTrace()));
+        }
+    }
     scene_.alphaScale = 1;
     addBezel(scene_, f);
     highlight_ = highlighted_ ? std::min(1.0, highlight_ + dt / 0.15) : std::max(0.0, highlight_ - dt / 0.15);
@@ -912,12 +997,17 @@ void OrbWindow::drawStyle(Style& style, Frame f, const ReadoutContent& content, 
         c.costAtLeast = costCardAtLeast_;
         c.costUnknown = costCardUnknown_;
         c.costOpacity = costOpacity_;
+        c.costTodayGlyph = strings_.t(QStringLiteral("character.cost.today"));
+        c.costTodayAmount = costTodayAmount_;
+        c.costTodayAtLeast = costTodayAtLeast_;
+        c.costTodayUnknown = costTodayUnknown_;
         c.todayLine = todayText_.isEmpty() ? QString() : fill(strings_.t(QStringLiteral("boards.today")), {todayText_});
         c.agentsLine = agentCount_ > 0 ? fill(strings_.t(QStringLiteral("agents.count")), {QString::number(agentCount_)}) : QString();
         if (const auto& latency = characterReadings_.latency(); latency && characterReadouts_.latency) {
             c.latencyGlyph = latency->glyph;
             c.latencyNumber = latency->number;
             c.latencyUnit = latency->unit;
+            c.latencyTone = latency->tone;
             c.latencyOpacity = characterReadings_.latencyOpacity();
         }
         // The rows go along even while the card is switched off, so it fades out with them.
@@ -934,6 +1024,8 @@ void OrbWindow::drawStyle(Style& style, Frame f, const ReadoutContent& content, 
         c.modelsMore = strings_.t(QStringLiteral("character.models.more"));
         c.speedUnit = strings_.t(QStringLiteral("unit.tokS"));
         c.quota = characterQuota_.sources;
+        c.live = characterLive_;
+        c.contentScale = scene_.hoverScale;
         character->setContent(c);
         character->setBackingScale(devicePixelRatio());
     }
@@ -958,6 +1050,10 @@ bool OrbWindow::event(QEvent* event) {
     if (event->type() == QEvent::Leave) {
         setHovered(false);
         setUnitHover(false);
+        pointerInside_ = false;
+    } else if (event->type() == QEvent::Enter) {
+        pointerInside_ = true;
+        pointerAt_ = static_cast<QEnterEvent*>(event)->position();
     }
     return QOpenGLWindow::event(event);
 }
@@ -978,7 +1074,7 @@ void OrbWindow::setHovered(bool hovered) {
     hovered_ = hovered;
     hoverChangedAt_ = now();
     setCursor(hovered ? Qt::OpenHandCursor : Qt::ArrowCursor);
-    updateFade();
+    updateIdle();
     emit hoverChanged(id_, hovered);
     requestFrame();
 }
@@ -1004,6 +1100,25 @@ bool OrbWindow::onUnit(QPointF local) const {
 
 void OrbWindow::plateHover(bool hovered) { setHovered(hovered); }
 
+std::optional<QPointF> OrbWindow::pointerLocal() const {
+    if (!isCharacter() || clickThrough_ || !shown_ || !isVisible() || (dragging_ && moved_) || ScreenLock::shared().locked()) return std::nullopt;
+    // Wayland tells a client where the pointer is only while it is over one of its windows.
+    static const bool wayland = QGuiApplication::platformName().startsWith(QLatin1String("wayland"));
+    if (wayland) return pointerInside_ ? std::optional<QPointF>(pointerAt_) : std::nullopt;
+    const QPoint global = QCursor::pos();
+    if (QGuiApplication::screenAt(global) != screen()) return std::nullopt;
+    return mapFromGlobal(QPointF(global));
+}
+
+// A single click on a living character's orb (CHARACTERS 5, Behavior, `click`): handed to her style once the
+// double-click time passed without a second click; the style tells whether it landed on her drawn figure.
+void OrbWindow::figureDue() {
+    if (const auto press = figureClick_.take(now() + 0.01)) {
+        characterLive_->click(QPointF(press->first, press->second));
+        requestFrame();
+    }
+}
+
 void OrbWindow::beginDrag(QPointF global) {
     if (snap_) snap_->stop();
     dragging_ = true;
@@ -1020,6 +1135,7 @@ void OrbWindow::dragTo(QPointF global) {
     if (!moved_ && std::hypot(delta.x(), delta.y()) < 4) return;
     if (!moved_) {
         moved_ = true;
+        characterLive_->dragging = true;
         emit dragChanged(id_, true);
     }
     moveDisc(QPointF(pressPosition_ + delta.toPoint()) + center());
@@ -1028,6 +1144,7 @@ void OrbWindow::dragTo(QPointF global) {
 void OrbWindow::endDrag() {
     if (!dragging_) return;
     dragging_ = false;
+    characterLive_->dragging = false;
     stopFollow();
     if (moved_) {
         emit dragChanged(id_, false);
@@ -1046,6 +1163,8 @@ void OrbWindow::mousePressEvent(QMouseEvent* event) {
     }
     if (event->button() != Qt::LeftButton) return;
     if (snap_) snap_->stop();
+    figureClick_.doubleClickInterval = QGuiApplication::styleHints()->mouseDoubleClickInterval() / 1000.0;
+    figureClick_.down(now(), event->position().x(), event->position().y(), 1, isCharacter() && !clickThrough_);
     dragging_ = true;
     moved_ = false;
     pressOnUnit_ = onUnit(event->position());
@@ -1056,6 +1175,8 @@ void OrbWindow::mousePressEvent(QMouseEvent* event) {
 }
 
 void OrbWindow::mouseMoveEvent(QMouseEvent* event) {
+    pointerInside_ = true;
+    pointerAt_ = event->position();
     if (!dragging_) {
         const bool inside = insideDisc(event->position());
         setHovered(inside);
@@ -1069,6 +1190,9 @@ void OrbWindow::mouseMoveEvent(QMouseEvent* event) {
     if (!moved_) {
         moved_ = true;
         setUnitHover(false);
+        figureClick_.cancel();
+        figureTimer_.stop();
+        characterLive_->dragging = true;
         emit dragChanged(id_, true);
     }
     moveDisc(QPointF(pressPosition_ + delta.toPoint()) + center());
@@ -1118,6 +1242,10 @@ void OrbWindow::stopFollow() {
 void OrbWindow::mouseReleaseEvent(QMouseEvent* event) {
     if (event->button() != Qt::LeftButton || !dragging_) return;
     dragging_ = false;
+    characterLive_->dragging = false;
+    if (const auto delay = figureClick_.up(now(), event->position().x(), event->position().y(), moved_)) {
+        figureTimer_.start(static_cast<int>(std::ceil((std::max(0.01, *delay) + 0.005) * 1000)));
+    }
     stopFollow();
     setCursor(hovered_ ? Qt::OpenHandCursor : Qt::ArrowCursor);
     if (moved_) {
@@ -1130,6 +1258,8 @@ void OrbWindow::mouseReleaseEvent(QMouseEvent* event) {
 
 void OrbWindow::mouseDoubleClickEvent(QMouseEvent* event) {
     unitTimer_.stop();
+    figureTimer_.stop();
+    figureClick_.down(now(), event->position().x(), event->position().y(), 2);
     if (event->button() == Qt::LeftButton && insideDisc(event->position())) emit dashboardRequested();
 }
 
@@ -1322,6 +1452,14 @@ void OrbWindow::updateLabel() {
             const QString shown = costCardAtLeast_ ? fill(strings_.t(QStringLiteral("a11y.orb.costAtLeast")), {costCardNumber_}) : costCardNumber_;
             label += separator + fill(strings_.t(QStringLiteral("a11y.board.cost")), {shown, currency});
         }
+    }
+    // The 費用 card's 今日 row after the cost reading, whenever it shows.
+    if (isCharacter() && unavailable_.isEmpty() && characterReadouts_.cost && !costTodayAmount_.isEmpty()) {
+        const QString amount = costTodayNumber_ + QLatin1Char(' ') + currency;
+        const QString spoken = costTodayUnknown_ ? strings_.t(QStringLiteral("cost.unknown"))
+                               : costTodayAtLeast_ ? fill(strings_.t(QStringLiteral("a11y.orb.costAtLeast")), {amount})
+                                                   : amount;
+        label += separator + fill(strings_.t(QStringLiteral("a11y.orb.costToday")), {spoken});
     }
     // The models card after the cost: every running model, drawn or not.
     if (isCharacter() && unavailable_.isEmpty() && characterReadouts_.models && characterReadings_.modelsOpacity() > 0.5) {

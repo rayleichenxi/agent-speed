@@ -53,6 +53,17 @@ public sealed partial class CharacterDraw
     /// <summary>The colors of the cards: frosted glass, a hairline rim, a soft shadow, a sheen, the value and secondary tokens, her accent.</summary>
     private readonly record struct CardInk(Rgba Fill, Rgba Rim, Rgba Shadow, Rgba Sheen, Rgba Number, Rgba Secondary, Rgba Accent)
     {
+        private static readonly Rgba[] DarkLatency = [Rgba.FromHex("#30D158"), Rgba.FromHex("#F5A524"), Rgba.FromHex("#FF453A")];
+        private static readonly Rgba[] LightLatency = [Rgba.FromHex("#248A3D"), Rgba.FromHex("#B86E00"), Rgba.FromHex("#D70015")];
+
+        /// <summary>Whether the 首字 value takes its band's color (not with a high-contrast theme) and on a dark card.</summary>
+        public bool LatencyColors { get; init; }
+
+        public bool Dark { get; init; }
+
+        /// <summary>The 首字 value's color (DESIGN 2a.6): green, amber or red by its band; a high-contrast theme keeps the value token.</summary>
+        public Rgba Latency(OrbLatencyTone tone) => LatencyColors ? (Dark ? DarkLatency : LightLatency)[(int)tone] : Number;
+
         public static CardInk Of(OrbGpuContext ctx, Rgba accent)
         {
             if (ctx.HighContrast)
@@ -72,7 +83,7 @@ public sealed partial class CharacterDraw
                 Rgba.White.WithAlpha(dark ? 0.1 : 0.75),
                 ink.WithAlpha(0.9),
                 (dark ? Rgba.White : Rgba.Black).WithAlpha(0.55),
-                accent);
+                accent) { LatencyColors = true, Dark = dark };
         }
     }
 
@@ -130,7 +141,8 @@ public sealed partial class CharacterDraw
         _cardShown[(int)HudCard.Model] = readouts.Model && Has(HudCard.Model);
         _cardShown[(int)HudCard.Performance] = readings?.PerformanceLoud(time) == true && Has(HudCard.Performance);
         _cardShown[(int)HudCard.Network] = readouts.Network && readings?.NetworkLoud(time) == true && Has(HudCard.Network);
-        _cardShown[(int)HudCard.Cost] = readouts.Cost && readings?.Cost.IsLoud(time) == true && Has(HudCard.Cost);
+        // The 今日 row has no quiet rule: the card stays while there is a cost today (user's choice, 2026-11-11).
+        _cardShown[(int)HudCard.Cost] = readouts.Cost && (readings?.Cost.IsLoud(time) == true || readings?.CostToday is not null) && Has(HudCard.Cost);
         _cardShown[(int)HudCard.Agents] = readouts.Agents && !IsSmall(ctx) && Has(HudCard.Agents);
         _cardShown[(int)HudCard.Models] = readouts.Models && readings?.Models.IsLoud(time) == true && Has(HudCard.Models);
         _cardShown[(int)HudCard.Quota] = readouts.Quota && Content?.Quota.IsEmpty == false && Has(HudCard.Quota);
@@ -250,7 +262,7 @@ public sealed partial class CharacterDraw
                 var line = OrbLinesPlacement.ArrowWidth * m.T + 2 * m.CellGap + number + unit;
                 return Plate(line, 2 * CardMetrics.RowHeight(m.T) + m.RowGap, m);
             case HudCard.Cost:
-                return Readings?.Cost.Money is { } money ? Plate(CostWidth(money, m), CardMetrics.RowHeight(m.P), m) : (0, 0);
+                return CostSize(m, frame.Time);
             case HudCard.Agents:
                 var width = 0.0;
                 var count = 0;
@@ -279,6 +291,40 @@ public sealed partial class CharacterDraw
         return (number > 0 ? number : 2.2 * t, unit > 0 ? unit : 2.2 * t);
     }
 
+    /// <summary>The rate row (shrinking with its share as it leaves) over the 今日 row.</summary>
+    private (double W, double H) CostSize(in CardMetrics m, double time)
+    {
+        var share = Readings?.CostRateShare(time) ?? 0;
+        var money = share > 0 ? Readings?.Cost.Money : null;
+        var today = Readings?.CostToday;
+        if (money is null && today is null)
+        {
+            return (0, 0);
+        }
+
+        double width = 0, height = 0;
+        if (money is not null)
+        {
+            width = share * CostWidth(money, m);
+            height = share * CardMetrics.RowHeight(m.P);
+        }
+
+        if (today is not null)
+        {
+            width = Math.Max(width, CostTodayWidth(today, m));
+            height += (money is not null ? share * m.RowGap : 0) + CardMetrics.RowHeight(m.T);
+        }
+
+        return Plate(width, height, m);
+    }
+
+    private double CostTodayWidth(CostToday today, in CardMetrics m)
+    {
+        var width = Advance(Content?.CostTodayGlyph ?? string.Empty, OrbFont.Title, CardMetrics.Small(m.T)) + m.GlyphGap
+            + DigitsWidth(today.Amount, OrbFont.TrafficNumber, m.T);
+        return today.AtLeast ? width + Advance("≥", OrbFont.Unit, CardMetrics.Small(m.T)) + 0.08 * m.T : width;
+    }
+
     private double CostWidth(LiveMoney money, in CardMetrics m)
     {
         var width = Advance(Content?.CostGlyph ?? string.Empty, OrbFont.Title, CardMetrics.Small(m.P)) + m.GlyphGap * 1.25
@@ -299,8 +345,10 @@ public sealed partial class CharacterDraw
     private sealed record PerformanceLayout(OrbScoreFrame? Score, string ScoreText, string? Outgoing, double ScoreWidth, OrbLine? Thinking,
         double ThinkingWidth, double ThinkingAlpha, double ThinkingShare, double Height)
     {
-        /// <summary>The 首字 row (DESIGN 2a.6): its line, width, opacity and share of its room as it fades in or out.</summary>
+        /// <summary>The 首字 row (DESIGN 2a.6): its line, color band, width, opacity and share of its room as it fades in or out.</summary>
         public OrbLine? Latency { get; init; }
+
+        public OrbLatencyTone LatencyTone { get; init; }
 
         public double LatencyWidth { get; init; }
 
@@ -347,11 +395,13 @@ public sealed partial class CharacterDraw
         }
 
         OrbLine? latency = null;
+        var latencyTone = OrbLatencyTone.Quick;
         double latencyWidth = 0, latencyAlpha = 0, latencyShare = 0;
         var fade = Readings?.Latency ?? OrbLatencyFade.None;
         if (readouts.Latency && fade.Latency is { } shown && !fade.IsGone(frame.Time))
         {
             latency = shown.Line;
+            latencyTone = shown.Tone;
             latencyWidth = Advance(shown.Line.Glyph, OrbFont.Title, CardMetrics.Small(m.T)) + m.GlyphGap
                 + DigitsWidth(shown.Line.Number, OrbFont.TrafficNumber, m.T) + m.CellGap + Advance(shown.Line.Unit, OrbFont.Unit, CardMetrics.Small(m.T));
             latencyAlpha = fade.Alpha(frame.Time);
@@ -382,6 +432,7 @@ public sealed partial class CharacterDraw
         return new PerformanceLayout(score, scoreText, outgoing, scoreWidth, thinking, thinkingWidth, thinkingAlpha, thinkingShare, height)
         {
             Latency = latency,
+            LatencyTone = latencyTone,
             LatencyWidth = latencyWidth,
             LatencyAlpha = latencyAlpha,
             LatencyShare = latencyShare,
@@ -465,7 +516,7 @@ public sealed partial class CharacterDraw
 
                 if (rows.Latency is { } latency && rows.LatencyAlpha > 0.01)
                 {
-                    DrawRow(list, latency, pen, left, y, rows.LatencyAlpha, m, ink);
+                    DrawRow(list, latency, pen, left, y, rows.LatencyAlpha, m, ink, ink.Latency(rows.LatencyTone));
                 }
 
                 break;
@@ -480,21 +531,35 @@ public sealed partial class CharacterDraw
                 break;
             }
 
-            case HudCard.Cost when Readings?.Cost.Money is { } money:
+            case HudCard.Cost when Readings is { } readings && (readings.Cost.Money is not null || readings.CostToday is not null):
             {
                 DrawPlate(list, pen, box, ink, m, null, right ? -1 : 1);
-                var baseline = top + CardMetrics.Baseline(m.P);
-                var x = left + Put(list, Content?.CostGlyph ?? string.Empty, OrbFont.Title, CardMetrics.Small(m.P), pen, left, baseline, ink.Secondary)
-                    + m.GlyphGap * 1.25;
-                if (money.AtLeast)
+                var share = readings.CostRateShare(frame.Time);
+                var money = share > 0 ? readings.Cost.Money : null;
+                var alpha = readings.CostRateAlpha(frame.Time);
+                if (money is not null && alpha > 0.01)
                 {
-                    x += Put(list, "≥", OrbFont.Unit, CardMetrics.Small(m.P), pen, x, baseline, ink.Secondary) + 0.08 * m.P;
+                    var baseline = top + CardMetrics.Baseline(m.P);
+                    var secondary = ink.Secondary.MultiplyAlpha(alpha);
+                    var x = left + Put(list, Content?.CostGlyph ?? string.Empty, OrbFont.Title, CardMetrics.Small(m.P), pen, left, baseline, secondary)
+                        + m.GlyphGap * 1.25;
+                    if (money.AtLeast)
+                    {
+                        x += Put(list, "≥", OrbFont.Unit, CardMetrics.Small(m.P), pen, x, baseline, secondary) + 0.08 * m.P;
+                    }
+
+                    x += PutDigits(list, money.Number, OrbFont.TrafficNumber, m.P, pen, x, baseline,
+                        (money.Unknown ? ink.Secondary : ink.Number).MultiplyAlpha(alpha));
+                    if (!money.Unknown)
+                    {
+                        Put(list, money.Unit, OrbFont.Unit, CardMetrics.Small(m.T), pen, x + m.CellGap, baseline, secondary);
+                    }
                 }
 
-                x += PutDigits(list, money.Number, OrbFont.TrafficNumber, m.P, pen, x, baseline, money.Unknown ? ink.Secondary : ink.Number);
-                if (!money.Unknown)
+                if (readings.CostToday is { } today)
                 {
-                    Put(list, money.Unit, OrbFont.Unit, CardMetrics.Small(m.T), pen, x + m.CellGap, baseline, ink.Secondary);
+                    var rowTop = top + (money is not null ? share * (CardMetrics.RowHeight(m.P) + m.RowGap) : 0);
+                    DrawCostToday(list, today, pen, left, rowTop, m, ink);
                 }
 
                 break;
@@ -528,13 +593,31 @@ public sealed partial class CharacterDraw
         }
     }
 
-    /// <summary>A row at <c>t</c> of the 性能 card (思考, 首字): the label and unit in the secondary token, the number in the value token.</summary>
-    private void DrawRow(OrbDrawList list, in OrbLine line, in Pen pen, double left, double top, double alpha, in CardMetrics m, in CardInk ink)
+    /// <summary>
+    /// A row at <c>t</c> of the 性能 card (思考, 首字): the label and unit in the secondary token, the number in the value token or
+    /// <paramref name="number"/>.
+    /// </summary>
+    private void DrawRow(OrbDrawList list, in OrbLine line, in Pen pen, double left, double top, double alpha, in CardMetrics m, in CardInk ink,
+        Rgba? number = null)
     {
         var baseline = top + CardMetrics.Baseline(m.T);
         var x = left + Put(list, line.Glyph, OrbFont.Title, CardMetrics.Small(m.T), pen, left, baseline, ink.Secondary.MultiplyAlpha(alpha)) + m.GlyphGap;
-        x += PutDigits(list, line.Number, OrbFont.TrafficNumber, m.T, pen, x, baseline, ink.Number.MultiplyAlpha(alpha)) + m.CellGap;
+        x += PutDigits(list, line.Number, OrbFont.TrafficNumber, m.T, pen, x, baseline, (number ?? ink.Number).MultiplyAlpha(alpha)) + m.CellGap;
         Put(list, line.Unit, OrbFont.Unit, CardMetrics.Small(m.T), pen, x, baseline, ink.Secondary.MultiplyAlpha(alpha));
+    }
+
+    /// <summary><c>今日 $12.34</c> at <c>t</c>: the label in the secondary token, the amount in the value token (<c>–</c> in the secondary).</summary>
+    private void DrawCostToday(OrbDrawList list, CostToday today, in Pen pen, double left, double top, in CardMetrics m, in CardInk ink)
+    {
+        var baseline = top + CardMetrics.Baseline(m.T);
+        var x = left + Put(list, Content?.CostTodayGlyph ?? string.Empty, OrbFont.Title, CardMetrics.Small(m.T), pen, left, baseline, ink.Secondary)
+            + m.GlyphGap;
+        if (today.AtLeast)
+        {
+            x += Put(list, "≥", OrbFont.Unit, CardMetrics.Small(m.T), pen, x, baseline, ink.Secondary) + 0.08 * m.T;
+        }
+
+        PutDigits(list, today.Amount, OrbFont.TrafficNumber, m.T, pen, x, baseline, today.Unknown ? ink.Secondary : ink.Number);
     }
 
     /// <summary>One traffic row: the arrow, the number right-aligned in the 8.88 cell, the unit left-aligned in its cell.</summary>

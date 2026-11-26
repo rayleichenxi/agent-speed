@@ -12,10 +12,14 @@
 
 #include "agentspeed/character/pack.hpp"
 #include "agentspeed/character/selection.hpp"
+#include "orb/character/character_activity.hpp"
+#include "orb/character/character_live.hpp"
 #include "orb/character/character_quota.hpp"
 #include "orb/character/character_readings.hpp"
 #include "orb/gauge.hpp"
 #include "orb/idle_fade.hpp"
+#include "orb/idle_hide.hpp"
+#include "orb/orb_idle.hpp"
 #include "orb/readout.hpp"
 #include "orb/renderer.hpp"
 #include "orb/shared_layers.hpp"
@@ -58,8 +62,15 @@ public:
     // The 額度 card's items of a `character` orb (QuotaView::cardItems for its sources and hosts, DESIGN 2a.6).
     void setQuota(const QVariantList& items);
     void setEffectsLevel(int level);
-    // The master switch and the orb's own visibility together.
+    // Settings, Effects: a new peak cheers a living character only while peaks are celebrated.
+    void setCelebratePeaks(bool on) { celebratePeaks_ = on; }
+    // What a living character reacts to (CHARACTERS 5, Behavior), the same object for the orb's life.
+    const std::shared_ptr<CharacterLive>& characterLive() const { return characterLive_; }
+    // The master switch and the orb's own visibility together. Turning it on brings back an orb hidden when idle.
     void setShown(bool shown);
+    // Hide when idle (DESIGN 2): fading out or off the screen; off the screen, where it keeps its place among the orbs.
+    bool idleHidden() const { return idle_.hidden() || away_; }
+    bool away() const { return away_; }
     // Settings highlight (DESIGN 2b Identity at a glance): an accent ring outside the disc.
     void setHighlighted(bool on);
     // The other orbs' discs, for orb-to-orb snapping and alignment.
@@ -105,6 +116,8 @@ signals:
     void dragChanged(const QString& id, bool dragging);
     void cornerRequested(const QString& id);
     void settingsRequested(const QString& id);
+    // Hide when idle began, ended, or the window left the screen (idleHidden(), away()).
+    void idleHiddenChanged(const QString& id);
 
 protected:
     void initializeGL() override;
@@ -150,7 +163,11 @@ private:
     void applyFlags();
     void applyShape();
     void applyOpacity();
-    void updateFade();
+    // `cut`: the orb was shown again, so no motion.
+    void updateIdle(bool cut = false);
+    void leave();
+    void comeBack();
+    void showInPlace();
     void setStyle(const QString& style);
     void setDiameter(double diameter);
     // `guides` receives the alignment guides (facing disc edges) of the snapped position.
@@ -163,6 +180,11 @@ private:
     void addBezel(Scene& scene, const Frame& frame) const;
     void addHighlight(Scene& scene, const Frame& frame) const;
     bool onUnit(QPointF local) const;
+    // The pointer in window points for a living character (CHARACTERS 5, Behavior, `cursor`), or nullopt while it may
+    // not be read: not a character, click-through, hidden, dragged, the screen locked, or the pointer on another display.
+    // X11 reads it anywhere on the orb's screen; Wayland only while it is over the window.
+    std::optional<QPointF> pointerLocal() const;
+    void figureDue();
     void updateLabel();
     void announceUnit();
     void setUnitHover(bool on);
@@ -177,6 +199,9 @@ private:
     int agentCount_ = 0;
     QString costCardNumber_, costCardUnit_;
     bool costCardAtLeast_ = false, costCardUnknown_ = false;
+    // The cost card's 今日 row: empty while the billable sources have no request today. No quiet rule.
+    QString costTodayAmount_, costTodayNumber_;
+    bool costTodayAtLeast_ = false, costTodayUnknown_ = false;
     double costLastActive_ = -1e9, costOpacity_ = 0;
     // The 首字 row and the models card (DESIGN 2a.6) with their quiet rules.
     CharacterReadings characterReadings_;
@@ -272,9 +297,11 @@ private:
     bool forcedDark_ = false;
     bool shown_ = false;
     double opacity_ = 1;
-    bool fadeWhenIdle_ = false;
-    IdleFade idleFade_;
+    OrbIdle idle_;
     IdleFadeMotion fadeMotion_{[this] { applyOpacity(); }};
+    IdleHideMotion hideMotion_{[this] { applyOpacity(); }, [this] { leave(); }};
+    bool away_ = false;
+    int placements_ = 0;
     QStringList sources_;  // empty: all sources
     QString unit_ = QStringLiteral("tokens");
     QString theme_;
@@ -282,6 +309,17 @@ private:
     bool highlighted_ = false;
     double highlight_ = 0;
     QTimer unitTimer_;  // a single click on the unit waits out the double-click interval
+
+    // A living character (CHARACTERS 5, Behavior): her live inputs, the orb's agents' activity (from its first reading),
+    // the single click on her figure, and the pointer over the window (Wayland).
+    std::shared_ptr<CharacterLive> characterLive_ = std::make_shared<CharacterLive>();
+    std::optional<CharacterActivity> characterActivity_;
+    CharacterClickRule figureClick_{0.4};
+    QTimer figureTimer_;
+    bool celebratePeaks_ = true;
+    bool pointerInside_ = false;
+    QPointF pointerAt_;
+    double characterTracedAt_ = -1e9;
 
     // Dragging: the disc follows the pointer, pulled toward a touching position near another orb.
     bool dragging_ = false;

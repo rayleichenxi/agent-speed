@@ -191,7 +191,7 @@ internal sealed partial class OrbManager : IDisposable
         var list = new List<(FrameworkElement, Rect, double)>();
         foreach (var entry in _entries.Values)
         {
-            if (entry.Window.Handle != 0 && User32.GetWindowRect(entry.Window.Handle, out var rect))
+            if (!entry.Window.IsAway && entry.Window.Handle != 0 && User32.GetWindowRect(entry.Window.Handle, out var rect))
             {
                 list.Add((new OrbSnapshotElement(entry.Window), new Rect(rect.Left, rect.Top, rect.Width, rect.Height), entry.Window.Opacity));
             }
@@ -324,6 +324,7 @@ internal sealed partial class OrbManager : IDisposable
             var feed = entry.Feed;
             feed.Previewing = _speed.IsPreviewing;
             feed.Character = entry.Definition.Style == OrbStyle.Character;
+            feed.CharacterLive.CelebratesPeaks = Settings.CelebratePeaks;
             var fired = feed.Update(snapshot, now);
             if (entry.Definition.Traffic == OrbTraffic.Intelligence && !feed.Character)
             {
@@ -333,6 +334,7 @@ internal sealed partial class OrbManager : IDisposable
             Push(entry, single);
             if (fired)
             {
+                feed.CharacterLive.NotePeak();
                 entry.Window.Surface.Peak();
             }
         }
@@ -421,8 +423,10 @@ internal sealed partial class OrbManager : IDisposable
                         ? response.TotalTokens / d.TotalSeconds
                         : response.Speed ?? entry.Feed.Value;
                     entry.Window.Surface.Pulse(speed, tokens);
+                    entry.Feed.NoteResponseEnd(response.EndedAt);
                     break;
                 case SpeedEvent.NewPeak:
+                    entry.Feed.CharacterLive.NotePeak();
                     entry.Window.Surface.Peak();
                     break;
             }
@@ -646,6 +650,11 @@ internal sealed partial class OrbManager : IDisposable
             : new OrbWindow(orb.Id, () => _speed.Now, _clock, seed);
         window.SetLanguage(AppFonts.XmlLanguageFor(_loc.LanguageCode));
         var entry = new Entry(orb, window, new OrbFeed(orb.Id));
+        if (window is GpuOrbWindow gpu)
+        {
+            gpu.CharacterLive = entry.Feed.CharacterLive;
+        }
+
         if (_pendingFlights.Remove(orb.Id, out var from))
         {
             entry.FlyFrom = from;
@@ -663,6 +672,7 @@ internal sealed partial class OrbManager : IDisposable
         };
         window.DragReleased += (_, raw) => OnDragReleased(orb.Id, raw);
         window.UnitToggleRequested += (_, _) => ToggleUnit(orb.Id);
+        window.AwayChanged += (_, _) => RefreshChip();
         window.SetUnitHint(_loc["orbs.unit.toggleHint"]);
         SetActions(window, orb.Id);
         _entries[orb.Id] = entry;
@@ -726,7 +736,8 @@ internal sealed partial class OrbManager : IDisposable
         var config = new OrbSurfaceConfig(orb.Style, orb.Footprint, _theme.IsDark ? OrbAppearance.Dark : OrbAppearance.Light, effects,
             _theme.HighContrast, !_theme.TransparencyEnabled, orb.Opacity, settings.ResponsePulses, settings.CelebratePeaks,
             orb.EffectiveRedline(settings.Metric, settings), texts, sources, unavailable);
-        var options = new OrbWindowOptions(orb.AlwaysOnTop, orb.ClickThrough, orb.FadeWhenIdle, entry.Feed.IsUnavailable, _theme.ReduceMotion);
+        var options = new OrbWindowOptions(orb.AlwaysOnTop, orb.ClickThrough, orb.FadeWhenIdle, orb.HideWhenIdle, entry.Feed.IsUnavailable,
+            _theme.ReduceMotion);
         if (entry.Config is { } last && last with { Sources = null } == config with { Sources = null }
             && (last.Sources ?? []).SequenceEqual(config.Sources ?? []) && (last.Sources is null) == (config.Sources is null) && entry.Options == options)
         {
@@ -1184,7 +1195,7 @@ internal sealed partial class OrbManager : IDisposable
 
         // While a name plate shows, the chip is folded into it instead of drawn as a second capsule.
         _plates.Fold(id);
-        if (id is null || _plates.Owns(id) || !_entries.TryGetValue(id, out var entry) || !ChipApplies(entry))
+        if (id is null || _plates.Owns(id) || !_entries.TryGetValue(id, out var entry) || entry.Window.IsAway || !ChipApplies(entry))
         {
             if (_hoverOrb is null && (_chipOrb is null || DateTime.UtcNow >= _chipUntil))
             {

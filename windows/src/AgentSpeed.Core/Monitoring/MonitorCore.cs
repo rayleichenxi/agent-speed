@@ -124,6 +124,13 @@ internal sealed partial class MonitorCore : IDisposable
     /// <summary>Receives the Codex rollouts' limits (QUOTAS 3); set before seeding.</summary>
     internal Quota.CodexQuotaCollector? CodexQuota { get; init; }
 
+    /// <summary>Receives every response the engine holds (QUOTAS 10.3); set before seeding.</summary>
+    internal Action<ParsedResponse>? Spent
+    {
+        get => _engine.Spent;
+        init => _engine.Spent = value;
+    }
+
     /// <summary>Live reporting's statistics watch (METRICS 11.10), as last published; the monitor thread sets it before reading.</summary>
     internal Reporting.ReportPerfWatch PerfWatch { get; set; } = Reporting.ReportPerfWatch.Off;
 
@@ -689,7 +696,7 @@ internal sealed partial class MonitorCore : IDisposable
         return RefreshAgentContext() || changed;
     }
 
-    /// <summary>Files of that source with at least one line today; WorkBuddy counts main sessions only (DESIGN 5).</summary>
+    /// <summary>Files of that source with at least one line today; the WorkBuddy format counts main sessions only (DESIGN 5).</summary>
     public int SessionCount(SourceKind kind, long todayStartMs)
     {
         if (kind == SourceKind.OpenCode)
@@ -722,7 +729,7 @@ internal sealed partial class MonitorCore : IDisposable
             return _qoder?.ActiveSessionCount(todayStartMs) ?? 0;
         }
 
-        var mainOnly = WorkBuddyPaths.IsWorkBuddy(kind)
+        var mainOnly = WorkBuddyPaths.WritesWorkBuddyFormat(kind)
             || kind is SourceKind.Kimi or SourceKind.GrokBuild or SourceKind.Pi or SourceKind.Droid or SourceKind.QoderCli;
         var count = 0;
         foreach (var tracked in _files.Values)
@@ -838,6 +845,10 @@ internal sealed partial class MonitorCore : IDisposable
             {
                 Modes = a.Info.Modes, SessionModes = a.Info.SessionModes, ConfiguredModes = a.Info.ConfiguredModes,
                 Intelligence = a.Intelligence, Perf = a.Perf, Work = a.Work, Host = a.Info.Host,
+                InFlightSince = a.Phase == AgentPhase.Generating && a.Info.InFlightStartMs is { } start ? UnixTime.FromMs(start) : null,
+                OutputSinceInFlight = a.OutputSinceInFlight,
+                LastResponseEnd = a.LastEndMs is { } end ? UnixTime.FromMs(end) : null,
+                RepeatFailureAt = a.RepeatFailureMs is { } failure ? UnixTime.FromMs(failure) : null,
             })
             .ToList();
 

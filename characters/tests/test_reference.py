@@ -553,6 +553,24 @@ class AppendageTests(unittest.TestCase):
         ref[120:135, 120:175] = (0.9, 0.3, 0.6)
         self.assertEqual(recover_missing(parts, ref, {"tail": True}, figure=figure), ["tail"])
 
+    def test_the_rest_check_leaves_out_the_floor_shadow_and_still_counts_a_part_left_out(self):
+        from characters.rig.appendages import floor_shadow
+        from characters.rig.checks import rest_metrics, rest_problems
+        from characters.rig.layers import composite
+        parts, ref = self.scene()
+        figure = np.ones(ref.shape[:2], np.float32)
+        figure[120:135, 120:175] = 0.05
+        frame = composite(parts)
+        self.assertEqual(len(rest_problems(rest_metrics(frame, ref))), 2)
+        shadow = floor_shadow(parts, ref, figure)
+        self.assertTrue(shadow[120:135, 120:175].all())
+        self.assertFalse(shadow[60:160, 80:120].any())
+        self.assertEqual(rest_problems(rest_metrics(frame, ref, shadow)), [])
+        self.assertFalse(floor_shadow(parts, ref, np.ones(ref.shape[:2], np.float32)).any())
+        ref[120:135, 120:175] = (0.9, 0.3, 0.6)
+        self.assertFalse(floor_shadow(parts, ref, figure).any())
+        self.assertIsNone(floor_shadow(parts, ref, None))
+
     def test_shoes_the_split_left_out_become_footwear(self):
         from characters.rig.appendages import recover_missing
         from characters.rig.layers import Layer
@@ -566,6 +584,38 @@ class AppendageTests(unittest.TestCase):
             return Layer(name, name, rgba)
         parts = [layer("legwear", 60, 170, 90, 110), layer("face", 20, 50, 85, 115)]
         self.assertEqual(recover_missing(parts, ref, {"tail": True}), ["footwear"])
+
+    def boots_scene(self):
+        from characters.rig.layers import Layer
+        ref = np.ones((200, 200, 3), np.float32)
+        ref[20:50, 85:115] = 0.8
+        ref[60:160, 60:140] = 0.5
+        ref[162:190, 72:92] = 0.85
+        ref[162:190, 108:128] = 0.85
+        ref[100:130, 150:170] = 0.3
+        def layer(name, y0, y1, x0, x1):
+            rgba = np.zeros((200, 200, 4), np.float32)
+            rgba[y0:y1, x0:x1] = (0.5, 0.5, 0.5, 1.0)
+            return Layer(name, name, rgba)
+        return ref, [layer("bottomwear", 60, 160, 60, 140), layer("face", 20, 50, 85, 115)]
+
+    def test_boots_below_a_long_skirt_become_one_footwear_layer(self):
+        from characters.rig.appendages import recover_missing
+        ref, parts = self.boots_scene()
+        self.assertEqual(sorted(recover_missing(parts, ref, {})), ["extra", "footwear", "footwear+"])
+        boots = [p for p in parts if p.tag == "footwear"]
+        self.assertEqual(len(boots), 1)
+        self.assertEqual(boots[0].alpha[176, 82], 1.0)
+        self.assertEqual(boots[0].alpha[176, 118], 1.0)
+        self.assertEqual(boots[0].alpha[115, 160], 0.0)
+        self.assertLess(parts.index(boots[0]), [p.tag for p in parts].index("bottomwear"))
+
+    def test_recovery_runs_without_a_hint(self):
+        from characters.rig.appendages import recover
+        ref, parts = self.boots_scene()
+        report = recover(parts, ref, {})
+        self.assertIn("footwear", report[0])
+        self.assertTrue(any(p.tag == "footwear" for p in parts))
 
     def test_a_calf_above_a_kicked_up_slipper_joins_the_leg(self):
         from characters.rig.appendages import recover_missing
@@ -665,6 +715,102 @@ class AppendageTests(unittest.TestCase):
         self.assertAlmostEqual(float(parts[1].alpha[30, 50]), 0.5, places=4)
         self.assertEqual(parts[0].alpha[35, 50], 0.0)
         self.assertEqual(parts[1].alpha[205, 208], 0.0)
+
+    def shin_layers(self, shin):
+        from characters.rig.layers import Layer
+        ref = np.ones((300, 300, 3), np.float32)
+        ref[40:100, 90:210] = 0.4
+        ref[130:220, 120:180] = 0.4
+        ref[100:130, 130:170] = shin
+        skirt = np.zeros((300, 300, 4), np.float32)
+        skirt[40:100, 90:210] = 1
+        skirt[99, 90:210, 3] = 0.85
+        boot = np.zeros((300, 300, 4), np.float32)
+        boot[130:220, 120:180] = 1
+        return ref, [Layer("footwear", "footwear", boot), Layer("bottomwear", "bottomwear", skirt)]
+
+    def test_a_shin_no_layer_holds_between_hem_and_boot_joins_the_boot(self):
+        from characters.rig.appendages import legs_under_hem
+        ref, parts = self.shin_layers((0.86, 0.72, 0.68))
+        self.assertGreater(legs_under_hem(parts, ref), 0)
+        self.assertEqual(parts[0].alpha[115, 150], 1.0)
+        np.testing.assert_allclose(parts[0].rgba[115, 150, :3], (0.86, 0.72, 0.68))
+        self.assertEqual(parts[0].alpha[99, 150], 1.0)
+        self.assertEqual(parts[0].alpha[115, 120], 0.0)
+
+    def test_paper_the_line_art_encloses_between_hem_and_boot_stays_out(self):
+        from characters.rig.appendages import legs_under_hem
+        ref, parts = self.shin_layers(1.0)
+        ref[100:130, 130] = ref[100:130, 169] = 0.2
+        self.assertEqual(legs_under_hem(parts, ref), 0)
+        self.assertEqual(parts[0].alpha[115, 150], 0.0)
+
+class CheckTests(unittest.TestCase):
+    def test_the_rest_check_flags_a_part_missing_from_the_rig(self):
+        from characters.rig.checks import rest_metrics, rest_problems
+        ref = np.ones((100, 100, 3), np.float32)
+        ref[20:80, 30:70] = 0.4
+        self.assertEqual(rest_problems(rest_metrics(ref.copy(), ref)), [])
+        frame = ref.copy()
+        frame[75:80, 30:70] = 1.0
+        self.assertEqual(len(rest_problems(rest_metrics(frame, ref))), 2)
+        moved = np.zeros((100, 100), bool)
+        moved[75:80, 30:70] = True
+        self.assertEqual(rest_problems(rest_metrics(frame, ref, moved)), [])
+
+    def test_the_limits_pass_every_sound_pose_and_stop_the_one_without_boots(self):
+        from characters.rig.checks import rest_problems
+        sound = [(0.316, 0.252), (0.6, 0.304), (0.617, 0.306), (0.754, 0.402), (0.697, 0.361), (0.607, 0.315),
+                 (0.632, 0.308), (0.576, 0.27), (0.678, 0.347), (0.627, 0.299), (0.818, 0.214), (0.652, 0.298)]
+        for mean, share in sound:
+            self.assertEqual(rest_problems({"mean_abs_diff": mean, "px_diff_gt_32_pct": share}), [])
+        self.assertEqual(len(rest_problems({"mean_abs_diff": 1.163, "px_diff_gt_32_pct": 0.695})), 2)
+
+    def test_feet_are_shoes_or_legs_reaching_past_the_hem(self):
+        from characters.rig.checks import has_feet
+        self.assertTrue(has_feet({"bottomwear": 1180, "footwear": 1276}, 1280))
+        self.assertFalse(has_feet({"topwear": 460, "bottomwear": 1180}, 1280))
+        self.assertTrue(has_feet({"bottomwear": 1024, "legwear": 1230}, 1280))
+        self.assertFalse(has_feet({"bottomwear": 1180, "legwear": 1182}, 1280))
+        self.assertTrue(has_feet({"topwear": 700, "legwear": 1250}, 1280))
+
+    def test_a_pose_without_the_feet_of_the_idle_pose_is_refused(self):
+        from characters.rig.checks import feet_problems
+        self.assertEqual(len(feet_problems(True, False)), 1)
+        self.assertEqual(feet_problems(True, True), [])
+        self.assertEqual(feet_problems(False, False), [])
+
+    def test_a_refused_build_leaves_no_package(self):
+        import tempfile
+        from pathlib import Path
+        from characters.rig.build import refuse
+        with tempfile.TemporaryDirectory() as out:
+            for name in ("rig.json", "atlas.png"):
+                (Path(out) / name).write_text("built before")
+            with self.assertRaises(SystemExit) as caught:
+                refuse("claude-think", out, ["no shoes"])
+            self.assertIn("no shoes", str(caught.exception.code))
+            self.assertEqual(list(Path(out).iterdir()), [])
+
+    def test_the_pack_refuses_a_pose_without_the_shoes_of_the_idle_pose(self):
+        import json
+        import tempfile
+        from pathlib import Path
+        from characters.rig import pack
+        spec = {"id": "x", "packVersion": 1, "name": {}, "vendors": [], "accent": "#000000"}
+        with tempfile.TemporaryDirectory() as tmp:
+            def pose(name, **bottoms):
+                path = Path(tmp) / name
+                path.mkdir()
+                parts = [{"tag": tag, "vertices": [0, y - 50, 10, y]} for tag, y in bottoms.items()]
+                (path / "rig.json").write_text(json.dumps({"canvas": [100, 1280], "parts": parts}))
+                return str(path)
+            poses = {"idle": pose("idle", bottomwear=1180, footwear=1276),
+                     "cruise": pose("cruise", bottomwear=1024, legwear=1230)}
+            with self.assertRaisesRegex(ValueError, "think"):
+                pack.build(spec, poses, Path(tmp) / "dist", {"think": pose("think", bottomwear=1180)})
+            self.assertFalse((Path(tmp) / "dist").exists())
+
 
 class WaistTests(unittest.TestCase):
     def layers(self, top, bottom):
@@ -963,7 +1109,7 @@ class LayerTests(unittest.TestCase):
         for gap, seated in ((0, False), (30, True)):
             hair = layer("front hair", "front hair", (90, 110, 70, 130))
             top = layer("topwear", "topwear", (150, 250, 60, 140), (50 - gap, 90 - gap, 70, 130))
-            parts, lifted = lift_hats([layer("face", "face", (100, 140, 80, 120)), top, hair], face)
+            parts, lifted, moved = lift_hats([layer("face", "face", (100, 140, 80, 120)), top, hair], face)
             self.assertEqual(lifted, 1)
             names = [q.name for q in parts]
             hat = parts[names.index("hat")]
@@ -973,6 +1119,30 @@ class LayerTests(unittest.TestCase):
             self.assertEqual(names.index("hat"), 3 if seated else 2)
             ys = np.nonzero(hat.alpha[:, 100] > 0.5)[0]
             self.assertGreaterEqual(ys.max(), 90 + (10 if seated else -1))
+            self.assertEqual(bool(moved.any()), seated)
+            if seated:
+                self.assertTrue(moved[60 - gap, 100] and moved[ys.max(), 100])
+
+    def test_a_halo_floating_above_the_head_stays_where_the_art_draws_it(self):
+        from characters.rig.layers import Layer, lift_hats
+
+        def layer(name, tag, *boxes):
+            rgba = np.zeros((300, 200, 4), np.float32)
+            for y0, y1, x0, x1 in boxes:
+                rgba[y0:y1, x0:x1] = 1
+            return Layer(name, tag, rgba)
+        ring = ((10, 13, 30, 170), (57, 60, 30, 170), (13, 57, 30, 33), (13, 57, 167, 170))
+        top = layer("topwear", "topwear", (150, 250, 60, 140), *ring)
+        hair = layer("front hair", "front hair", (90, 110, 70, 130))
+        parts, lifted, moved = lift_hats([layer("face", "face", (100, 140, 80, 120)), top, hair], (80, 100, 120, 140))
+        self.assertEqual(lifted, 1)
+        self.assertEqual([q.name for q in parts], ["face", "topwear", "hat", "front hair"])
+        hat = parts[2]
+        self.assertEqual(hat.alpha[11, 100], 1.0)
+        self.assertEqual(hat.alpha[35, 31], 1.0)
+        self.assertEqual(hat.alpha[35, 100], 0.0)
+        self.assertEqual(top.alpha[11, 100], 0.0)
+        self.assertFalse(moved.any())
 
     def test_a_robe_front_drawn_into_the_arm_layer_goes_to_the_body_up_to_the_ink_line(self):
         from characters.rig.layers import Layer, split_body_from_arms

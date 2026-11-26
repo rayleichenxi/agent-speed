@@ -5,16 +5,21 @@ set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
 
 add_executable(agentspeed_tests
+    antigravity_skim_test.cpp
     board_test.cpp
     character_balance_test.cpp
     character_catalog_test.cpp
+    character_facts_test.cpp
     character_fixture_test.cpp
+    character_living_test.cpp
     character_models_test.cpp
     character_performer_test.cpp
     character_quota_test.cpp
     character_selection_test.cpp
     character_stretch_test.cpp
     character_wings_test.cpp
+    claude_api_error_test.cpp
+    codebuddy_test.cpp
     current_values_test.cpp
     devin_fixture_test.cpp
     devin_source_test.cpp
@@ -24,6 +29,7 @@ add_executable(agentspeed_tests
     execution_modes_test.cpp
     harness_fixture_test.cpp
     hermes_test.cpp
+    history_estimate_test.cpp
     history_test.cpp
     host_subset_test.cpp
     json_test.cpp
@@ -41,12 +47,20 @@ add_executable(agentspeed_tests
     quota_http_test.cpp
     # Quota phase 1
     quota_bridge_test.cpp
+    quota_cli_cache_test.cpp
     quota_codex_test.cpp
     quota_desktop_test.cpp
     quota_format_test.cpp
     quota_helper_test.cpp
     quota_presence_test.cpp
+    # Quota estimates (QUOTAS 10)
+    quota_estimate_fixture_test.cpp
+    quota_estimate_pipeline_test.cpp
+    quota_estimator_test.cpp
+    quota_token_usage_test.cpp
+    quota_window_feed_test.cpp
     # Quota phase 2
+    quota_agy_report_test.cpp
     quota_antigravity_test.cpp
     quota_cookies_test.cpp
     quota_local_routes_test.cpp
@@ -116,11 +130,14 @@ if(AGENTSPEED_BUILD_APP)
     add_executable(agentspeed_app_tests
         app/board_fade_test.cpp
         app/character_library_test.cpp
+        app/character_live_test.cpp
         app/character_quota_test.cpp
         app/character_readings_test.cpp
+        app/codebuddy_settings_test.cpp
         app/devin_settings_test.cpp
         app/lan_loopback_test.cpp
         app/orb_character_test.cpp
+        app/orb_hide_idle_test.cpp
         app/orb_size_test.cpp
         app/qoder_settings_test.cpp
         app/quota_transport_test.cpp
@@ -137,12 +154,17 @@ if(AGENTSPEED_BUILD_APP)
         ../app/src/lan/lan_server.cpp
         ../app/src/lan/lan_targets.cpp
         ../app/src/format.cpp
+        ../app/src/orb/character/character_activity.cpp
+        ../app/src/orb/character/character_live.cpp
         ../app/src/orb/character/character_quota.cpp
         ../app/src/orb/character/character_readings.cpp
         ../app/src/orb/idle_fade.cpp
+        ../app/src/orb/idle_hide.cpp
+        ../app/src/orb/orb_idle.cpp
         ../app/src/orbs/orbs_store.cpp
         ../app/src/orbs/size_slider_action.cpp
         ../app/src/preferences.cpp
+        ../app/src/quota/quota_estimate_text.cpp
         ../app/src/quota/quota_text.cpp
         ../app/src/quota/quota_transport.cpp
         ../app/src/quota/quota_view.cpp

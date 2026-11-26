@@ -19,6 +19,8 @@ public final class LiveMonitor {
     let remoteFeed = RemoteFeed()
     /// Follows the enabled sources and the report watch.
     weak var remote: RemoteCoordinator?
+    /// The quota estimate's live feed (QUOTAS 10.3); set before `start()`.
+    public var spendSink: (any QuotaSpendSink)?
 
     public init(store: SpeedStore, configuration: MonitorConfiguration = MonitorConfiguration(), pricing: PriceBook? = nil) {
         self.store = store
@@ -35,7 +37,7 @@ public final class LiveMonitor {
             store?.publishLive(snapshot, events: events)
         }
         let core = MonitorCore(configuration: configuration, mailbox: mailbox, subsets: subsets, pricing: pricing,
-                               remoteFeed: remoteFeed)
+                               spendSink: spendSink, remoteFeed: remoteFeed)
         self.mailbox = mailbox
         self.core = core
         core.start()
@@ -141,6 +143,11 @@ public final class LiveMonitor {
     /// Qoder CLI's `projects` folders: `$QODER_CONFIG_DIR` or `~/.qoder`, then `$QODERCN_CONFIG_DIR` or `~/.qoder-cn`
     /// (the automatic entry of its location list).
     public nonisolated static var defaultQoderCliRoots: [URL] { TranscriptLocations.defaultQoderCliRoots }
+
+    /// CodeBuddy Code's `projects` folder: `$CODEBUDDY_CONFIG_DIR` or `~/.codebuddy` (the automatic entry, METRICS 4.20).
+    public nonisolated static var defaultCodebuddyCodeRoot: URL {
+        TranscriptLocations.defaultRoots(for: .codebuddyCode)[0]
+    }
 
     /// The sessions folder a configured Factory Droid folder names: its `sessions` folder when it has one (a `.factory`
     /// folder), else the folder itself (METRICS 4.16).

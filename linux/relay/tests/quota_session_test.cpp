@@ -9,6 +9,7 @@
 #include "agentspeed/remote_protocol.hpp"
 #include "fixture_support.hpp"
 #include "net_stub.hpp"
+#include "quota_accounts.hpp"
 #include "quota_session.hpp"
 #include "quota_vendor_support.hpp"
 
@@ -84,6 +85,8 @@ public:
     std::shared_ptr<FakeLocator> antigravity = std::make_shared<FakeLocator>();
     net::ClientOptions client;
     std::unique_ptr<QuotaSession> session;
+    // The host's wall clock.
+    std::int64_t now = kNow;
 
     Rig() {
         path_ = home.file("relay-lines");
@@ -117,11 +120,11 @@ public:
         options.client = client;
         options.running = [this] { return running; };
         options.antigravity = antigravity;
-        session = std::make_unique<QuotaSession>(*out_, std::move(enabled), std::move(options), [] { return kNow; });
+        session = std::make_unique<QuotaSession>(*out_, std::move(enabled), std::move(options), [this] { return now; });
     }
 
-    void configure(std::set<SourceKind> sources, bool network, bool grokLive = false) {
-        session->setConfig(QuotaConfig{std::move(sources), network, grokLive, false});
+    void configure(std::set<SourceKind> sources, bool network, bool grokLive = false, std::optional<Salt> salt = std::nullopt) {
+        session->setConfig(QuotaConfig{std::move(sources), network, grokLive, false, salt});
     }
 
     // Ticks until `done` holds (true) or 10 s pass (false).
@@ -203,6 +206,59 @@ void expectHealthy(const remote::HostQuota& q) {
     EXPECT_EQ(q.status, remote::HostQuota::Status::Ok);
 }
 
+// QUOTAS 10.1: the fixture's salt (hex) and its expected keys by vendor.
+json::Value accountCases() {
+    static const fixtures::JsonFile file(fixtures::fixtureDir() / "quota-estimate-cases.json");
+    return file.root()["accounts"];
+}
+std::string saltHex() { return *accountCases()["salt"].string(); }
+Salt fixtureSalt() { return *saltOf(saltHex()); }
+std::string expectedKey(const std::string& vendor) {
+    for (const auto& k : accountCases()["keys"].elements()) {
+        if (k["vendor"].equals(vendor)) return *k["expected"].string();
+    }
+    return {};
+}
+
+// The ids of the fixture's keys (`acct-1`, `org-1:user-1`), with everything else that must never leave the host.
+const std::string kCodexAuth = R"({"auth_mode":"chatgpt","OPENAI_API_KEY":null,"tokens":{"id_token":"secret-id-token",)"
+                               R"("access_token":"secret-access-token","refresh_token":"secret-refresh-token","account_id":"acct-1"}})";
+const std::string kClaudeAccount = R"({"numStartups":3,"oauthAccount":{"accountUuid":"user-1","emailAddress":"secret@example.com",)"
+                                   R"("organizationUuid":"org-1","organizationType":"claude_max",)"
+                                   R"("organizationRateLimitTier":"default_claude_max_20x","displayName":"secret-name"}})";
+
+// QUOTAS 5.6: a `.claude.json` of the fixtures' `claudeCodeCache` files, and the bridge's quota file of its `observed`
+// join (52 % and 80 %, received 5 minutes before the fixtures' now).
+std::string claudeFile(const char* name) {
+    static const fixtures::JsonFile file(fixtures::fixtureDir() / "quota-cases.json");
+    for (const auto& item : file.root()["claudeCodeCache"]["files"].elements()) {
+        if (item["name"].equals(name)) return *item["text"].string();
+    }
+    ADD_FAILURE() << "no file " << name;
+    return {};
+}
+const std::string kJoinedBridge = R"({"version":1,"receivedMs":1794338473000,"windows":{"five_hour":{"used_percentage":52,)"
+                                  R"("resets_at":1794344400},"seven_day":{"used_percentage":80,"resets_at":1794621600}}})";
+
+// The last `quota` line of a source as the relay wrote it.
+std::string lastQuotaLine(const std::string& lines, const std::string& source) {
+    const auto prefix = R"({"t":"quota","q":{"source":")" + source + "\"";
+    std::string found;
+    std::size_t pos = 0;
+    while (pos < lines.size()) {
+        const auto end = lines.find('\n', pos);
+        const auto line = lines.substr(pos, end - pos);
+        if (line.rfind(prefix, 0) == 0) found = line;
+        if (end == std::string::npos) break;
+        pos = end + 1;
+    }
+    return found;
+}
+
+std::string codexRateLimits(const std::string& plan) {
+    return R"({"limit_id":"codex","plan_type":)" + plan + R"(,"primary":{"used_percent":23.0,"window_minutes":10080,"resets_at":1794897479}})";
+}
+
 }  // namespace
 
 TEST(RelayQuotaSession, VendorFixturesThroughTheRelaysReadersAndClient) {
@@ -218,7 +274,7 @@ TEST(RelayQuotaSession, VendorFixturesThroughTheRelaysReadersAndClient) {
     const std::set<SourceKind> sources = {SourceKind::GrokBuild, SourceKind::Kimi, SourceKind::Gemini, SourceKind::Droid, SourceKind::Antigravity};
     rig.running = sources;
     rig.start(sources);
-    rig.configure(sources, true, true);
+    rig.configure(sources, true, true, fixtureSalt());
     ASSERT_TRUE(rig.runUntil([&] {
         for (const auto source : sources) {
             if (!rig.hasWindows(source)) return false;
@@ -236,7 +292,12 @@ TEST(RelayQuotaSession, VendorFixturesThroughTheRelaysReadersAndClient) {
         SCOPED_TRACE(std::string(sourceId(source)));
         expectHealthy(*rig.last(source));
         EXPECT_EQ(rig.last(source)->snapshot.observedMs, kNow);
+        // QUOTAS 10.1: phase 2 sources have no id; their account is the pair (host, source).
+        EXPECT_FALSE(rig.last(source)->account);
+        EXPECT_FALSE(rig.last(source)->plan);
+        EXPECT_FALSE(rig.last(source)->tier);
     }
+    EXPECT_EQ(rig.dump().find(saltHex()), std::string::npos);
 
     // Exactly the headers QUOTAS 9 lists, the host's own credentials, and nothing else.
     std::map<std::string, std::string> byLine;
@@ -414,4 +475,161 @@ TEST(RelayQuotaSession, CodexAndTheClaudeCodeBridgeFile) {
     EXPECT_EQ(rig.reports(SourceKind::Codex).size(), 1u);
     // An unchanged report is not sent again.
     EXPECT_EQ(rig.reports(SourceKind::ClaudeCode).size(), 1u);
+}
+
+// REMOTE 11.3: the host's Claude Code usage cache joins its bridge file; each window carries its own time.
+TEST(RelayQuotaSession, TheClaudeCodeUsageCacheJoinsTheBridgeFile) {
+    Rig rig;
+    rig.home.write(".claude.json", claudeFile("observed"));
+    rig.home.write("relay/quota/claude-cli.json", kJoinedBridge);
+    rig.start({SourceKind::ClaudeCode});
+    rig.configure({SourceKind::ClaudeCode}, false);
+    const auto joined = [&] {
+        const auto q = rig.last(SourceKind::ClaudeCode);
+        return q && q->snapshot.windows.size() == 3 && q->plan;
+    };
+    ASSERT_TRUE(rig.runUntil(joined)) << rig.dump();
+    const auto claude = *rig.last(SourceKind::ClaudeCode);
+    static const fixtures::JsonFile cases(fixtures::fixtureDir() / "quota-cases.json");
+    for (const auto& item : cases.root()["claudeCodeCache"]["joins"].elements()) {
+        if (item["name"].equals("observed")) quota2_test::expectWindows(claude.snapshot.windows, item["expected"]["windows"]);
+    }
+    EXPECT_EQ(claude.snapshot.observedMs, 1794338473000);
+    ASSERT_EQ(claude.snapshot.windows[2].name, "Fable");
+    EXPECT_EQ(claude.snapshot.windows[2].observedMs, 1794330373747);
+    EXPECT_EQ(claude.snapshot.windows[0].observedMs, 1794338473000);
+    EXPECT_EQ(lastQuotaLine(rig.dump(), "claudeCode"),
+              R"({"t":"quota","q":{"source":"claudeCode","observedMs":1794338473000,"windows":[)"
+              R"({"kind":"fiveHour","name":null,"minutes":300,"usedPercent":52,"resetsAtMs":1794344400000,"observedMs":1794338473000},)"
+              R"({"kind":"sevenDay","name":null,"minutes":10080,"usedPercent":80,"resetsAtMs":1794621600000,"observedMs":1794338473000},)"
+              R"({"kind":"modelWeek","name":"Fable","minutes":10080,"usedPercent":100,"resetsAtMs":1794621599593,"observedMs":1794330373747}],)"
+              R"("running":false,"signedIn":true,"status":"ok","account":null,"plan":"claude_max","tier":"default_claude_max_20x"}})");
+    // The uuids stay on the host.
+    EXPECT_EQ(rig.dump().find("6f1c2a7e-0b3d-4c5e-9f8a-1b2c3d4e5f60"), std::string::npos);
+    EXPECT_EQ(rig.dump().find("user@example.com"), std::string::npos);
+
+    // Another account signed in: the cache is not this account's, and the bridge's windows go alone, without times.
+    rig.home.write(".claude.json", claudeFile("otherAccount"));
+    rig.home.touch(".claude.json", 5);
+    rig.now += 61'000;
+    ASSERT_TRUE(rig.runUntil([&] { return rig.last(SourceKind::ClaudeCode)->snapshot.windows.size() == 2; })) << rig.dump();
+    const auto alone = *rig.last(SourceKind::ClaudeCode);
+    EXPECT_EQ(alone.snapshot.observedMs, 1794338473000);
+    for (const auto& w : alone.snapshot.windows) EXPECT_FALSE(w.observedMs);
+    EXPECT_EQ(lastQuotaLine(rig.dump(), "claudeCode").find("\"observedMs\":1794338473000}"), std::string::npos) << rig.dump();
+}
+
+// Without the bridge's file the cache alone is the snapshot, unchanged; Claude Code out of the config, its line goes.
+TEST(RelayQuotaSession, TheUsageCacheAloneIsAClaudeCodeSnapshot) {
+    Rig rig;
+    rig.home.write(".claude.json", claudeFile("observed"));
+    rig.start({SourceKind::ClaudeCode});
+    rig.configure({SourceKind::ClaudeCode}, false);
+    ASSERT_TRUE(rig.runUntil([&] { return rig.hasWindows(SourceKind::ClaudeCode); })) << rig.dump();
+    const auto claude = *rig.last(SourceKind::ClaudeCode);
+    EXPECT_EQ(claude.snapshot.observedMs, 1794330373747);
+    ASSERT_EQ(claude.snapshot.windows.size(), 3u);
+    for (const auto& w : claude.snapshot.windows) EXPECT_FALSE(w.observedMs);
+    rig.configure({}, false);
+    rig.settle(3);
+    EXPECT_EQ(rig.removed(), std::vector<SourceKind>{SourceKind::ClaudeCode});
+}
+
+TEST(RelayQuotaSession, AccountKeysPlansAndTiersFromTheHostsSignIns) {
+    Rig rig;
+    rig.home.write(".codex/auth.json", kCodexAuth);
+    rig.home.write(".claude.json", kClaudeAccount);
+    rig.running = {SourceKind::Codex, SourceKind::ClaudeCode};
+    rig.start({SourceKind::Codex, SourceKind::ClaudeCode});
+    const std::set<SourceKind> sources = {SourceKind::Codex, SourceKind::ClaudeCode};
+
+    // Without a salt (an older app): no account, but the plans and the tier.
+    rig.configure(sources, false);
+    const auto promax = codexRateLimits(R"("promax")");
+    json::Document limits;
+    ASSERT_TRUE(limits.parse(promax));
+    rig.session->codexObserver()(limits.root(), kNow - 60'000);
+    ASSERT_TRUE(rig.runUntil([&] { return rig.hasWindows(SourceKind::Codex) && rig.last(SourceKind::ClaudeCode); })) << rig.dump();
+    auto codex = *rig.last(SourceKind::Codex);
+    EXPECT_FALSE(codex.account);
+    EXPECT_EQ(codex.plan, "promax");
+    EXPECT_FALSE(codex.tier);
+    auto claude = *rig.last(SourceKind::ClaudeCode);
+    EXPECT_FALSE(claude.account);
+    EXPECT_EQ(claude.plan, "claude_max");
+    EXPECT_EQ(claude.tier, "default_claude_max_20x");
+
+    // The salt arrives: the keys follow at once, as the app computes them.
+    rig.configure(sources, false, false, fixtureSalt());
+    ASSERT_TRUE(rig.runUntil([&] { return rig.last(SourceKind::Codex)->account && rig.last(SourceKind::ClaudeCode)->account; })) << rig.dump();
+    codex = *rig.last(SourceKind::Codex);
+    EXPECT_EQ(codex.account, expectedKey("codex"));
+    EXPECT_EQ(codex.plan, "promax");
+    claude = *rig.last(SourceKind::ClaudeCode);
+    EXPECT_EQ(claude.account, expectedKey("claude"));
+    EXPECT_EQ(claude.plan, "claude_max");
+    EXPECT_EQ(claude.tier, "default_claude_max_20x");
+    // Nothing changed: nothing sent again.
+    const auto sent = rig.reports(SourceKind::Codex).size();
+    rig.settle(5);
+    EXPECT_EQ(rig.reports(SourceKind::Codex).size(), sent);
+
+    // A newer Codex writes no plan: the account's own stays.
+    const auto unnamed = codexRateLimits("null");
+    ASSERT_TRUE(limits.parse(unnamed));
+    rig.session->codexObserver()(limits.root(), kNow - 30'000);
+    ASSERT_TRUE(rig.runUntil([&] { return rig.last(SourceKind::Codex)->snapshot.observedMs == kNow - 30'000; })) << rig.dump();
+    EXPECT_EQ(rig.last(SourceKind::Codex)->plan, "promax");
+
+    // `codex login` with another account: a new key, and that account's plan is not known yet.
+    rig.home.write(".codex/auth.json", R"({"auth_mode":"chatgpt","tokens":{"account_id":"acct-2"}})");
+    rig.home.touch(".codex/auth.json", 5);
+    rig.now += 61'000;
+    ASSERT_TRUE(rig.runUntil([&] { return rig.last(SourceKind::Codex)->account != expectedKey("codex"); })) << rig.dump();
+    codex = *rig.last(SourceKind::Codex);
+    EXPECT_EQ(codex.account, accountKey(fixtureSalt(), "codex", "acct-2"));
+    EXPECT_FALSE(codex.plan);
+
+    // A plan or tier that is not plan text is none.
+    rig.home.write(".claude.json", R"({"oauthAccount":{"organizationUuid":"org-1","accountUuid":"user-1","organizationType":"Claude Max"}})");
+    rig.home.touch(".claude.json", 5);
+    rig.now += 61'000;
+    ASSERT_TRUE(rig.runUntil([&] { return !rig.last(SourceKind::ClaudeCode)->tier; })) << rig.dump();
+    claude = *rig.last(SourceKind::ClaudeCode);
+    EXPECT_EQ(claude.account, expectedKey("claude"));
+    EXPECT_FALSE(claude.plan);
+
+    // Switched off and on again with another salt: new keys, nothing kept from before.
+    Salt other = fixtureSalt();
+    other[0] ^= 0xFF;
+    rig.configure({}, false, false, other);
+    rig.configure(sources, false, false, other);
+    ASSERT_TRUE(rig.runUntil([&] {
+        const auto q = rig.last(SourceKind::ClaudeCode);
+        return q && q->account == accountKey(other, "claude", "org-1:user-1");
+    })) << rig.dump();
+
+    // The salt, the ids and every other value of those files stay on the host.
+    const auto written = rig.dump();
+    for (const auto& secret : {saltHex(), std::string("acct-1"), std::string("acct-2"), std::string("org-1"), std::string("user-1"),
+                               std::string("secret"), std::string("example.com")}) {
+        EXPECT_EQ(written.find(secret), std::string::npos) << secret;
+    }
+}
+
+TEST(RelayQuotaSession, NoAccountWithoutAnId) {
+    Rig rig;
+    rig.home.write(".codex/auth.json", R"({"auth_mode":"apikey","OPENAI_API_KEY":"sk-secret"})");
+    rig.home.write(".claude.json", R"({"oauthAccount":{"emailAddress":"secret@example.com"}})");
+    rig.start({SourceKind::Codex, SourceKind::ClaudeCode});
+    rig.configure({SourceKind::Codex, SourceKind::ClaudeCode}, false, false, fixtureSalt());
+    ASSERT_TRUE(rig.runUntil([&] { return rig.last(SourceKind::Codex) && rig.last(SourceKind::ClaudeCode); })) << rig.dump();
+    for (const auto source : {SourceKind::Codex, SourceKind::ClaudeCode}) {
+        const auto q = *rig.last(source);
+        EXPECT_FALSE(q.account);
+        EXPECT_FALSE(q.plan);
+        EXPECT_FALSE(q.tier);
+    }
+    EXPECT_TRUE(rig.last(SourceKind::ClaudeCode)->signedIn);
+    EXPECT_EQ(rig.dump().find("secret"), std::string::npos);
 }

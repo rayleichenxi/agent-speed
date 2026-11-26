@@ -32,10 +32,11 @@ struct CharacterCardsTests {
     }
 
     static func frame(_ readings: OrbCharacterReadings?, readouts: CharacterReadouts = .default, time: TimeInterval = 100,
-                      contrast: Bool = false) -> OrbFrame {
+                      contrast: Bool = false, dark: Bool? = nil) -> OrbFrame {
         var c = OrbContent.placeholder(diameter: 296)
         c.style = .character
         c.increaseContrast = contrast
+        if let dark { c.tokens = dark ? .dark : .light }
         c.language = .zhHant
         c.character = OrbCharacterContent(pack: nil, modelName: "claude-opus", vendorName: nil, accent: nil,
                                           readouts: readouts, readings: readings, todayLine: "今日 1.24M",
@@ -57,6 +58,13 @@ struct CharacterCardsTests {
                                      shownAt: 0, quietAt: 1e9)
         return OrbCharacterReadings(network: traffic, performance: perf, cost: money(4200), networkLoud: true,
                                     performanceLoud: true, costLoud: true)
+    }
+
+    @Test func breathingCardsKeepTheirTextTextures() {
+        for scale in [0.96, 0.988, 1.0, 1.012, 1.05] { #expect(CharacterBodyPainter.rasterScale(scale) == 1, "\(scale)") }
+        #expect(CharacterBodyPainter.rasterScale(1.06) == 1.25)
+        #expect(CharacterBodyPainter.rasterScale(1.3) == 1.5)
+        #expect(CharacterBodyPainter.rasterScale(2) == 2)
     }
 
     @Test func cardsWithoutValuesHaveNoSize() {

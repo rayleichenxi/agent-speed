@@ -27,6 +27,9 @@ struct ClaudeParser: Sendable {
     private var responseOrder: [String] = []
     /// Qoder CLI keys this file claimed with a line that had no usage (no response yet).
     private var silentKeys: Set<String> = []
+    /// The start the first usage-less line of a silent key consumed: the line of that key that carries usage takes it
+    /// (METRICS 4.19; the Qoder desktop app splits one call into several lines of one message id, issue #73).
+    private var silentStarts: [String: Int64] = [:]
     /// Ultracode (EXECUTION-MODES, Claude Code): on for the session between enter and exit markers, and for one turn
     /// after a workflow keyword until the next prompt.
     private var ultraSession = false
@@ -122,9 +125,25 @@ struct ClaudeParser: Sendable {
         case .assistant:
             consumeAssistant(line, tools: tools, at: timestamp, deduper: &deduper, emit: emit)
 
+        case .system:
+            noteRetryWait(line)
+
         case .attachment, .other:
             break
         }
+    }
+
+    /// A failed attempt that Claude Code retries: nothing is generated until the next one starts (METRICS 4.1).
+    private mutating func noteRetryWait(_ line: ClaudeLine) {
+        if line.isRetryWait && state.phase == .generating { state.inFlightStartMs = nil }
+    }
+
+    /// A synthetic line creates no response; Claude Code's API error message also ends the turn (METRICS 4.1).
+    private mutating func consumeSynthetic(_ line: ClaudeLine, at timestamp: Int64) {
+        guard line.isApiError else { return }
+        state.setPhase(.idle, at: timestamp)
+        pendingStartMs = nil
+        preciseStart = false
     }
 
     private var ultracodeFact: ExecutionModeFact? {
@@ -146,7 +165,7 @@ struct ClaudeParser: Sendable {
         deduper: inout Deduper,
         emit: (ResponseUpsert) -> Void
     ) {
-        guard line.model != Self.syntheticModel else { return }
+        guard line.model != Self.syntheticModel else { return consumeSynthetic(line, at: timestamp) }
         guard let key = line.messageId ?? line.requestId ?? line.uuid else { return }
         let claim = deduper.claim(key, for: fileID)
         // Another file's message is copied history (METRICS 3.5): no response and no actions.
@@ -211,6 +230,7 @@ struct ClaudeParser: Sendable {
         for old in evicted {
             responses[old] = nil
             silentKeys.remove(old)
+            silentStarts[old] = nil
         }
         responseOrder.removeFirst(evicted.count)
     }
@@ -232,6 +252,8 @@ struct ClaudeParser: Sendable {
             }
         case .assistant:
             consumeQoderAssistant(line, at: timestamp, deduper: &deduper, emit: emit)
+        case .system:
+            noteRetryWait(line)
         case .apiRequest, .attachment, .other:
             break
         }
@@ -249,7 +271,8 @@ struct ClaudeParser: Sendable {
     /// its key, sets the model and consumes the pending start; `firstMs` null, `fast` false, no execution modes.
     private mutating func consumeQoderAssistant(_ line: ClaudeLine, at timestamp: Int64, deduper: inout Deduper,
                                                 emit: (ResponseUpsert) -> Void) {
-        guard line.model != Self.syntheticModel, let raw = line.messageId ?? line.uuid else { return }
+        guard line.model != Self.syntheticModel else { return consumeSynthetic(line, at: timestamp) }
+        guard let raw = line.messageId ?? line.uuid else { return }
         let key = Self.qoderKeyPrefix + raw
         let claim = deduper.claim(key, for: fileID)
         // Another file's message is copied history (METRICS 3.5).
@@ -268,9 +291,10 @@ struct ClaudeParser: Sendable {
                 next = existing
                 isCompletion = false
             } else {
-                next = ResponseRecord(key: key, source: .qoderCli, agentId: agentId, model: line.model,
-                                      startMs: pendingStartMs, endMs: timestamp, usage: usage, isFinal: hasStopReason)
                 let wasSilent = silentKeys.remove(key) != nil
+                let begin = wasSilent ? silentStarts.removeValue(forKey: key) : pendingStartMs
+                next = ResponseRecord(key: key, source: .qoderCli, agentId: agentId, model: line.model,
+                                      startMs: begin, endMs: timestamp, usage: usage, isFinal: hasStopReason)
                 isCompletion = claim == .new || wasSilent
                 pendingStartMs = nil
                 preciseStart = false
@@ -291,6 +315,7 @@ struct ClaudeParser: Sendable {
             if let model = line.model { state.model = model }
             if claim == .new {
                 silentKeys.insert(key)
+                silentStarts[key] = start
                 remember(key)
             }
         }
@@ -300,7 +325,7 @@ struct ClaudeParser: Sendable {
         case .none where line.hasToolUse:
             state.setPhase(.tools, at: timestamp)
         case .none, .pauseTurn:
-            let begin = record.map(\.startMs) ?? start
+            let begin = record.map(\.startMs) ?? silentStarts[key] ?? start
             state.setPhase(.generating, at: timestamp, inFlightStartMs: begin ?? timestamp)
         case .other:
             state.setPhase(.idle, at: timestamp)

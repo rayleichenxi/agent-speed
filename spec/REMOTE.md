@@ -333,7 +333,8 @@ pairs: `δ = now_remote − (t_send + t_receive) / 2` with the round-trip `t_rec
 after `hello` and every 30 s, keeps the last 8 samples and uses the one with the smallest round trip. Until the first
 sample, `hello.now` gives `δ` (round trip unknown).
 
-Every time in `agent`, `response` and `tool` lines is converted to local time as `t − δ` when the line is applied
+Every time in `agent`, `response`, `tool` and `quota` lines (11.1: the line's and each window's `observedMs`, each
+`resetsAtMs`) is converted to local time as `t − δ` when the line is applied
 (`δ` rounded to whole milliseconds; values that would leave 2000–2100 make the line invalid). Durations are
 unchanged, so speeds are unchanged. History days (8) are labelled by the relay with the host's clock in the app's time
 zone; the offset is not applied (a response within `|δ|` of midnight may fall on the neighbouring day). With
@@ -441,10 +442,10 @@ browsers, and no key the user pasted into the app.
 | Source on a host | Route (QUOTAS) |
 | --- | --- |
 | `codex` | rollout `rate_limits` (3) |
-| `claudeCode` | the status line bridge of the host (11.3), per host, off by default |
+| `claudeCode` | the status line bridge of the host and its Claude Code usage cache (11.3, QUOTAS 5.6), per host, off by default |
 | `grokBuild` | the log (9.2); live when the app's `quotaGrokBuildLive` is on |
 | `kimi`, `gemini`, `droid` | the vendor API with the host's own sign-in (9.5, 9.6, 9.7; Droid's key from the host's `~/.factory/.env` or the SSH command's environment) |
-| `antigravity` | the `agy` language server on the host's loopback (9.4) |
+| `antigravity` | the `agy` language server on the host's loopback (9.4); agy's usage report (9.4 *CLI usage report*) does not run on hosts yet, so agy 1.2.2 and later show no quota there |
 
 Not on hosts:
 - `claudeDesktop`, `devin`: desktop apps.
@@ -455,17 +456,27 @@ Not on hosts:
 
 - `start` gains an optional `quota` object, and the app sends a line `{"t": "quota", "config": {...}}` whenever it
   changes. The config is `{"sources": [<keys whose quota switch is on>], "network": <networkEnabled>, "grokLive":
-  bool, "claudeBridge": bool}`.
+  bool, "claudeBridge": bool, "salt": <64 hex digits>}`. `salt` is the account salt of QUOTAS 10.1 (the same in every
+  install since 2026-11-11; the field stays so that relays need no change); the relay keeps it in memory only, never
+  writes or logs it, and leaves `account` null without it.
 - The relay answers with one line per source:
-  - `{"t": "quota", "q": {source, observedMs, windows, running, signedIn, status}}` whenever it changes, at most once
-    a second;
+  - `{"t": "quota", "q": {source, observedMs, windows, running, signedIn, status, account, plan, tier}}` whenever it
+    changes, at most once a second;
+  - `account`: the source's account key (QUOTAS 10.1, from the host's `auth.json` `tokens.account_id` or
+    `~/.claude.json` `oauthAccount`), 16 lowercase hex digits, or null; `plan` and `tier` as QUOTAS 10.2, or null.
+    A host's sources and the app's own sources with equal keys are one account unless their fingerprint contradicts it
+    (QUOTAS 10.1); the host's streamed responses (5) feed the ledger of QUOTAS 10.3. Older relays send none of the
+    three: their sources are accounts of their own;
   - `{"t": "quotaRemoved", "source"}` when a source's snapshot goes.
-- `windows` is an array of at most 16 `{kind, name, minutes, usedPercent, resetsAtMs}` (QUOTAS 2, 9.1).
+- `windows` is an array of at most 16 `{kind, name, minutes, usedPercent, resetsAtMs, observedMs}` (QUOTAS 2, 9.1).
   - `name` ≤ 64 characters or null.
   - `kind` one of the QUOTAS kinds.
   - `minutes` 1–527 040 or null.
   - `usedPercent` finite, 0–1000.
   - `resetsAtMs` a time or null.
+  - `observedMs` a time or null (absent counts as null): the window's own time in a joined Claude Code snapshot
+    (QUOTAS 5.6), whose line `observedMs` is then the newest window's. The relay sends it only there. The app converts
+    it like every other time (6). An older app ignores it and shows every window at the line's time.
 - `status` is one of `ok`, `noCredential`, `expired`, `denied`, `failed`, `networkOff`, `noCertificates`,
   `notRunning`.
 - The bridge reports `{"t": "quotaBridge", "state", "settingsPath"}`, with `state` from QUOTAS 5.4 (`off`,
@@ -490,6 +501,9 @@ The relay lists `/proc` every 15 s while `sources` is not empty: each process's 
 - **Settings file**: `$CLAUDE_CONFIG_DIR/settings.json`, else `~/.claude/settings.json`, edited exactly as QUOTAS
   5.2–5.4. The sidecar and backup are `<folder>/quota/claude-statusline-previous.json` and
   `claude-settings.backup.json`; the quota file is `<folder>/quota/claude-cli.json`.
+- **Usage cache**: while `claudeCode` is in `sources`, the relay also reads the host's `$CLAUDE_CONFIG_DIR/.claude.json`
+  (else `~/.claude.json`) as QUOTAS 5.6 says, and its `claudeCode` line carries the joined snapshot, each window with
+  its own `observedMs` once both parts exist (11.1). The uuids stay on the host.
 - **Turning off**: `claudeBridge` false, or the host removed from the app, restores as QUOTAS 5.3.
 - **Removing a host** whose bridge is on first connects and turns it off (2.4). If the host cannot be reached, the
   confirmation says that its status line keeps running the helper in `<folder>` until the bridge is turned off from a
@@ -515,7 +529,7 @@ The relay lists `/proc` every 15 s while `sources` is not empty: each process's 
 
 ## 10. Tests
 
-- **Relay**: protocol encoding unit tests; the quota fixtures of QUOTAS 10 through the relay's readers, its helper
+- **Relay**: protocol encoding unit tests; the quota fixtures of QUOTAS 11 through the relay's readers, its helper
   mode and its bridge against a temporary home; an end-to-end test that runs `agent-speed-relay serve` over the spec
   fixtures (`spec/fixtures`) as a fake home and checks that its responses and agent states equal
   `parser-expected.json` and its history equals `history-expected.json`.

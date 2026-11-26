@@ -2,6 +2,7 @@
 
 #include <QColor>
 #include <QString>
+#include <algorithm>
 #include <array>
 #include <map>
 #include <memory>
@@ -14,7 +15,9 @@
 #include "agentspeed/character/pack.hpp"
 #include "agentspeed/character/performer.hpp"
 #include "agentspeed/character/selection.hpp"
+#include "format.hpp"
 #include "orb/character/character_cards.hpp"
+#include "orb/character/character_live.hpp"
 #include "orb/character/character_lightning.hpp"
 #include "orb/character/character_models.hpp"
 #include "orb/character/character_particles.hpp"
@@ -41,9 +44,14 @@ struct CharacterContent {
     QString costGlyph, costNumber, costUnit;
     bool costAtLeast = false, costUnknown = false;
     double costOpacity = 0;  // the cost card's quiet rule
+    // The 今日 row under the rate: today's amount (empty without a request today); while it shows, the rate row leaves
+    // with the quiet rule's fade instead of the whole card.
+    QString costTodayGlyph, costTodayAmount;
+    bool costTodayAtLeast = false, costTodayUnknown = false;
     QString todayLine, agentsLine;
     // The 性能 card's 首字 row: its label, value and unit, and its fade (empty while switched off or without a value).
     QString latencyGlyph, latencyNumber, latencyUnit;
+    format::LatencyTone latencyTone = format::LatencyTone::Quick;
     double latencyOpacity = 0;
     // The models card's rows, fastest first, its quiet rule's fade (0 while switched off) and its texts.
     std::vector<agentspeed::character::ModelRow> models;
@@ -52,6 +60,10 @@ struct CharacterContent {
     // The 額度 card's sources (null or empty: none), in source order; they go along while it is switched off, so it
     // fades out with them.
     std::shared_ptr<const std::vector<agentspeed::character::QuotaSource>> quota;
+    // What a living character reacts to (the same object for the orb's life; null for previews), and the hover scale
+    // the scene is drawn at around the window's center.
+    std::shared_ptr<CharacterLive> live;
+    double contentScale = 1;
 };
 
 // `character` (DESIGN 2a.6): the skinned character of the chosen pack with its pose and character swaps, the ring of
@@ -82,6 +94,10 @@ public:
     // Her capsule and her outline this frame (the accessible cards read what shows).
     const agentspeed::character::HudWings& wings() const { return wings_; }
     bool drawing() const { return stage_.has_value() && drew_; }
+    // Her mood, pose, face, gaze, mouth and action this frame, for the frame harness's trace.
+    QString behaviorTrace() const;
+    // The performer on stage, if any (the frame harness).
+    const agentspeed::character::Performer* performer() const { return stage_ ? &stage_->current() : nullptr; }
 
 private:
     struct Geometry {
@@ -109,6 +125,10 @@ private:
         double w = 0, h = 0;
     };
     PerfRows perfRows(const cards::CardMetrics& m) const;
+    // The cost card's rate row over its 今日 row: it fades out, then the card closes up under it (whole without 今日).
+    double costRatePresence() const;
+    double costRateAlpha() const { return std::clamp(2 * costRatePresence() - 1, 0.0, 1.0); }
+    double costRateShare() const;
     std::array<double, 2> cardSize(agentspeed::character::HudCard card, const Frame& f) const;
     QString modelText() const;
     CharacterLightning::Strength lightningStrength(const Frame& f) const;
@@ -116,6 +136,7 @@ private:
 
     CharacterContent content_;
     std::optional<agentspeed::character::Stage> stage_;
+    CharacterLiveReader liveReader_;
     std::string shownPack_;
     std::map<std::string, std::shared_ptr<const agentspeed::character::Pack>> loaded_;
     agentspeed::character::CharacterHud hud_{5, 1};

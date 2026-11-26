@@ -84,7 +84,7 @@ private:
             c.source = r.source;
             c.output = r.tokens.output;
             if (r.startMs && r.endMs > *r.startMs) {
-                c.speed = static_cast<double>(r.tokens.output) * 1000.0 / static_cast<double>(r.endMs - *r.startMs);
+                c.speed = static_cast<double>(r.tokens.output) * 1000.0 / (static_cast<double>(r.endMs) - static_cast<double>(*r.startMs));
             }
             c.host = host;
             completions_.push_back(c);
@@ -198,6 +198,11 @@ public:
             out.push_back({s.parsed.source, s.parsed.model, s.parsed.provider, s.parsed.fast, s.parsed.endMs, s.parsed.requestCount, s.engine.costMicroUsd});
         }
         return out;
+    }
+
+    template <typename Visit>
+    void forEachPriced(const Visit& visit) const {
+        for (const auto& [_, s] : byKey_) visit(s.parsed, s.engine.host, s.engine.costMicroUsd);
     }
 
     std::vector<ParsedResponse> responses() const {

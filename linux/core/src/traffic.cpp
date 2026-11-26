@@ -207,6 +207,18 @@ bool isHermes(const Env& env, const Process& p) {
 
 bool hasArg(const Process& p, const std::string& arg) { return std::find(p.args.begin(), p.args.end(), arg) != p.args.end(); }
 
+// The plain `language_server` is generic: only inside one of the apps, or with `--app_data_dir` and antigravity.
+bool isAntigravityServer(const Env& env, const Process& p) {
+    const auto path = env.norm(p.exe);
+    for (const char* app : {"/Antigravity.app/", "/Antigravity IDE.app/", "/Gemini.app/"}) {
+        if (contains(path, env.platform == Platform::Windows ? lower(app) : std::string(app))) return true;
+    }
+    const bool flagged = std::any_of(p.args.begin(), p.args.end(), [](const std::string& a) {
+        return a == "--app_data_dir" || startsWith(a, "--app_data_dir=");
+    });
+    return flagged && std::any_of(p.args.begin(), p.args.end(), [](const std::string& a) { return contains(lower(a), "antigravity"); });
+}
+
 // Qoder IDE's agent core: `resources/bin/<platform>/<name>` inside the IDE, compared case-insensitively.
 bool isQoderCore(const std::string& normalized) {
     static const std::regex core("/resources/bin/[^/]+/[^/]+$", std::regex::icase);
@@ -292,7 +304,9 @@ std::optional<SourceKind> matchSource(const Env& env, const Process& p, const st
     if (contains(script, "opencode-ai/bin/opencode")) return SourceKind::OpenCode;
     if (contains(script, "/@google/gemini-cli/") || name == "gemini") return SourceKind::Gemini;
     if (name == "omp" || contains(script, "/@oh-my-pi/") || contains(script, "/oh-my-pi/")) return SourceKind::Omp;
-    if (name == "agy" || startsWith(name, "language_server_")) return SourceKind::Antigravity;
+    if (name == "agy" || startsWith(name, "language_server_") || (name == "language_server" && isAntigravityServer(env, p))) {
+        return SourceKind::Antigravity;
+    }
     if (name == "zcode" || name == "zcode-cli" || contains(script, "/@zcode/cli/")) return SourceKind::ZCode;
     if (name == "kimi" || name == "kimi-code" || contains(script, "/@moonshot-ai/kimi-code/")) return SourceKind::Kimi;
     if (name == "grok" || name == "grok-build" || name == "xai-grok-pager") return SourceKind::GrokBuild;
@@ -309,6 +323,8 @@ std::optional<SourceKind> matchSource(const Env& env, const Process& p, const st
     if (name == "qodercli" || name == "qoderclicn" || contains(script, "/@qoder-ai/qodercli/") || contains(script, "/@qodercn-ai/qoderclicn/")) {
         return SourceKind::QoderCli;
     }
+    // The npm CLI (`bin/codebuddy`, `bin/cbc-prewarm`, …); WorkBuddy's embedded copy is WorkBuddy's row below.
+    if (contains(script, "/@tencent-ai/codebuddy-code/")) return SourceKind::CodeBuddyCode;
     const auto edition = workBuddyEdition(env.platform, env.platform == Platform::MacOS ? p.bundle.value_or("") : name);
     if (edition) {
         for (std::size_t i = 1; i < p.args.size(); ++i) {
@@ -342,6 +358,13 @@ void ProcessTable::refresh(const std::vector<Process>& processes) {
         for (const auto* cursor = parentOf(*p); cursor && !seen.contains({cursor->pid, cursor->start}); cursor = parentOf(*cursor)) {
             seen.insert({cursor->pid, cursor->start});
             ancestors.push_back(cursor);
+        }
+        const auto isApp = [&](const Process* x) {
+            return env_.appPid && x->pid == *env_.appPid && (!env_.appStart || x->start == *env_.appStart);
+        };
+        if (isApp(p) || std::any_of(ancestors.begin(), ancestors.end(), isApp)) {
+            known_[key] = Classification{};
+            continue;
         }
         const Classification* nearest = nullptr;
         for (const auto* a : ancestors) {
@@ -596,7 +619,7 @@ void Engine::tick(const Sample& sample, const std::vector<AgentFacts>& agents) {
             src.unassignedTx += acc.v[1] + acc.v[3];
         }
     }
-    for (int k = 0; k <= static_cast<int>(SourceKind::QoderCli); ++k) {
+    for (int k = 0; k <= static_cast<int>(SourceKind::CodeBuddyCode); ++k) {
         const auto source = static_cast<SourceKind>(k);
         const auto it = totals.find(source);
         const std::array<std::uint64_t, 4> v = it == totals.end() ? std::array<std::uint64_t, 4>{} : it->second;
@@ -635,7 +658,7 @@ std::vector<HistoryRow> Engine::history() const {
     std::vector<HistoryRow> rows;
     for (const auto& [date, d] : days_) {
         rows.push_back({date, "machine", d.machine.rx, d.machine.tx, 0, 0, d.machine.sampledMs});
-        for (int k = 0; k <= static_cast<int>(SourceKind::QoderCli); ++k) {
+        for (int k = 0; k <= static_cast<int>(SourceKind::CodeBuddyCode); ++k) {
             const auto source = static_cast<SourceKind>(k);
             const auto it = d.sources.find(source);
             if (it == d.sources.end()) continue;

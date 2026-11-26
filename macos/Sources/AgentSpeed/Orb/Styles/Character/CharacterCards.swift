@@ -56,6 +56,7 @@ struct CharacterCardInk {
     let number: RGBColor
     let secondary: RGBColor
     let accent: RGBColor
+    private let latencyTones: (quick: RGBColor, slow: RGBColor, late: RGBColor)
 
     init(_ frame: OrbFrame, accent: RGBColor?) {
         let dark = frame.dark
@@ -70,6 +71,18 @@ struct CharacterCardInk {
         number = ink.opacity(contrast ? 0.98 : 0.9)
         secondary = (dark ? RGBColor.white : RGBColor.black).opacity(contrast ? 0.74 : 0.55)
         self.accent = accent ?? RGBColor(red: 0.85, green: 0.47, blue: 0.34)
+        latencyTones = contrast ? (number, number, number)
+            : dark ? (RGBColor(hex: 0x30D158), RGBColor(hex: 0xF5A524), RGBColor(hex: 0xFF453A))
+            : (RGBColor(hex: 0x248A3D), RGBColor(hex: 0xB86E00), RGBColor(hex: 0xD70015))
+    }
+
+    /// The 首字 value's color (DESIGN 2a.6): green, amber or red by its band; Increase Contrast keeps the value token.
+    func latency(_ tone: CharacterReadoutText.LatencyTone) -> RGBColor {
+        switch tone {
+        case .quick: latencyTones.quick
+        case .slow: latencyTones.slow
+        case .late: latencyTones.late
+        }
     }
 }
 
@@ -191,9 +204,30 @@ struct CharacterCards {
 
     // MARK: Cost
 
+    /// The rate row (shrinking with its share as it leaves) over the 今日 row.
     private func costSize() -> CGSize {
-        guard let money = readings?.cost else { return .zero }
-        return plate(CGSize(width: costWidth(money), height: m.rowHeight(m.p)))
+        let share = CGFloat(dynamics.costRateShare)
+        let money = share > 0 ? readings?.cost : nil
+        let today = readings?.costToday
+        guard money != nil || today != nil else { return .zero }
+        var width: CGFloat = 0, height: CGFloat = 0
+        if let money {
+            width = share * costWidth(money)
+            height = share * m.rowHeight(m.p)
+        }
+        if let today {
+            width = max(width, costTodayWidth(today))
+            height += (money != nil ? share * m.rowGap : 0) + m.rowHeight(m.t)
+        }
+        return plate(CGSize(width: width, height: height))
+    }
+
+    private var costTodayGlyph: String { Localizer.string("character.cost.today", language: language) }
+
+    private func costTodayWidth(_ today: CostToday) -> CGFloat {
+        var width = advance(costTodayGlyph, m.glyph(m.t)) + m.glyphGap + digits(today.amount, m.number(m.t))
+        if today.atLeast { width += advance("≥", m.unit(m.t)) + 0.08 * m.t }
+        return width
     }
 
     private func costWidth(_ money: LiveMoney) -> CGFloat {
@@ -257,9 +291,17 @@ struct CharacterCards {
             drawTraffic(tx, down: false, pen, left: origin.x, top: origin.y + m.rowHeight(m.t) + m.rowGap, cells: cells,
                         ink: ink, into: &scene)
         case .cost:
-            guard let money = readings?.cost else { return }
+            let share = CGFloat(dynamics.costRateShare)
+            let money = share > 0 ? readings?.cost : nil
+            guard money != nil || readings?.costToday != nil else { return }
             drawPlate(pen, box: box, ink: ink, spine: right ? -1 : 1, into: &scene)
-            drawCost(money, pen, origin: origin, ink: ink, into: &scene)
+            if let money, dynamics.costRateAlpha > 0.01 {
+                drawCost(money, pen.faded(dynamics.costRateAlpha), origin: origin, ink: ink, into: &scene)
+            }
+            if let today = readings?.costToday {
+                let top = origin.y + (money != nil ? share * (m.rowHeight(m.p) + m.rowGap) : 0)
+                drawCostToday(today, pen, origin: CGPoint(x: origin.x, y: top), ink: ink, into: &scene)
+            }
         case .models:
             guard modelsLayout() != nil else { return }
             drawPlate(pen, box: box, ink: ink, spine: right ? -1 : 1, into: &scene)
@@ -338,16 +380,19 @@ struct CharacterCards {
         // 首字 fades where it stands as the card eases to its height.
         guard let latency = rows.latency, rows.latencyShare > 0.01 else { return }
         drawRow(Localizer.string("character.latency.glyph", language: language), number: latency.number, unit: latency.unit,
-                pen, x: origin.x, baseline: top + m.baseline(m.t), alpha: Double(rows.latencyShare), ink: ink, into: &scene)
+                pen, x: origin.x, baseline: top + m.baseline(m.t), alpha: Double(rows.latencyShare), ink: ink,
+                numberColor: ink.latency(latency.tone), into: &scene)
     }
 
-    /// A row at `t`: its glyph, the number in the value token and the unit in the secondary one.
+    /// A row at `t`: its glyph, the number in the value token (or `numberColor`) and the unit in the secondary one.
     private func drawRow(_ glyph: String, number: String, unit: String, _ pen: CharacterBodyPainter, x left: CGFloat,
-                         baseline: CGFloat, alpha a: Double, ink: CharacterCardInk, into scene: inout OrbScene) {
+                         baseline: CGFloat, alpha a: Double, ink: CharacterCardInk, numberColor: RGBColor? = nil,
+                         into scene: inout OrbScene) {
         var x = left
         x += put(glyph, m.glyph(m.t), pen, x: x, baseline: baseline, color: ink.secondary.opacity(a), into: &scene)
         x += m.glyphGap
-        x += putDigits(number, m.number(m.t), pen, x: x, baseline: baseline, color: ink.number.opacity(a), into: &scene)
+        x += putDigits(number, m.number(m.t), pen, x: x, baseline: baseline, color: (numberColor ?? ink.number).opacity(a),
+                       into: &scene)
         x += m.cellGap
         put(unit, m.unit(m.t), pen, x: x, baseline: baseline, color: ink.secondary.opacity(a), into: &scene)
     }
@@ -396,6 +441,20 @@ struct CharacterCards {
         _ = put(money.unit, m.unit(m.t), pen, x: x + m.cellGap, baseline: baseline, color: ink.secondary, into: &scene)
     }
 
+    /// `今日 $12.34` at `t`: the label in the secondary token, the amount in the value token (`–` in the secondary).
+    private func drawCostToday(_ today: CostToday, _ pen: CharacterBodyPainter, origin: CGPoint, ink: CharacterCardInk,
+                               into scene: inout OrbScene) {
+        let baseline = origin.y + m.baseline(m.t)
+        var x = origin.x
+        x += put(costTodayGlyph, m.glyph(m.t), pen, x: x, baseline: baseline, color: ink.secondary, into: &scene)
+        x += m.glyphGap
+        if today.atLeast {
+            x += put("≥", m.unit(m.t), pen, x: x, baseline: baseline, color: ink.secondary, into: &scene) + 0.08 * m.t
+        }
+        putDigits(today.amount, m.number(m.t), pen, x: x, baseline: baseline,
+                  color: today.unknown ? ink.secondary : ink.number, into: &scene)
+    }
+
     private func drawChip(_ name: String, _ pen: CharacterBodyPainter, box: CGSize, ink: CharacterCardInk,
                           into scene: inout OrbScene) {
         let left = -box.width / 2 + 0.85 * m.t
@@ -408,7 +467,7 @@ struct CharacterCards {
 
     // MARK: Text
 
-    func scale(_ pen: CharacterBodyPainter) -> CGFloat { backing * max(1, pen.scale) }
+    func scale(_ pen: CharacterBodyPainter) -> CGFloat { backing * pen.rasterScale }
 
     /// A whole string from `x` (local); returns its advance.
     @discardableResult

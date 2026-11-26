@@ -45,6 +45,7 @@ add_library(agentspeed_base STATIC
     src/antigravity.cpp
     src/board.cpp
     src/claude_parser.cpp
+    src/codebuddy_paths.cpp
     src/codex_parser.cpp
     src/configured_modes.cpp
     src/dedupe.cpp
@@ -100,6 +101,8 @@ add_library(agentspeed_base STATIC
     src/qoder_history.cpp
     src/qoder_paths.cpp
     src/qoder_source.cpp
+    # QUOTAS 10.3: the token counts the history keeps per response for the estimate's ledger.
+    src/quota/estimate/tokens.cpp
     src/report/perf.cpp
     src/report/values.cpp
     src/report/json_writer.cpp
@@ -149,6 +152,8 @@ add_library(agentspeed_quota STATIC
     # Phase 1 (QUOTAS 2–8)
     src/quota/bridge.cpp
     src/quota/bridge_settings.cpp
+    src/quota/cli_cache.cpp
+    src/quota/cli_join.cpp
     src/quota/codex.cpp
     src/quota/content_decoding.cpp
     src/quota/desktop_entry.cpp
@@ -163,8 +168,10 @@ add_library(agentspeed_quota STATIC
     src/quota/cookies/header.cpp
     src/quota/cookies/reader.cpp
     src/quota/cookies/stores.cpp
+    src/quota/routes/agy_report.cpp
     src/quota/routes/antigravity.cpp
     src/quota/routes/cadence.cpp
+    src/quota/routes/child_process.cpp
     src/quota/routes/credentials.cpp
     src/quota/routes/files.cpp
     src/quota/routes/fingerprint.cpp
@@ -183,7 +190,8 @@ add_library(agentspeed_quota STATIC
     src/quota/vendors/values.cpp
     src/quota/vendors/zai.cpp
 )
-target_link_libraries(agentspeed_quota PUBLIC agentspeed_base agentspeed_statusline_kit)
+find_package(Threads REQUIRED)
+target_link_libraries(agentspeed_quota PUBLIC agentspeed_base agentspeed_statusline_kit Threads::Threads)
 if(AGENTSPEED_STATIC)
     target_link_libraries(agentspeed_quota PUBLIC ${ZLIB_STATIC_LDFLAGS})
 else()
@@ -191,11 +199,35 @@ else()
 endif()
 endif()
 
+# Quota estimates (QUOTAS 10): the app's alone; the relay only sends the keys (REMOTE 11.1).
+if(AGENTSPEED_BUILD_TESTS OR AGENTSPEED_BUILD_APP)
+add_library(agentspeed_estimate STATIC
+    src/quota/estimate/accounts.cpp
+    src/quota/estimate/engine.cpp
+    src/quota/estimate/engine_codex.cpp
+    src/quota/estimate/engine_store.cpp
+    src/quota/estimate/entry.cpp
+    src/quota/estimate/estimator.cpp
+    src/quota/estimate/ledger.cpp
+    src/quota/estimate/model.cpp
+    src/quota/estimate/plan_inference.cpp
+    src/quota/estimate/segments.cpp
+    src/quota/estimate/sign_in.cpp
+    src/quota/estimate/store_file.cpp
+    src/quota/estimate/vote.cpp
+    src/quota/estimate/window_feed.cpp
+)
+target_link_libraries(agentspeed_estimate PUBLIC agentspeed_quota OpenSSL::Crypto)
+endif()
+
 # The character player (spec/CHARACTERS.md): rig, physics, motion, director, performer and readout layout. Plain C++.
 if(AGENTSPEED_BUILD_TESTS OR AGENTSPEED_BUILD_APP)
 add_library(agentspeed_character STATIC
+    src/character/arm_gestures.cpp
+    src/character/behavior.cpp
     src/character/curve.cpp
     src/character/director.cpp
+    src/character/director_living.cpp
     src/character/hand_actor.cpp
     src/character/hud.cpp
     src/character/hud_balance.cpp
@@ -277,5 +309,5 @@ if(AGENTSPEED_BUILD_TESTS OR AGENTSPEED_BUILD_APP)
         src/report/mode_rows.cpp
         src/report/usernames.cpp
     )
-    target_link_libraries(agentspeed_core PUBLIC agentspeed_base agentspeed_quota agentspeed_character PkgConfig::ICU)
+    target_link_libraries(agentspeed_core PUBLIC agentspeed_base agentspeed_quota agentspeed_estimate agentspeed_character PkgConfig::ICU)
 endif()

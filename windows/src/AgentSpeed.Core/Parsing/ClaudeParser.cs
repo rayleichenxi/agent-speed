@@ -17,6 +17,12 @@ internal sealed class ClaudeParser : TranscriptParser<ClaudeLine>
     private readonly bool _qoderCli;
     private readonly HashSet<string> _claimedOnly = new(StringComparer.Ordinal);
     private readonly Queue<string> _claimedOrder = new();
+
+    /// <summary>
+    /// The start the first usage-less line of a claimed key consumed: the line of that key that carries usage takes it
+    /// (METRICS 4.19; the Qoder desktop app splits one call into several lines of one message id, issue #73).
+    /// </summary>
+    private readonly Dictionary<string, long> _claimedStarts = new(StringComparer.Ordinal);
     private readonly Dictionary<string, ParsedResponse> _recent = new(StringComparer.Ordinal);
     private readonly Queue<string> _recentOrder = new();
     private static readonly ExecutionModeFact Ultracode =
@@ -57,6 +63,7 @@ internal sealed class ClaudeParser : TranscriptParser<ClaudeLine>
         _recentOrder.Clear();
         _claimedOnly.Clear();
         _claimedOrder.Clear();
+        _claimedStarts.Clear();
         _pendingStartMs = null;
         _preciseStart = false;
         _ultraSession = false;
@@ -122,6 +129,13 @@ internal sealed class ClaudeParser : TranscriptParser<ClaudeLine>
 
                 SetPhase(AgentPhase.Generating, ts, _pendingStartMs);
                 break;
+            // A failed attempt that Claude Code retries: nothing is generated until the next one starts.
+            case ClaudeLineKind.System when line.IsRetryWait && Phase == AgentPhase.Generating:
+                SetPhase(AgentPhase.Generating, ts, null);
+                break;
+            case ClaudeLineKind.Assistant when IsSynthetic(in line):
+                ApplySynthetic(in line, ts);
+                break;
             case ClaudeLineKind.Assistant when _qoderCli:
                 ApplyQoderCliAssistant(in line, ts, sink);
                 break;
@@ -131,11 +145,26 @@ internal sealed class ClaudeParser : TranscriptParser<ClaudeLine>
         }
     }
 
+    private static bool IsSynthetic(in ClaudeLine line) => string.Equals(line.Model, "<synthetic>", StringComparison.Ordinal);
+
+    /// <summary>A synthetic line creates no response; Claude Code's API error message also ends the turn (METRICS 4.1).</summary>
+    private void ApplySynthetic(in ClaudeLine line, long ts)
+    {
+        if (!line.IsApiError)
+        {
+            return;
+        }
+
+        _pendingStartMs = null;
+        _preciseStart = false;
+        SetPhase(AgentPhase.Idle, ts, null);
+    }
+
     protected override ClaudeLine Extract(ReadOnlySpan<byte> line) => ClaudeLineReader.Read(line);
 
     private void ApplyAssistant(in ClaudeLine line, long ts, IResponseSink sink)
     {
-        if (string.Equals(line.Model, "<synthetic>", StringComparison.Ordinal) || line.Key is not { } key)
+        if (line.Key is not { } key)
         {
             return;
         }
@@ -214,7 +243,7 @@ internal sealed class ClaudeParser : TranscriptParser<ClaudeLine>
     /// </summary>
     private void ApplyQoderCliAssistant(in ClaudeLine line, long ts, IResponseSink sink)
     {
-        if (string.Equals(line.Model, "<synthetic>", StringComparison.Ordinal) || (line.MessageId ?? line.Uuid) is not { } id)
+        if ((line.MessageId ?? line.Uuid) is not { } id)
         {
             return;
         }
@@ -245,10 +274,12 @@ internal sealed class ClaudeParser : TranscriptParser<ClaudeLine>
             }
             else
             {
-                // A key claimed by an earlier line without usage has no response yet; one seen before a reset or beyond the
-                // merge cache is replayed as an update.
-                isCompletion = claimed || ForgetClaimed(key);
-                response = new ParsedResponse(key, Source, AgentId, line.Model, start, ts, tokens, final);
+                // A key claimed by an earlier line without usage has no response yet and takes the start that line
+                // consumed; one seen before a reset or beyond the merge cache is replayed as an update.
+                long? claimedStart = null;
+                var wasClaimed = !claimed && ForgetClaimed(key, out claimedStart);
+                isCompletion = claimed || wasClaimed;
+                response = new ParsedResponse(key, Source, AgentId, line.Model, wasClaimed ? claimedStart : start, ts, tokens, final);
                 _pendingStartMs = null;
                 _preciseStart = false;
             }
@@ -267,7 +298,7 @@ internal sealed class ClaudeParser : TranscriptParser<ClaudeLine>
             }
             else if (claimed)
             {
-                RememberClaimed(key);
+                RememberClaimed(key, start);
             }
 
             _pendingStartMs = null;
@@ -282,7 +313,8 @@ internal sealed class ClaudeParser : TranscriptParser<ClaudeLine>
                 SetPhase(AgentPhase.Tools, ts, null);
                 break;
             case StopReasonKind.Missing or StopReasonKind.PauseTurn:
-                SetPhase(AgentPhase.Generating, ts, response is not null ? response.StartMs ?? ts : start ?? ts);
+                var kept = _claimedStarts.TryGetValue(key, out var claimedAt) ? claimedAt : start;
+                SetPhase(AgentPhase.Generating, ts, response is not null ? response.StartMs ?? ts : kept ?? ts);
                 break;
             default:
                 SetPhase(AgentPhase.Idle, ts, null);
@@ -301,21 +333,31 @@ internal sealed class ClaudeParser : TranscriptParser<ClaudeLine>
         return input == 0 && usage.Output == 0 ? null : usage with { Input = input };
     }
 
-    private void RememberClaimed(string key)
+    private void RememberClaimed(string key, long? start)
     {
         if (!_claimedOnly.Add(key))
         {
             return;
         }
 
+        if (start is { } at)
+        {
+            _claimedStarts[key] = at;
+        }
+
         _claimedOrder.Enqueue(key);
         if (_claimedOrder.Count > ClaimedCapacity && _claimedOrder.TryDequeue(out var oldest))
         {
             _claimedOnly.Remove(oldest);
+            _claimedStarts.Remove(oldest);
         }
     }
 
-    private bool ForgetClaimed(string key) => _claimedOnly.Remove(key);
+    private bool ForgetClaimed(string key, out long? start)
+    {
+        start = _claimedStarts.Remove(key, out var at) ? at : null;
+        return _claimedOnly.Remove(key);
+    }
 
     private bool IsUltracode => _ultraSession || _ultraTurn;
 

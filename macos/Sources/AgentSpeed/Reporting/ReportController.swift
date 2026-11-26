@@ -28,6 +28,8 @@ final class ReportController {
         var username: String
         var apiKey = ""
         var sections: Set<ReportSection>
+        /// The 額度 switch (REPORTING-EXTENSIONS 11.1).
+        var shareQuota = true
         /// The identity is registered; the user reviews changed details only.
         var isReview: Bool
         var isStarting = false
@@ -82,6 +84,9 @@ final class ReportController {
     @ObservationIgnored let userAgent: String
     @ObservationIgnored let defaults: UserDefaults
     @ObservationIgnored var run: ReportRun?
+    /// The quota estimate's entries at a moment for the service of an api origin (REPORTING-EXTENSIONS 11.2), from the
+    /// quota controller.
+    @ObservationIgnored var quotaEntries: (@MainActor (_ nowMs: Int64, _ origin: String) -> [QuotaReportEntry])?
     /// The WebSocket transport session; only while WebSocket is effective (HTTP's `run` is nil then).
     @ObservationIgnored var stream: ReportStreamRun?
     @ObservationIgnored let streamTransport: any ReportStreamTransport
@@ -427,6 +432,8 @@ struct ReportRun {
     var bodies: [Int: Data] = [:]
     /// Tickets whose next attempt is signed with the pending key.
     var signWithPending: Set<Int> = []
+    /// When `quotas` goes out (REPORTING-EXTENSIONS 11.3); a new run starts empty.
+    var quotaCadence = QuotaReportCadence()
 }
 
 /// Monotonic milliseconds that keep counting while the Mac sleeps, so the gap rule sees a sleep (METRICS 11.5).

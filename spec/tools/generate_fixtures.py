@@ -503,6 +503,48 @@ expect(rel, source="claudeDesktop", project="orbit", model="claude-sonnet-5-5", 
        responseModes={"msg_W": {"effort": mode("medium"), "speed": mode("fast", "served", "anthropic")}})
 
 
+def synthetic(ms, mid, api_error=None, **kw):
+    """A `<synthetic>` assistant line; `api_error` = (error, status) makes it Claude Code's API error message."""
+    extra = dict(isApiErrorMessage=True, error=api_error[0], apiErrorStatus=api_error[1]) if api_error else {}
+    return claude("assistant", ms, uuid="uuid-" + mid, **extra, **kw,
+                  message={"id": mid, "type": "message", "role": "assistant", "model": "<synthetic>",
+                           "content": [{"type": "text"}], "stop_reason": "stop_sequence",
+                           "usage": cl_usage(0, 0, 0, 0)})
+
+
+def retry(ms, wait_ms, attempt, **kw):
+    return claude("system", ms, subtype="api_error", level="error", error={"status": 429}, retryInMs=wait_ms,
+                  retryAttempt=attempt, maxRetries=10, **kw)
+
+
+# --- Claude Code: a request that fails after a retry ends the turn (4.1) -------
+rel = "claude/projects/-Users-dev-projects-nova/s-limit.jsonl"
+k = dict(session="s-limit")
+write_jsonl(rel, [
+    user(at(4, 10), "Tag it", **k),
+    claude("api-request", at(4, 10, 50), id="api-L2", **k),
+    retry(at(4, 11), 8000, 1, **k),
+    claude("api-request", at(4, 19), id="api-L3", **k),
+    synthetic(at(4, 20), "msg_L_err", api_error=("rate_limit", 429), **k),
+])
+expect(rel, source="claudeCode", project="nova", model=None, isSubagent=False, parentFile=None,
+       phase="idle", inFlightStartMs=None, lastLineMs=at(4, 20), malformedLines=0,
+       responses=[], effort=None, speed=None, responseModes={})
+
+# --- Claude Code: waiting for a retry, after a synthetic line that is no error --
+rel = "claude/projects/-Users-dev-projects-nova/s-retry.jsonl"
+k = dict(session="s-retry")
+write_jsonl(rel, [
+    user(at(4, 30), "Continue", **k),
+    synthetic(at(4, 30, 100), "msg_R_none", **k),
+    claude("api-request", at(4, 30, 200), id="api-R1", **k),
+    retry(at(4, 31), 4000, 1, **k),
+])
+expect(rel, source="claudeCode", project="nova", model=None, isSubagent=False, parentFile=None,
+       phase="generating", inFlightStartMs=None, lastLineMs=at(4, 31), malformedLines=0,
+       responses=[], effort=None, speed=None, responseModes={})
+
+
 # --- DeepSeek Harness (dsh): zstd frame streams ------------------------------
 
 
@@ -864,6 +906,13 @@ order += qoder_cli["order"]
 files.update(qoder_cli["files"])
 mtimes.update(qoder_cli["mtimes"])
 
+# --- CodeBuddy Code: WorkBuddy's transcript format in the standalone CLI's own folder (workbuddy_fixtures.py) --------
+codebuddy = workbuddy_fixtures.write_codebuddy_fixtures(ROOT)
+assert min(codebuddy["mtimes"].values()) > max(mtimes.values())
+order += codebuddy["order"]
+files.update(codebuddy["files"])
+mtimes.update(codebuddy["mtimes"])
+
 with open(os.path.join(ROOT, "parser-expected.json"), "w", encoding="utf-8") as f:
     json.dump({"_comment": "Process files in `order` with one shared dedupe set, then the OpenCode database, then the "
                            "Antigravity databases in `antigravity.order` (same dedupe set). Paths are relative to this "
@@ -895,10 +944,13 @@ with open(os.path.join(ROOT, "parser-expected.json"), "w", encoding="utf-8") as 
                            "CLI: the folder `qoder-cli` plays a config folder (~/.qoder), so its root is "
                            "qoder-cli/projects; `qoderCli.discover` lists what discovery finds there and its `traces` "
                            "work like the omp ones (spec/tools/qoder_fixtures.py; its day totals are in "
-                           "qoder-expected.json `cli.history`). Every "
+                           "qoder-expected.json `cli.history`). CodeBuddy Code: the folder `codebuddy` plays a config "
+                           "folder (~/.codebuddy), so its root is codebuddy/projects; `codebuddyCode.discover` lists "
+                           "what discovery finds there and its `traces` work like the omp ones. Every "
                            "agent's `effort` and `speed` are the current values of EXECUTION-MODES, so they follow the "
                            "files the fixture folders play: codex/config.toml, gemini/settings.json, "
-                           "antigravity/config/config.json, workbuddy/*/workbuddy.db and settings.json, and "
+                           "antigravity/config/config.json, workbuddy/*/workbuddy.db and settings.json, "
+                           "codebuddy/settings.json, and "
                            "hermes/home's state.db and config.yaml; `responseModes` never depends on them.",
                "order": order, "files": files, "mtimes": mtimes,
                "opencode": {"database": opencode_rel, "agents": opencode_expected},
@@ -913,7 +965,8 @@ with open(os.path.join(ROOT, "parser-expected.json"), "w", encoding="utf-8") as 
                             "traceSeqs": openclaw["traceSeqs"], "traces": openclaw["traces"]},
                "hermes": hermes,
                "droid": dict(droid["droid"], traces=traces_droid),
-               "qoderCli": {"discover": qoder_cli["discover"], "traces": qoder_cli["traces"]}},
+               "qoderCli": {"discover": qoder_cli["discover"], "traces": qoder_cli["traces"]},
+               "codebuddyCode": {"discover": codebuddy["discover"], "traces": codebuddy["traces"]}},
               f, indent=2, ensure_ascii=False)
     f.write("\n")
 

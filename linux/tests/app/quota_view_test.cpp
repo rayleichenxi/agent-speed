@@ -2,6 +2,7 @@
 
 #include <QDateTime>
 
+#include "../quota_test_support.hpp"
 #include "quota/quota_text.hpp"
 #include "quota/quota_view.hpp"
 #include "strings.hpp"
@@ -52,7 +53,8 @@ TEST(QuotaText, LinesCarryEveryColumnInQuotasTwoOrder) {
     EXPECT_EQ(week.value("reset").toString(), QStringLiteral("3 小時 12 分後重置"));
     EXPECT_EQ(week.value("short").toString(), QStringLiteral("3h"));
     EXPECT_GT(week.value("pace").toDouble(), 0.98);
-    EXPECT_TRUE(week.value("tooltip").toString().startsWith(QStringLiteral("更新於 ")));
+    // The long reset leads the tooltip: the row shows the short one.
+    EXPECT_TRUE(week.value("tooltip").toString().startsWith(QStringLiteral("3 小時 12 分後重置\n更新於 ")));
     EXPECT_TRUE(week.value("tooltip").toString().contains(QStringLiteral("時間進度 98%")));
     EXPECT_EQ(week.value("spoken").toString(), QStringLiteral("7d 已用 96%，3 小時 12 分後重置"));
     // Older than an hour: the age.
@@ -60,6 +62,47 @@ TEST(QuotaText, LinesCarryEveryColumnInQuotasTwoOrder) {
     EXPECT_EQ(lineAt(lines, 2).value("label").toString(), QStringLiteral("Fable 7d"));
     EXPECT_EQ(quota_text::level(80), QStringLiteral("warning"));
     EXPECT_EQ(quota_text::level(79), QStringLiteral("normal"));
+}
+
+// QUOTAS 2, DESIGN 4: a line's age and its tooltip's `quota.updated` follow the window's own time. The fixtures' joined
+// Claude Code snapshot: Fable 7d from the CLI's cache is 2 hours old beside the bridge's fresh 5h and 7d.
+TEST(QuotaText, EachLineTakesItsWindowsOwnTime) {
+    for (const char* name : {"ages", "cacheOnlyAges"}) {
+        SCOPED_TRACE(name);
+        const auto c = quota_test::section("claudeCodeCache")[name];
+        const auto snapshot = quota_test::snapshotOf(c["snapshot"]);
+        ASSERT_TRUE(snapshot);
+        const auto now = *c["nowMs"].truncated();
+        const auto expected = c["expected"].elements();
+        Strings strings;
+        for (const char* language : {"zh-Hant", "zh-Hans", "en", "ja"}) {
+            SCOPED_TRACE(language);
+            strings.setChoice(QString::fromUtf8(language));
+            const auto lines = quota_text::lines(*snapshot, now, strings, quota_text::format(strings));
+            ASSERT_EQ(lines.size(), static_cast<qsizetype>(expected.size()));
+            for (std::size_t i = 0; i < expected.size(); ++i) {
+                const auto line = lineAt(lines, static_cast<int>(i));
+                EXPECT_EQ(line.value("label").toString(), QString::fromStdString(*expected[i]["label"].string()));
+                const auto age = fixtures::optString(expected[i]["age"][language]);
+                EXPECT_EQ(line.value("age").toString(), age ? QString::fromStdString(*age) : QString());
+                const auto at = *expected[i]["observedMs"].truncated();
+                const auto updated = strings.fmt(QStringLiteral("quota.updated"), {quota_text::updatedTime(at, now)});
+                const auto tooltip = line.value("tooltip").toString();
+                EXPECT_TRUE(tooltip.split(QLatin1Char('\n')).contains(updated)) << tooltip.toStdString();
+            }
+        }
+    }
+    // The joined snapshot: only Fable 7d says it is old, and its tooltip gives the cache's time.
+    const auto c = quota_test::section("claudeCodeCache")["ages"];
+    Strings strings;
+    strings.setChoice(QStringLiteral("en"));
+    const auto lines = quota_text::lines(*quota_test::snapshotOf(c["snapshot"]), *c["nowMs"].truncated(), strings, quota_text::format(strings));
+    ASSERT_EQ(lines.size(), 3);
+    EXPECT_TRUE(lineAt(lines, 0).value("age").toString().isEmpty());
+    EXPECT_TRUE(lineAt(lines, 1).value("age").toString().isEmpty());
+    EXPECT_EQ(lineAt(lines, 2).value("age").toString(), QStringLiteral("updated 2 h ago"));
+    EXPECT_NE(lineAt(lines, 2).value("tooltip").toString(), lineAt(lines, 1).value("tooltip").toString());
+    EXPECT_EQ(lineAt(lines, 2).value("percentText").toString(), QStringLiteral("100%"));
 }
 
 TEST(QuotaText, MonthAndCreditsFollowTheLanguage) {
@@ -185,4 +228,112 @@ TEST(QuotaStrings, TheLinuxConsentTextExistsInEveryLanguage) {
         EXPECT_TRUE(text.contains(QStringLiteral("Qoder")) && text.contains(QStringLiteral("qoder.com"))) << language;
         EXPECT_FALSE(text.contains(QStringLiteral("macOS"))) << language;
     }
+}
+
+namespace {
+
+namespace est = agentspeed::quota::estimate;
+
+// QUOTAS 10.7, 10.8: a 7-day window at 41 %, extrapolated to 43.2 %, US$4,938 used of about US$5,742.
+est::Entry weekEstimate(std::int64_t now) {
+    est::Entry e;
+    e.source = "claudeCode";
+    e.sources = {"claudeCode"};
+    e.kind = "sevenDay";
+    e.minutes = 10080;
+    e.usedPercent = 41;
+    e.liveExact = 43.2;
+    e.livePercent = 43.2;
+    e.liveEstimated = true;
+    e.resetsAtMs = now + 3 * kHour + 12 * 60'000;
+    e.usedMicroUsd = 4'938'200'000;
+    e.capMicroUsd = 5'742'000'000;
+    e.lowMicroUsd = 5'629'000'000;
+    e.highMicroUsd = 5'857'000'000;
+    e.accountUsedMicroUsd = 2'480'000'000;
+    e.confidence = est::Confidence::Medium;
+    e.coverage = 0.904;
+    e.windows = 2;
+    e.plan = "claude_max";
+    e.tier = "default_claude_max_20x";
+    return e;
+}
+
+}  // namespace
+
+TEST(QuotaText, AnEstimateGivesTheLivePercentTheAmountAndTheDetails) {
+    Strings strings;
+    strings.setChoice(QStringLiteral("zh-Hant"));
+    const auto now = nowMs();
+    const quota::Snapshot snapshot{SourceKind::ClaudeCode, now - 60'000, {quota::makeWindow(quota::Kind::SevenDay, 41, now + 3 * kHour + 12 * 60'000)}};
+    const std::vector<est::Entry> estimates{weekEstimate(now)};
+    const auto line = lineAt(quota_text::lines(snapshot, now, strings, quota_text::format(strings), &estimates), 0);
+    EXPECT_EQ(line.value("percentText").toString(), QStringLiteral("43%"));
+    EXPECT_NEAR(line.value("fraction").toDouble(), 0.432, 1e-9);
+    EXPECT_TRUE(line.value("estimated").toBool());
+    EXPECT_EQ(line.value("amount").toString(), QStringLiteral("US$4,938"));
+    EXPECT_EQ(line.value("cap").toString(), QStringLiteral(" / ≈5,742"));
+    const auto details = line.value("details").toStringList();
+    ASSERT_EQ(details.size(), 7);
+    EXPECT_EQ(details.at(0), QStringLiteral("本機已用 US$4,938"));
+    EXPECT_EQ(details.at(1), QStringLiteral("上限約 US$5,742（範圍 US$5,629–5,857）"));
+    EXPECT_EQ(details.at(3), QStringLiteral("這台電腦看到這個週期 90% 的用量"));
+    EXPECT_EQ(details.at(4), QStringLiteral("可信度中 · 依據 2 個週期"));
+    EXPECT_EQ(details.at(5), QStringLiteral("方案：claude_max · default_claude_max_20x"));
+    EXPECT_FALSE(line.value("note").toString().isEmpty());
+    EXPECT_EQ(line.value("spoken").toString(), QStringLiteral("7d 已用 43%，3 小時 12 分後重置、已用 US$4,938，上限約 US$5,742、估計值"));
+    // The orb card reads no amount (DESIGN 2a.6).
+    EXPECT_EQ(line.value("spokenCard").toString(), QStringLiteral("7d 已用 43%，3 小時 12 分後重置、估計值"));
+
+    // Another currency: the cap without its symbol, the tooltip with the US dollars.
+    const auto twd = lineAt(quota_text::lines(snapshot, now, strings, quota_text::format(strings), &estimates, {QStringLiteral("TWD"), QStringLiteral("32.5")}), 0);
+    EXPECT_EQ(twd.value("amount").toString(), QStringLiteral("NT$160,492"));
+    EXPECT_EQ(twd.value("cap").toString(), QStringLiteral(" / ≈186,615"));
+    EXPECT_EQ(twd.value("details").toStringList().at(0), QStringLiteral("本機已用 NT$160,492（US$4,938）"));
+
+    // Confidence none: the amount alone, no details; no spend and no estimate: an empty cell.
+    auto none = weekEstimate(now);
+    none.confidence = est::Confidence::None;
+    none.capMicroUsd.reset();
+    none.lowMicroUsd.reset();
+    none.highMicroUsd.reset();
+    const std::vector<est::Entry> noCap{none};
+    const auto plain = lineAt(quota_text::lines(snapshot, now, strings, quota_text::format(strings), &noCap), 0);
+    EXPECT_EQ(plain.value("amount").toString(), QStringLiteral("US$4,938"));
+    EXPECT_TRUE(plain.value("cap").toString().isEmpty());
+    EXPECT_TRUE(plain.value("details").toStringList().isEmpty());
+    none.usedMicroUsd = 0;
+    const std::vector<est::Entry> empty{none};
+    EXPECT_TRUE(lineAt(quota_text::lines(snapshot, now, strings, quota_text::format(strings), &empty), 0).value("amount").toString().isEmpty());
+}
+
+// QUOTAS 10.2 and 10.8, DESIGN 4: an inferred plan reads quota.estimate.planInferred, with the tier after ` · ` when
+// known; a plan the vendor named keeps quota.estimate.plan.
+TEST(QuotaText, AnInferredPlanIsMarkedInTheDetails) {
+    Strings strings;
+    const auto now = nowMs();
+    const quota::Snapshot snapshot{SourceKind::ClaudeDesktop, now - 60'000, {quota::makeWindow(quota::Kind::SevenDay, 41, now + 3 * kHour + 12 * 60'000)}};
+    const auto planLine = [&](const est::Entry& e) {
+        const std::vector<est::Entry> estimates{e};
+        const auto details = lineAt(quota_text::lines(snapshot, now, strings, quota_text::format(strings), &estimates), 0).value("details").toStringList();
+        return details.size() == 7 ? details.at(5) : QStringLiteral("(%1 lines)").arg(details.size());
+    };
+    auto ultra = weekEstimate(now);
+    ultra.source = "claudeDesktop";
+    ultra.sources = {"claudeDesktop"};
+    ultra.plan = "claude_ultra";
+    ultra.tier.reset();
+    ultra.planInferred = true;
+    auto max5 = ultra;
+    max5.plan = "claude_max";
+    max5.tier = "default_claude_max_5x";
+    auto named = max5;
+    named.planInferred = false;
+    strings.setChoice(QStringLiteral("zh-Hant"));
+    EXPECT_EQ(planLine(ultra), QStringLiteral("方案：claude_ultra（依額度推算）"));
+    EXPECT_EQ(planLine(max5), QStringLiteral("方案：claude_max · default_claude_max_5x（依額度推算）"));
+    EXPECT_EQ(planLine(named), QStringLiteral("方案：claude_max · default_claude_max_5x"));
+    strings.setChoice(QStringLiteral("en"));
+    EXPECT_EQ(planLine(ultra), QStringLiteral("Plan: claude_ultra (inferred from the quota)"));
+    EXPECT_EQ(planLine(named), QStringLiteral("Plan: claude_max · default_claude_max_5x"));
 }

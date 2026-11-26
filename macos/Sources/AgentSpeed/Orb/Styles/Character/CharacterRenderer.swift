@@ -21,7 +21,7 @@ final class CharacterRenderer: CharacterLayerProvider {
         static let peak = 7
     }
 
-    private var stage: CharacterStage?
+    private(set) var stage: CharacterStage?
     private var loaded: [String: LoadedCharacter] = [:]
     private var hud = CharacterHud(seed: 5, unit: 1)
     private var particles = CharacterParticles()
@@ -32,7 +32,7 @@ final class CharacterRenderer: CharacterLayerProvider {
     /// Reused every frame: agent colors, her outline, skinned positions, card sizes and switches.
     private var agents: [(Double, Double, Double)] = []
     private var wings = HudWings()
-    private var silhouette: HudSilhouette?
+    private(set) var silhouette: HudSilhouette?
     private var scratch: [Double] = []
     private var cardSizes = [(w: Double, h: Double)](repeating: (0, 0), count: HudCard.allCases.count)
     private var cardShown = [Bool](repeating: false, count: HudCard.allCases.count)
@@ -45,6 +45,13 @@ final class CharacterRenderer: CharacterLayerProvider {
     private var bolt: [SIMD2<Double>] = []
     /// The last pack looked up, so a frame does not hash the pack folder again.
     private var lastPack: (folder: URL, version: Int, loaded: LoadedCharacter)?
+    /// The live inputs' event counts already passed to her (nil before the first frame, so old events never fire).
+    var seenPeaks: Int?
+    var seenTroubles: Int?
+    var seenClicks: Int?
+    /// Her face center and the pointer on the canvas this frame (the frame harness's trace).
+    var lastFace: (x: Double, y: Double)?
+    var lastPointer: CGPoint?
     private static var seeds: UInt64 = 7
 
     // MARK: CharacterLayerProvider
@@ -82,7 +89,8 @@ final class CharacterRenderer: CharacterLayerProvider {
         case .soft: 0.5
         default: 1
         }
-        self.stage!.step(dt, level: frame.speedLevel)
+        let inputs = behaviorInputs(frame, live: character?.live, performer: self.stage!.current)
+        self.stage!.step(dt, level: frame.speedLevel, inputs: inputs)
         guard let stage = self.stage else { return }
         if loaded.count > 1, stage.incoming == nil, stage.outgoing == nil {
             loaded = [stage.current.pack.id: loaded[stage.current.pack.id] ?? pack]
@@ -212,7 +220,7 @@ final class CharacterRenderer: CharacterLayerProvider {
         var d: Double
     }
 
-    private func geometry(_ frame: OrbFrame, _ performer: CharacterPerformer) -> Geometry {
+    func geometry(_ frame: OrbFrame, _ performer: CharacterPerformer) -> Geometry {
         let d = Double(frame.s)
         let height = Self.height * d
         let ppp = height / max(1, performer.idleHeight)
@@ -238,9 +246,9 @@ final class CharacterRenderer: CharacterLayerProvider {
     private func drawCharacter(_ loaded: LoadedCharacter, _ performer: CharacterPerformer, alpha: Double, frame: OrbFrame,
                                scene: inout OrbScene, now: TimeInterval) {
         let g = geometry(frame, performer)
-        // Keep the pose the band asks for resident too, so a swap finds its atlas ready.
-        if let band = performer.band {
-            let wanted = performer.poseIndex(for: band)
+        // Keep the pose the band or the mood asks for resident too, so a swap finds its atlas ready.
+        if performer.band != nil {
+            let wanted = performer.wantedPose
             if wanted != performer.activePose { _ = atlas(loaded, performer, pose: wanted, g: g, scene: scene, now: now) }
         }
         if let fading = performer.fadingPose {
@@ -358,7 +366,9 @@ final class CharacterRenderer: CharacterLayerProvider {
         cardShown[HudCard.model.rawValue] = readouts.model && has(.model)
         cardShown[HudCard.performance.rawValue] = readings?.performanceLoud == true && has(.performance)
         cardShown[HudCard.network.rawValue] = readouts.network && readings?.networkLoud == true && has(.network)
-        cardShown[HudCard.cost.rawValue] = readouts.cost && readings?.costLoud == true && has(.cost)
+        // The 今日 row has no quiet rule: the card stays while there is a cost today (user's choice, 2026-11-11).
+        cardShown[HudCard.cost.rawValue] = readouts.cost && (readings?.costLoud == true || readings?.costToday != nil)
+            && has(.cost)
         cardShown[HudCard.agents.rawValue] = readouts.agents && !frame.isSmallCharacter && has(.agents)
         cardShown[models] = readouts.models && readings?.modelsLoud == true && has(.models)
         // No quiet rule: a quota does not change by the second, it shows whenever it applies.
@@ -520,7 +530,7 @@ final class CharacterRenderer: CharacterLayerProvider {
             }
         }
         if let unit = OrbTextCache.shared.texture(frame.content.unit, style: m.unitStyle, language: p.language,
-                                                  scale: scene.backingScale * max(1, p.scale)) {
+                                                  scale: scene.backingScale * p.rasterScale) {
             let unitCap = OrbTextCache.shared.capHeight(m.unitStyle)
             scene.add(p.text(unit, centerX: 0, baseline: 50 * q + unitCap, color: frame.tokens.secondaryText.opacity(p.alpha))
                 .outlined(ink.outline.opacity(ink.outline.alpha * 0.85 * p.alpha), width: ink.width(m.unit) * p.scale))

@@ -7,8 +7,8 @@ enum BundledPriceAssets {
 {
   "_comment": "API list prices for API-equivalent costs (METRICS 9). USD per million tokens. Edit by hand: raise version by one, set updated and each changed entry's checked date, add tests for new id forms, run python3 spec/tools/prices.py. Apps sync this file from main daily (spec/NETWORK.md).",
   "schema": 1,
-  "version": 8,
-  "updated": "2026-11-10",
+  "version": 11,
+  "updated": "2026-11-21",
   "currency": "USD",
   "unit": "perMillionTokens",
   "providers": {
@@ -157,6 +157,7 @@ enum BundledPriceAssets {
           "-low",
           "-medium",
           "-high",
+          "-xhigh",
           "-tiered"
         ]
       },
@@ -672,6 +673,88 @@ enum BundledPriceAssets {
       "source": "https://www.anthropic.com/news/claude-3-family",
       "checked": "2026-10-22",
       "note": "Cache prices derived from the standard multipliers."
+    },
+    {
+      "id": "gpt-6.2-astra",
+      "provider": "openai",
+      "name": "GPT-6.2 Astra",
+      "status": "current",
+      "prices": {
+        "input": 8,
+        "cachedInput": 0.4,
+        "cacheWrite": 10,
+        "output": 40
+      },
+      "tiers": [
+        {
+          "above": 272000,
+          "input": 16,
+          "cachedInput": 0.8,
+          "cacheWrite": 20,
+          "output": 60
+        }
+      ],
+      "fast": {
+        "prices": {
+          "input": 16,
+          "cachedInput": 0.8,
+          "cacheWrite": 20,
+          "output": 80
+        },
+        "tiers": [
+          {
+            "above": 272000,
+            "input": 32,
+            "cachedInput": 1.6,
+            "cacheWrite": 40,
+            "output": 120
+          }
+        ]
+      },
+      "source": "https://developers.openai.com/api/docs/pricing",
+      "checked": "2026-11-17",
+      "note": "Cache writes (30-minute lifetime) cost 1.25x input; 12-hour writes (2.5x) are not separated in logs and are priced as 30-minute writes. Ultrafast mode (its own prices, a promotion through 2027-02-28) is not recorded in logs."
+    },
+    {
+      "id": "gpt-6.2-sol",
+      "provider": "openai",
+      "name": "GPT-6.2 Sol",
+      "status": "current",
+      "prices": {
+        "input": 2,
+        "cachedInput": 0.1,
+        "cacheWrite": 2.5,
+        "output": 10
+      },
+      "tiers": [
+        {
+          "above": 272000,
+          "input": 4,
+          "cachedInput": 0.2,
+          "cacheWrite": 5,
+          "output": 15
+        }
+      ],
+      "fast": {
+        "prices": {
+          "input": 4,
+          "cachedInput": 0.2,
+          "cacheWrite": 5,
+          "output": 20
+        },
+        "tiers": [
+          {
+            "above": 272000,
+            "input": 8,
+            "cachedInput": 0.4,
+            "cacheWrite": 10,
+            "output": 30
+          }
+        ]
+      },
+      "source": "https://developers.openai.com/api/docs/pricing",
+      "checked": "2026-11-17",
+      "note": "Cache writes (30-minute lifetime) cost 1.25x input; 12-hour writes (2.5x) are not separated in logs and are priced as 30-minute writes. Ultrafast mode (its own prices, a promotion through 2027-02-28) is not recorded in logs."
     },
     {
       "id": "gpt-6-astra",
@@ -1781,7 +1864,7 @@ enum BundledPriceAssets {
         "gemini 4 carbon"
       ],
       "source": "https://aistudio.google.com/docs/pricing",
-      "checked": "2026-11-10",
+      "checked": "2026-11-21",
       "note": "Announced price change on 2026-12-01. Implicit caching only."
     },
     {
@@ -1811,8 +1894,50 @@ enum BundledPriceAssets {
         "gemini 4 argon"
       ],
       "source": "https://aistudio.google.com/docs/pricing",
-      "checked": "2026-11-10",
+      "checked": "2026-11-21",
       "note": "Announced price change on 2026-12-01."
+    },
+    {
+      "id": "gemini-4-neon",
+      "provider": "google",
+      "name": "Gemini 4 Neon",
+      "status": "current",
+      "prices": {
+        "input": 3,
+        "cachedInput": 0.15,
+        "output": 15
+      },
+      "aliases": [
+        "gemini 4 neon (low)",
+        "gemini 4 neon (medium)",
+        "gemini 4 neon (high)",
+        "gemini 4 neon (extra)",
+        "gemini 4 neon"
+      ],
+      "source": "https://aistudio.google.com/docs/pricing",
+      "checked": "2026-11-21",
+      "note": "Implicit caching only."
+    },
+    {
+      "id": "gemini-4-hydrogen",
+      "provider": "google",
+      "name": "Gemini 4 Hydrogen",
+      "status": "current",
+      "prices": {
+        "input": 1.5,
+        "cachedInput": 0.075,
+        "output": 7.5
+      },
+      "aliases": [
+        "gemini 4 hydrogen (low)",
+        "gemini 4 hydrogen (medium)",
+        "gemini 4 hydrogen (high)",
+        "gemini 4 hydrogen (extra)",
+        "gemini 4 hydrogen"
+      ],
+      "source": "https://aistudio.google.com/docs/pricing",
+      "checked": "2026-11-21",
+      "note": "Implicit caching only."
     },
     {
       "id": "gemini-3.8-flash",
@@ -4610,6 +4735,30 @@ enum BundledPriceAssets {
       "expect": "gpt-6.1-sol"
     },
     {
+      "model": "gpt-6.2-astra",
+      "expect": "gpt-6.2-astra"
+    },
+    {
+      "model": "openai/gpt-6.2-astra",
+      "expect": "gpt-6.2-astra"
+    },
+    {
+      "model": "gpt-6.2-astra-fast",
+      "expect": "gpt-6.2-astra fast"
+    },
+    {
+      "model": "gpt-6.2-sol",
+      "expect": "gpt-6.2-sol"
+    },
+    {
+      "model": "openai/gpt-6.2-sol",
+      "expect": "gpt-6.2-sol"
+    },
+    {
+      "model": "gpt-6.2-sol-fast",
+      "expect": "gpt-6.2-sol fast"
+    },
+    {
       "model": "gpt-6.1-terra",
       "expect": "gpt-6.1-terra"
     },
@@ -4984,6 +5133,42 @@ enum BundledPriceAssets {
     {
       "model": "Gemini 4 Carbon (High)",
       "expect": "gemini-4-carbon"
+    },
+    {
+      "model": "gemini-4-neon",
+      "expect": "gemini-4-neon"
+    },
+    {
+      "model": "models/gemini-4-neon",
+      "expect": "gemini-4-neon"
+    },
+    {
+      "model": "Gemini 4 Neon (Medium)",
+      "expect": "gemini-4-neon"
+    },
+    {
+      "model": "gemini-4-hydrogen",
+      "expect": "gemini-4-hydrogen"
+    },
+    {
+      "model": "gemini-4-hydrogen-high",
+      "expect": "gemini-4-hydrogen"
+    },
+    {
+      "model": "Gemini 4 Hydrogen (High)",
+      "expect": "gemini-4-hydrogen"
+    },
+    {
+      "model": "gemini-4-carbon-high",
+      "expect": "gemini-4-carbon"
+    },
+    {
+      "model": "gemini-4-neon-xhigh",
+      "expect": "gemini-4-neon"
+    },
+    {
+      "model": "Gemini 4 Hydrogen (Extra)",
+      "expect": "gemini-4-hydrogen"
     },
     {
       "model": "mimo-v2.6-pro",

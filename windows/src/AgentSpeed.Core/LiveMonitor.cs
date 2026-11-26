@@ -71,6 +71,19 @@ public sealed class LiveMonitor : IDisposable
     /// <summary>The newest Codex limits seen in this computer's rollouts (QUOTAS 3), kept across monitor restarts.</summary>
     public Quota.CodexQuotaCollector CodexQuota { get; } = new();
 
+    /// <summary>The quota estimate (QUOTAS 10): every response the engine holds and every Codex token count line; set before <c>Start</c>.</summary>
+    public Quota.Estimate.QuotaEstimator? Estimator
+    {
+        get => _estimator;
+        set
+        {
+            _estimator = value;
+            CodexQuota.LineRead = value is null ? null : value.CodexLine;
+        }
+    }
+
+    private Quota.Estimate.QuotaEstimator? _estimator;
+
     /// <summary>Runs on the pool thread before each background whole-file read (tests make reads slow with it).</summary>
     internal Action<string>? BeforeBackgroundRead { get; set; }
 
@@ -200,6 +213,12 @@ public sealed class LiveMonitor : IDisposable
     /// else <c>~\.qoder-cn\projects</c> (METRICS 2, 4.19).
     /// </summary>
     public static IReadOnlyList<string> DefaultQoderCliRoots => Qoder.QoderCliPaths.AutomaticRoots();
+
+    /// <summary>
+    /// CodeBuddy Code's root: <c>%CODEBUDDY_CONFIG_DIR%\projects</c> when the variable is not blank, else <c>~\.codebuddy\projects</c>
+    /// (METRICS 2, 4.20).
+    /// </summary>
+    public static string DefaultCodeBuddyCodeRoot => WorkBuddy.CodeBuddyCodePaths.AutomaticRoot();
 
     /// <summary>Every automatic OpenClaw state folder: the override alone, else <c>.openclaw</c> and its profiles.</summary>
     public static IReadOnlyList<string> DefaultOpenClawRoots => OpenClaw.OpenClawPaths.AutomaticStateFolders();
@@ -458,6 +477,7 @@ public sealed class LiveMonitor : IDisposable
             configuration, SourceLocations.Resolve(configuration), LocalDay.StartMs(NowMs(), zone), pricing: Pricing, zone: zone)
         {
             CodexQuota = CodexQuota,
+            Spent = _estimator is { } estimator ? estimator.Spent : null,
         };
         core.ReadWholeFilesInBackground = true;
         core.BackgroundReadCompleted = SignalWake;

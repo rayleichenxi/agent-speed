@@ -121,6 +121,16 @@ double chip(Scene& scene, const Pen& pen, bool dark, const QString& string, doub
     return hh * 2;
 }
 
+// The 首字 value's color (DESIGN 2a.6): green, amber or red by its band.
+Rgba latencyColor(format::LatencyTone tone, bool dark) {
+    switch (tone) {
+        case format::LatencyTone::Quick: return Rgba::hex(dark ? 0x30D158 : 0x248A3D);
+        case format::LatencyTone::Slow: return Rgba::hex(dark ? 0xF5A524 : 0xB86E00);
+        case format::LatencyTone::Late: break;
+    }
+    return Rgba::hex(dark ? 0xFF453A : 0xD70015);
+}
+
 Rgba accentOf(const std::shared_ptr<const ac::Pack>& pack) {
     if (!pack) return Rgba{0.85f, 0.47f, 0.34f, 1};
     const QColor c(QString::fromStdString(pack->manifest.accent));
@@ -203,7 +213,16 @@ void CharacterStyle::step(const Frame& f) {
     Lap lap;
     stage_->calm = false;
     stage_->amplitude = f.effects.level == 0 ? 0 : f.effects.level == 1 ? 0.5 : 1;
-    stage_->step(dt, content_.level);
+    // A living pack's inputs (CHARACTERS 5, Behavior): the orb's agents, and the pointer read now, while she draws.
+    std::optional<ac::BehaviorInputs> inputs;
+    if (content_.live && stage_->current().living()) {
+        const auto& current = stage_->current();
+        const auto g = geometry(f, current);
+        const LiveGeometry live{f.center, f.s, 2 * f.center.x(), content_.contentScale, current.faceCenter(g.feetX, g.feetY, g.ppp),
+                                g.height, g.bodyDX};
+        inputs = liveReader_.read(*content_.live, f.time, live, silhouette_ ? &*silhouette_ : nullptr);
+    }
+    stage_->step(dt, content_.level, inputs ? &*inputs : nullptr);
     const auto& performer = stage_->current();
     if (loaded_.size() > 1 && !stage_->incoming() && !stage_->outgoing()) {
         loaded_ = {{performer.pack().id(), performer.packPointer()}};
@@ -286,6 +305,15 @@ QString CharacterStyle::modelText() const {
     return {};
 }
 
+double CharacterStyle::costRatePresence() const {
+    return content_.costTodayAmount.isEmpty() ? 1.0 : std::clamp(content_.costOpacity, 0.0, 1.0);
+}
+
+double CharacterStyle::costRateShare() const {
+    const double p = std::min(1.0, 2 * costRatePresence());
+    return p * p * (3 - 2 * p);
+}
+
 CharacterStyle::PerfRows CharacterStyle::perfRows(const CardMetrics& m) const {
     const auto& in = content_.intel;
     PerfRows r;
@@ -348,11 +376,25 @@ std::array<double, 2> CharacterStyle::cardSize(HudCard card, const Frame& f) con
             return plate(cells.lineWidth(m.t), 2 * CardMetrics::rowHeight(m.t) + m.rowGap);
         }
         case HudCard::Cost: {
-            if (content_.costNumber.isEmpty()) return {0, 0};
-            double w = advance(content_.costGlyph, kUnitScale * m.p, 600) + m.glyphGap() * 1.25 + advance(content_.costNumber, m.p, 600);
-            if (content_.costAtLeast) w += advance(QStringLiteral("≥"), kUnitScale * m.p, 500) + 0.08 * m.p;
-            if (!content_.costUnknown) w += m.cellGap() + advance(content_.costUnit, kUnitScale * m.t, 500);
-            return plate(w, CardMetrics::rowHeight(m.p));
+            const double share = costRateShare();
+            const bool rate = share > 0 && !content_.costNumber.isEmpty();
+            const bool today = !content_.costTodayAmount.isEmpty();
+            if (!rate && !today) return {0, 0};
+            double w = 0, h = 0;
+            if (rate) {
+                double rw = advance(content_.costGlyph, kUnitScale * m.p, 600) + m.glyphGap() * 1.25 + advance(content_.costNumber, m.p, 600);
+                if (content_.costAtLeast) rw += advance(QStringLiteral("≥"), kUnitScale * m.p, 500) + 0.08 * m.p;
+                if (!content_.costUnknown) rw += m.cellGap() + advance(content_.costUnit, kUnitScale * m.t, 500);
+                w = share * rw;
+                h = share * CardMetrics::rowHeight(m.p);
+            }
+            if (today) {
+                double tw = advance(content_.costTodayGlyph, kUnitScale * m.t, 600) + m.glyphGap() + advance(content_.costTodayAmount, m.t, 600);
+                if (content_.costTodayAtLeast) tw += advance(QStringLiteral("≥"), kUnitScale * m.t, 500) + 0.08 * m.t;
+                w = std::max(w, tw);
+                h += (rate ? share * m.rowGap : 0) + CardMetrics::rowHeight(m.t);
+            }
+            return plate(w, h);
         }
         case HudCard::Agents: {
             double w = 0;
@@ -422,7 +464,8 @@ void CharacterStyle::layoutCards(double dt, const Frame& f, const ac::Performer&
     cardShown_[1] = r.model && has(HudCard::Model);
     cardShown_[2] = content_.intel.opacity > 0.5 && has(HudCard::Performance);
     cardShown_[3] = r.network && content_.net.opacity > 0.5 && has(HudCard::Network);
-    cardShown_[4] = r.cost && content_.costOpacity > 0.5 && has(HudCard::Cost);
+    // The 今日 row has no quiet rule: the card stays while there is a cost today (user's choice, 2026-11-11).
+    cardShown_[4] = r.cost && (content_.costOpacity > 0.5 || !content_.costTodayAmount.isEmpty()) && has(HudCard::Cost);
     cardShown_[5] = r.agents && d >= 192 && has(HudCard::Agents);
     cardShown_[models] = r.models && content_.modelsOpacity > 0.5 && has(HudCard::Models);
     // No quiet rule: a quota does not change by the second, it shows whenever it applies; once the wings have measured its
@@ -519,9 +562,9 @@ void CharacterStyle::drawPose(Scene& scene, const Frame& f, const ac::Performer&
 
 void CharacterStyle::drawCharacter(Scene& scene, const Frame& f, const ac::Performer& performer, double alpha, double now) {
     const auto g = geometry(f, performer);
-    // Keep the pose the band asks for resident too, so a swap finds its atlas ready.
-    if (const auto band = performer.band()) {
-        const int wanted = performer.poseIndex(*band);
+    // Keep the pose the band or the mood asks for resident too, so a swap finds its atlas ready.
+    if (performer.band()) {
+        const int wanted = performer.wantedPose();
         if (wanted != performer.activePose()) (void)atlas(performer, wanted, g.ppp, now);
     }
     if (const auto fading = performer.fadingPose()) {
@@ -743,20 +786,21 @@ void CharacterStyle::drawCards(Scene& scene, const Frame& f) {
                     y += CardMetrics::rowHeight(m.p);
                 }
                 // A row that hides fades and the card closes up under it (思考 at zero, 首字 without a value).
-                const auto row = [&](double share, double gap, double column, const QString& glyph, const QString& value, const QString& unit) {
+                const auto row = [&](double share, double gap, double column, const QString& glyph, const QString& value, const QString& unit,
+                                     Rgba valueColor) {
                     const double rowTop = y + gap - (1 - share) * (CardMetrics::rowHeight(m.t) + gap);
                     y += share * (gap + CardMetrics::rowHeight(m.t));
                     if (share <= 0.01) return;
                     const double baseline = rowTop + CardMetrics::baseline(m.t);
                     const Pen faded = pen.faded(share);
                     scene.add(faded.leading(glyph, kUnitScale * m.t, 600, left, baseline, secondary));
-                    scene.add(faded.leading(value, m.t, 600, left + column, baseline, number));
+                    scene.add(faded.leading(value, m.t, 600, left + column, baseline, valueColor));
                     scene.add(faded.leading(unit, kUnitScale * m.t, 500, left + column + advance(value, m.t, 600) + m.cellGap(), baseline, secondary));
                 };
-                if (rows.thinking) row(rows.thinkingShare, score ? m.rowGap : 0, rows.thinkingColumn, in.thinkingGlyph, in.thinking, in.unit);
+                if (rows.thinking) row(rows.thinkingShare, score ? m.rowGap : 0, rows.thinkingColumn, in.thinkingGlyph, in.thinking, in.unit, number);
                 if (rows.latency) {
                     row(rows.latencyShare, score || rows.thinking ? m.rowGap : 0, rows.latencyColumn, content_.latencyGlyph, content_.latencyNumber,
-                        content_.latencyUnit);
+                        content_.latencyUnit, latencyColor(content_.latencyTone, dark));
                 }
                 break;
             }
@@ -792,17 +836,36 @@ void CharacterStyle::drawCards(Scene& scene, const Frame& f) {
             }
             case HudCard::Cost: {
                 plate(pen, size.w, size.h, std::nullopt, spine);
-                const double baseline = top + CardMetrics::baseline(m.p);
-                double x = left;
-                scene.add(pen.leading(content_.costGlyph, kUnitScale * m.p, 600, x, baseline, secondary));
-                x += advance(content_.costGlyph, kUnitScale * m.p, 600) + m.glyphGap() * 1.25;
-                if (content_.costAtLeast) {
-                    scene.add(pen.leading(QStringLiteral("≥"), kUnitScale * m.p, 500, x, baseline, secondary));
-                    x += advance(QStringLiteral("≥"), kUnitScale * m.p, 500) + 0.08 * m.p;
+                const double share = costRateShare();
+                const bool rate = share > 0 && !content_.costNumber.isEmpty();
+                if (rate && costRateAlpha() > 0.01) {
+                    const Pen faded = pen.faded(costRateAlpha());
+                    const double baseline = top + CardMetrics::baseline(m.p);
+                    double x = left;
+                    scene.add(faded.leading(content_.costGlyph, kUnitScale * m.p, 600, x, baseline, secondary));
+                    x += advance(content_.costGlyph, kUnitScale * m.p, 600) + m.glyphGap() * 1.25;
+                    if (content_.costAtLeast) {
+                        scene.add(faded.leading(QStringLiteral("≥"), kUnitScale * m.p, 500, x, baseline, secondary));
+                        x += advance(QStringLiteral("≥"), kUnitScale * m.p, 500) + 0.08 * m.p;
+                    }
+                    scene.add(faded.leading(content_.costNumber, m.p, 600, x, baseline, content_.costUnknown ? secondary : number));
+                    x += advance(content_.costNumber, m.p, 600);
+                    if (!content_.costUnknown) {
+                        scene.add(faded.leading(content_.costUnit, kUnitScale * m.t, 500, x + m.cellGap(), baseline, secondary));
+                    }
                 }
-                scene.add(pen.leading(content_.costNumber, m.p, 600, x, baseline, content_.costUnknown ? secondary : number));
-                x += advance(content_.costNumber, m.p, 600);
-                if (!content_.costUnknown) scene.add(pen.leading(content_.costUnit, kUnitScale * m.t, 500, x + m.cellGap(), baseline, secondary));
+                if (!content_.costTodayAmount.isEmpty()) {
+                    // 今日 $12.34 at t under the rate: the label in the secondary token, the amount in the value token.
+                    const double baseline = top + (rate ? share * (CardMetrics::rowHeight(m.p) + m.rowGap) : 0) + CardMetrics::baseline(m.t);
+                    double x = left;
+                    scene.add(pen.leading(content_.costTodayGlyph, kUnitScale * m.t, 600, x, baseline, secondary));
+                    x += advance(content_.costTodayGlyph, kUnitScale * m.t, 600) + m.glyphGap();
+                    if (content_.costTodayAtLeast) {
+                        scene.add(pen.leading(QStringLiteral("≥"), kUnitScale * m.t, 500, x, baseline, secondary));
+                        x += advance(QStringLiteral("≥"), kUnitScale * m.t, 500) + 0.08 * m.t;
+                    }
+                    scene.add(pen.leading(content_.costTodayAmount, m.t, 600, x, baseline, content_.costTodayUnknown ? secondary : number));
+                }
                 break;
             }
             case HudCard::Agents: {
@@ -926,6 +989,23 @@ void CharacterStyle::drawPeak(Scene& scene, const Frame& f) {
     const Rgba gold{1, 200.0f / 255, 80.0f / 255, 1};
     const Pen pen{QPointF(x, peak->y), peak->scale, 0, peak->alpha * f.alpha};
     chip(scene, pen, f.dark, content_.peakLabel, m.peak, 0, f.dark ? gold : gold.darkened(0.35), gold.opacity(0.5));
+}
+
+QString CharacterStyle::behaviorTrace() const {
+    if (!stage_) return QStringLiteral("-");
+    const auto& performer = stage_->current();
+    const auto& d = performer.director();
+    const auto text = [](auto value) { return value ? QString::fromUtf8(std::string(*value).c_str()) : QStringLiteral("-"); };
+    const auto angle = d.value("AngleX");
+    QString out = QStringLiteral("mood=%1 pose=%2 face=%3 gaze=%4 mouth=%5 action=%6 angleX=%7 acting=%8")
+                      .arg(d.mood() ? QString::fromUtf8(std::string(ac::moodName(*d.mood())).c_str()) : QStringLiteral("-"),
+                           QString::fromStdString(performer.pack().poses[static_cast<std::size_t>(performer.activePose())].name()),
+                           text(d.expression()), text(d.gazePatch()), text(d.mouthShape()), text(d.activeGesture()),
+                           angle ? QString::number(*angle, 'f', 2) : QStringLiteral("-"),
+                           performer.isActing() ? QStringLiteral("true") : QStringLiteral("false"));
+    if (liveReader_.lastFace) out += QStringLiteral(" faceAt=%1,%2").arg(liveReader_.lastFace->first, 0, 'f', 1).arg(liveReader_.lastFace->second, 0, 'f', 1);
+    if (liveReader_.lastPointer) out += QStringLiteral(" pointer=%1,%2").arg(liveReader_.lastPointer->x(), 0, 'f', 1).arg(liveReader_.lastPointer->y(), 0, 'f', 1);
+    return out;
 }
 
 }  // namespace orb

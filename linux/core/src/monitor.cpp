@@ -49,7 +49,7 @@ std::int64_t nextEpoch() {
 
 std::set<SourceKind> MonitorConfig::allSources() {
     std::set<SourceKind> all;
-    for (int k = 0; k <= static_cast<int>(SourceKind::QoderCli); ++k) all.insert(static_cast<SourceKind>(k));
+    for (int k = 0; k <= static_cast<int>(SourceKind::CodeBuddyCode); ++k) all.insert(static_cast<SourceKind>(k));
     return all;
 }
 
@@ -102,6 +102,7 @@ bool Monitor::familyEnabled(RootFamily family) const {
         case RootFamily::Devin: return e.contains(SourceKind::Devin);
         case RootFamily::Qoder: return e.contains(SourceKind::Qoder);
         case RootFamily::QoderCli: return e.contains(SourceKind::QoderCli);
+        case RootFamily::CodeBuddyCode: return e.contains(SourceKind::CodeBuddyCode);
     }
     return false;
 }
@@ -148,9 +149,7 @@ Monitor::Tracked& Monitor::track(std::size_t root, const std::string& path) {
     file->root = root;
     file->tailer = makeTailer(roots_[root].family, path);
     file->parser = makeParser(roots_[root].family, path, roots_[root].path, deduper_);
-    if (auto* codex = dynamic_cast<CodexParser*>(file->parser.get()); codex && rateLimitObserver_) {
-        codex->setRateLimitObserver(rateLimitObserver_);
-    }
+    observeRateLimits(*file);
     if (work::hasActions(file->parser->source())) {
         file->actions = makeActions(path, file->parser->source());
         file->parser->setLineObserver(file->actions.get());
@@ -160,11 +159,27 @@ Monitor::Tracked& Monitor::track(std::size_t root, const std::string& path) {
     return ref;
 }
 
+void Monitor::observeRateLimits(Tracked& file) {
+    auto* codex = dynamic_cast<CodexParser*>(file.parser.get());
+    if (!codex || (!rateLimitObserver_ && !rateLimitLineObserver_)) return;
+    codex->setRateLimitObserver([this, agent = codex->agentId()](const json::Value& limits, std::int64_t ts) {
+        if (rateLimitObserver_) rateLimitObserver_(limits, ts);
+        if (rateLimitLineObserver_) rateLimitLineObserver_(agent, limits, ts);
+    });
+}
+
 void Monitor::setRateLimitObserver(std::function<void(const json::Value&, std::int64_t)> observer) {
     rateLimitObserver_ = std::move(observer);
-    for (auto& [path, file] : files_) {
-        if (auto* codex = dynamic_cast<CodexParser*>(file->parser.get())) codex->setRateLimitObserver(rateLimitObserver_);
-    }
+    for (auto& [path, file] : files_) observeRateLimits(*file);
+}
+
+void Monitor::setRateLimitLineObserver(std::function<void(const std::string&, const json::Value&, std::int64_t)> observer) {
+    rateLimitLineObserver_ = std::move(observer);
+    for (auto& [path, file] : files_) observeRateLimits(*file);
+}
+
+void Monitor::forEachPriced(const std::function<void(const ParsedResponse&, const std::string&, std::optional<std::int64_t>)>& visit) const {
+    store_->forEachPriced(visit);
 }
 
 std::optional<Monitor::Plan> Monitor::planInitialRead(Tracked& file, const discovery::DiscoveredFile& found,
@@ -603,7 +618,7 @@ int Monitor::sessionCount(SourceKind kind, std::int64_t todayStartMs) const {
     }
     const bool mainOnly = kind == SourceKind::WorkBuddy || kind == SourceKind::WorkBuddyAi || kind == SourceKind::Kimi ||
                           kind == SourceKind::GrokBuild || kind == SourceKind::Pi || kind == SourceKind::Droid ||
-                          kind == SourceKind::QoderCli;
+                          kind == SourceKind::QoderCli || kind == SourceKind::CodeBuddyCode;
     int count = 0;
     for (const auto& [path, file] : files_) {
         const auto& p = *file->parser;

@@ -301,6 +301,7 @@ White-hot core for highlights: `#FFF7D6`. With overdrive `o > 0`, highlights ble
 | Devin | `#557F14` fern |
 | Qoder IDE | `#B3329D` orchid |
 | Qoder CLI | `#7E61B6` heather |
+| CodeBuddy Code | `#18AB06` leaf |
 
 Pink is `#EC4899`, not the lighter `#F472B6` (too close to coral and lilac); lime is `#84CC16`, not the lighter `#A3E635`, which nearly vanishes on light backgrounds.
 
@@ -337,6 +338,14 @@ against `#1E1E1E`: 3.5; against white: 4.7). Like every source it has no icon an
 `source.devin` "Devin", in source order (METRICS 1) after Factory Droid.
 
 Qoder IDE and Qoder CLI, one product line, take two members of one purple family, as the two WorkBuddy editions share teal: orchid `#B3329D` (OKLCH L 0.55, C 0.20, h 336°) for the editor and heather `#7E61B6` (L 0.56, C 0.13, h 298°), bluer and quieter, for the CLI. The magenta–violet stretch between Antigravity's pink and Pi's violet is the last one with room: orchid is at least 0.126 (OKLab) from every other source color and from the slate `#7C8798` (closest: Antigravity pink 0.126, Pi violet 0.145, Kimi rose 0.170), heather at least 0.124 (closest: Pi violet 0.124, WorkBuddy AI ocean 0.124, slate 0.125, orchid 0.126); both read on both appearances (contrast against `#1E1E1E`: 3.1 and 3.4; against white: 5.4 and 4.9). Like every source they have no icon and no short name: their dots and `source.qoder` "Qoder IDE" and `source.qoderCli` "Qoder CLI", in source order (METRICS 1) after Devin.
+
+CodeBuddy Code takes leaf `#18AB06` (OKLCH L 0.64, C 0.21, h 142°). Its brand green `#00BC90` (the CLI's logo) is
+WorkBuddy's teal again, 0.064 (OKLab) from WorkBuddy jade and 0.069 from Codex mint, and no darker teal reaches 0.12
+from WorkBuddy AI ocean and Devin fern. Leaf keeps the green and leaves the teal: it sits between WorkBuddy jade, omp
+lime and Devin fern and is at least 0.13 from every other source color and from the slate `#7C8798` (closest: Devin
+fern 0.131, omp lime 0.131, WorkBuddy jade 0.132, Codex mint 0.157) and reads on both appearances (contrast against
+`#1E1E1E`: 5.5; against white: 3.1). Like every source it has no icon and no short name: its dot and
+`source.codebuddyCode` "CodeBuddy Code", in source order (METRICS 1) after Qoder CLI.
 
 The two WorkBuddy editions share one app icon, teal-green (`#0EC8A8` → `#05C890`), which is nearly Codex mint (OKLab
 distance about 0.04; the closest existing pair, coral and amber, is 0.11 apart). So both take a darker member of that teal family,
@@ -421,6 +430,18 @@ value in the idle tier of section 1 all that time, counted from launch at the ea
 its opacity over 0.6 s ease-in-out; restore instantly on activity (the tier leaves idle), hover or a drag, or when the
 switch is turned off, and fade again about 2 s after the pointer leaves. Reduce Motion: the fade is a cut too. The fade
 is the only motion it adds: once faded, an idle window draws no more than an idle one that is not faded.
+Optional "hide when idle" (setting, per orb, 2b, off by default; issue #64's idea; boards do not have it): after the
+same 60 s idle, with the same hover and drag deferral, the orb fades to 0 over 0.6 s ease-in-out and its window then
+leaves the screen: nothing is drawn, the pointer passes through where it was (moving over that place never brings it
+back), and its name plate, source chip and character cards go with it. It keeps its position and its place for
+placement, snapping and magnets, and its sources keep being followed. It returns at its place with its own opacity,
+over 0.12 s, on activity (the orb's tier leaves idle); turning this switch off, or turning the orb's `visible` or the
+master switch on (in Settings or the quick menu), also brings it back and starts the 60 s again. Reduce
+Motion: both changes are cuts. With fade when idle on as well, hiding replaces the fade (no 45 % step). Turning this
+switch on starts the 60 s afresh: an orb that is already idle stays (at its full opacity, even where the fade had
+dimmed it) until then. During the 0.6 s fade a hover or a drag brings it back, as for the fade; once it has left the
+screen nothing under the pointer does. Hiding is never written to `visible`: an orb the user hid stays hidden, and
+the master switch hides every orb as before.
 
 Hover: the orb scales to 1.03 (spring), the title label crossfades to a compact info line
 (`今日 1.2M · 3 個 agent`, counted over the orb's sources), and the cursor shows it is draggable. An orb tracking a
@@ -944,8 +965,9 @@ raised arm, a held-out staff or open wings push a card away instead of covering 
   fastest first — the vendor's accent dot (the theme color of an installed character of the model's vendor, CHARACTERS
   7, else of the catalog's, else the secondary token; Increase Contrast: the system highlight color; a model run by
   several agents takes the vendor of its fastest agent), the model's **display name** at `t` in the value token, and
-  its speed at the trailing edge, a whole number of tok/s in tabular digits with the unit `tok/s` once, after the
-  first row's number when it has one, in the secondary token (`–` while the model has no timed response yet). The
+  its speed at the trailing edge, a whole number of tok/s in tabular digits with the unit `tok/s` after each row's
+  number in the secondary token (user's choice 2026-11-11; it was once, after the first row), in a cell the card
+  keeps while any row has a speed (`–` and no unit while the model has no timed response yet). The
   display name is the id without a trailing date (`-YYYYMMDD` or `-YYYY-MM-DD`: `claude-sonnet-4-5-20250929` →
   `claude-sonnet-4-5`; user's choice, 2026-11-10), truncated at its end with `…` beyond the name width. At most 4
   rows; more models add a fifth, secondary line `character.models.more` (`+3 個模型`), counting every running model
@@ -960,7 +982,9 @@ raised arm, a held-out staff or open wings push a card away instead of covering 
     after 4 s; a change of place fades out and in (0.18 s / 0.3 s) instead of crossing her or another card.
   - Accessibility reads `a11y.orb.models` with one `a11y.orb.modelSpeed` per running model (the full id; the model
     alone while it has no speed), every running model, drawn or not, joined by `list.separator`, after the cost; the
-    首字 row adds `a11y.orb.latency` (the shown value with its unit) after the 性能 reading.
+    首字 row adds `a11y.orb.latency` (the shown value with its unit) after the 性能 reading, and the 費用 card's 今日 row
+    `a11y.orb.costToday` (the amount with the currency's name, `a11y.orb.costAtLeast` when partial, `cost.unknown` for
+    `–`) after the cost reading, whenever the row shows.
 - **Model** (`character.readouts.model`, off by default): a glass chip with the vendor's accent dot and the fastest
   model's name, centered over her head `0.03 D` above its top (face, hair, headwear and ears), pushed up past anything
   of her that rises under it. With no live model it shows the last one.
@@ -970,11 +994,17 @@ raised arm, a held-out staff or open wings push a card away instead of covering 
   `首字 1.2 s` at `t`, `character.readouts.latency`, on by default, user's choice 2026-11-10: the orb's first-content
   latency of METRICS 6.9 *Readouts of a set*, its label `character.latency.glyph`, the value in the value token and
   the unit in the secondary one — below 1 s whole milliseconds rounded to the nearest 10 with `perf.unit.ms`
-  (`850 ms`), from 1 s one decimal with `perf.unit.s` (`1.2 s`), from 10 s whole seconds (`14 s`); shown while the
-  value exists, fading in and out (0.25 s) as the card eases to its height, so an orb of sources without first-content
-  times never shows the row), **network**
+  (`850 ms`), from 1 s one decimal with `perf.unit.s` (`1.2 s`), from 10 s whole seconds (`14 s`). The value's color
+  follows the value as shown (user's choice 2026-11-11): below 10 s green (`#30D158`, light `#248A3D`), 10–14 s amber
+  (`#F5A524`, light `#B86E00`), from 15 s red (`#FF453A`, light `#D70015`); it changes with the value. Increase
+  Contrast: the value token. Shown while the value exists, fading in and out (0.25 s) as the card eases to its
+  height, so an orb of sources without first-content times never shows the row), **network**
   (`↓` over `↑`, fixed cells as in section 10), **費用** (`cost.glyph`, the live cost rate at `p` with `≥` when partial,
-  `–` when nothing is priced, and the money unit), **today** (`boards.today` with today's tokens over
+  `–` when nothing is priced, and the money unit; under it a row `今日 $12.34` at `t`, user's choice 2026-11-11: the
+  label `character.cost.today` in the secondary token and today's cost of the billable sources of `A` (METRICS 6.8,
+  `Σ todayCost_s`, 9.6) as section 9 *Amount* with its symbol in the value token, `≥` before it when part of today is
+  unpriced, `–` when nothing today is priced, shown while those sources have a request today; the rate row shows while
+  the card is loud and then fades (0.25 s) as the card closes up under it, leaving the 今日 row), **today** (`boards.today` with today's tokens over
   `agents.count`) and last **額度** (below). `t = max(8, 0.027 D)` pt. The cards' right edges share one line `0.035 D` clear of her outline over
   every row the column spans; the column may move up or down (±0.04 … 0.12 D) to where it fits. Cards are `0.022 D`
   apart; a hidden card's room closes up as it fades.
@@ -986,9 +1016,10 @@ raised arm, a held-out staff or open wings push a card away instead of covering 
     secondary token, then one line per window in QUOTAS 2 order.
   - A window line: the label (`5h`, `7d`, `Fable 7d`) at `0.9 t` in the secondary token, in a column as wide as the
     card's widest label; `0.5 t`; the bar, `5 t` long and `0.26 t` tall, fully rounded; `0.5 t`; the percent at `t` in
-    the value token, tabular, right-aligned in a cell as wide as `100%`; `0.4 t`; the short reset (QUOTAS 7: `42m`,
-    `3h`, `週五`) at `0.9 t` in the secondary token, in a cell as wide as the card's widest, nothing while unknown or
-    passed.
+    the value token, tabular, right-aligned in a cell as wide as `≈100%` (the `≈` of an extrapolated percent at
+    `0.8 t` in the secondary token, QUOTAS 10.7); `0.4 t`; the short reset (QUOTAS 7: `42m`, `3h`, `週五`) at `0.9 t`
+    in the secondary token, in a cell as wide as the card's widest, nothing while unknown or passed. The card shows no
+    amount and no cap (user's choice 2026-11-11: "卡片太長了不好看，面板已經顯示過了"; the dashboard has them).
   - Bar: track label 12 % (dark 16 %); fill the source color, amber `#F5A524` (light `#B86E00`) from 80 %, the system
     red from 95 %, when the percent takes the same red. Increase Contrast: the fill in the text color, the track in the
     disabled-text color.
@@ -1000,8 +1031,8 @@ raised arm, a held-out staff or open wings push a card away instead of covering 
     orb's edge, the reset cells go first, then the bars shorten to `3 t`, then the header lines go (the dot moves before
     the source's first label, `0.35 t` before it). Only then does the card spill over like the column's other cards.
   - Accessibility: after the today reading, `a11y.orb.quota` with each source's name followed by one
-    `a11y.quota.window` per window (the long reset of QUOTAS 7; `a11y.quota.windowNoReset` without one), sources joined
-    by `list.separator`.
+    `a11y.quota.window` per window (the long reset of QUOTAS 7; `a11y.quota.windowNoReset` without one), each followed
+    by `a11y.quota.estimated` while extrapolated, sources joined by `list.separator`.
 - **Balance** (user's choice 2026-11-11: "右邊這麼空…讓左側和右側自動放的卡片內容要看起來視覺是相等的"). The column's
   cards are split between her two sides so that their weight is as even as possible:
   - The left keeps the column's first `n − k` shown cards. The last `k` continue on the right, under the models card
@@ -1040,8 +1071,9 @@ Numbers are the value token at 90 % (98 % with Increase Contrast), glyphs and un
 
 **Which cards show.** A card shows while it is switched on (`characterReadouts`, 2b; the speed always) and has
 something to say, by the quiet rule of section 10: network while `↓ + ↑ ≥ 1 KB/s`, 性能 while its score is live or
-resting or an agent generates, 費用 while money flows (or a generating set has no price), models while a model runs
-(an agent of the orb is not idle), each until 10 s after its last loud moment (the models card keeps its last rows
+resting or an agent generates, 費用 while money flows (or a generating set has no price) and, with no quiet rule,
+while its 今日 row has a value (user's choice 2026-11-11), models while a model runs (an agent of the orb is not idle),
+each until 10 s after its last loud moment (the models card keeps its last rows
 for those 10 s); today while there is a token today; 額度 while it has a source (QUOTAS 6), with no quiet rule: a
 quota does not change by the second, it is shown whenever it applies. Cards fade in over 0.35 s rising 0.02 D, and out over 0.5 s;
 their plates ease to a new size (3.2 Hz, critically damped) instead of jumping when their text changes. A
@@ -1199,6 +1231,7 @@ Persisted as one JSON value in the settings store (key `orbs`), written atomical
       "alwaysOnTop": true,
       "clickThrough": false,
       "fadeWhenIdle": false,
+      "hideWhenIdle": false,
       "allSpaces": true,
       "visible": true,
       "redlineOutput": null,
@@ -1226,6 +1259,7 @@ Persisted as one JSON value in the settings store (key `orbs`), written atomical
 | `characterReadouts` | `character` style only: the cards beside her (2a.6, *Readouts*), an object of booleans `intelligence`, `thinking`, `latency`, `network`, `cost`, `agents`, `models`, `quota` (default true) and `model` (default false). A missing key or a value that is not a boolean takes its default; written only when it differs from the defaults. Copied by Add, Duplicate and Split; Merge keeps the target's. |
 | `opacity` | 0.4–1.0. |
 | `alwaysOnTop`, `clickThrough`, `fadeWhenIdle`, `allSpaces` | As the former global settings, now per orb (`allSpaces` macOS only). |
+| `hideWhenIdle` | Section 2, *hide when idle*; default `false`. Added without a format change: absent or not a boolean reads `false`, and older builds ignore it. Copied by Add, Duplicate and Split; Merge keeps the target's. |
 | `visible` | Hides one orb without removing it. |
 | `redlineOutput`, `redlineTotal` | `null` = the General redline of that metric; otherwise this orb's redline (same ranges). Heat, tiers and titles of the orb use it. |
 | `unit` | `"tokens"` (tok/s, default) or `"cost"` (the money unit of section 9); unknown → `"tokens"`. Copied by Add, Duplicate and Split. Heat, tiers and titles always follow tokens. |
@@ -1281,8 +1315,9 @@ be removed (Remove is disabled; the master switch hides it).
   it is docked to).
 - **Z-order**: all orbs use the window level of their `alwaysOnTop`; among orbs the last dragged or clicked is in front.
   Because snapping prevents overlap, the order rarely shows. Orbs never take keyboard focus (non-activating, as today).
-- **Click-through** and **fade when idle** are per orb. Fade uses the orb's own idle state (its sources idle for 60 s)
-  and multiplies its opacity (section 2 has the rule; a board's fade is the same, on its own sources, 2c).
+- **Click-through**, **fade when idle** and **hide when idle** are per orb. Fade and hide use the orb's own idle state
+  (its sources idle for 60 s); fade multiplies its opacity (section 2 has both rules; a board's fade is the same, on
+  its own sources, 2c; boards do not hide).
 - **Master switch**: hides or shows all orbs. Turning it on while every orb is individually hidden makes them all
   visible. The quick menu (menu bar / tray) keeps one item, `menu.showOrb` / `menu.hideOrb` with one orb and
   `menu.showOrbs` / `menu.hideOrbs` with several; with several orbs it adds a `settings.orb` submenu listing each orb
@@ -2117,19 +2152,43 @@ Sections (top to bottom, 16 pt spacing, hairline separators):
    placeholder for a 5-hour window.
    - Columns, from the name's leading edge: the label (`5h`, `7d`, `Fable 7d`), 11 pt medium, secondary, in a column
      as wide as the section's widest label; 8 pt; the bar, flexible, at least 88 pt; 8 pt; the percent, 11.5 pt
-     semibold tabular in the value color, right-aligned in a cell as wide as `100%`; 8 pt; the long reset (QUOTAS 7:
-     `3 小時 12 分後重置`, `週五 09:00 重置`), 11 pt secondary, in the rest of the row, its tail truncated. While the
-     snapshot is more than 1 hour old, ` · ` and `quota.age` follow in tertiary.
+     semibold tabular in the value color, right-aligned in a cell as wide as `≈100%`; 8 pt; the amount (below); 8 pt;
+     the reset, 11 pt secondary, in the rest of the row, its tail truncated: the long reset (QUOTAS 7:
+     `3 小時 12 分後重置`, `週五 09:00 重置`) while no line of the section has an amount, else the short reset (QUOTAS 7:
+     `42m`, `3h`, `週五`; user's choice 2026-11-11: one line, `US$4,938 / ≈5,742  週五`), and none when even the short
+     resets do not fit beside the bar at its shortest (52 pt); the tooltip then opens with the long reset. While the
+     line's window is more than 1 hour old (its own time, QUOTAS 2: a Claude Code `Fable 7d` from the CLI's cache can
+     be older than the `5h` and `7d` beside it), ` · ` and `quota.age` follow in tertiary.
+   - **Percent** (QUOTAS 10.7; user's choice 2026-11-11): the live percent. While it is extrapolated, a leading `≈` in
+     the secondary token, kerned 1 pt to the digits; the bar follows the same value. A new vendor value replaces it
+     with the usual crossfade, and the `≈` fades with it.
+   - **Amount** (QUOTAS 10.8; user's choice 2026-11-11: percent, amount used and the estimated cap): the used amount
+     (section 9 *Amount* with its symbol, in the digits of the *Rate* table: whole units from 100, so `US$4,938`,
+     `US$209`, `US$12.30`; display currency), 11 pt medium tabular in the value color; then, while an estimate exists,
+     `quota.amount.cap` (` / ≈5,742`) or `quota.amount.atLeast` (` / ≥598`) with the cap in the tertiary token, in the
+     same digits without the symbol the used amount already shows, in every currency (`NT$1,235 / ≈4,560`; user's
+     choice 2026-11-11). At confidence `none` only the used amount shows; with no spend in the window and no estimate,
+     the cell is empty. The cell is left-aligned and as wide as the section's widest amount, so the reset times stay in
+     one column. The tooltip shows the amounts in full (section 9 *Amount*).
    - Bar: 4 pt tall, fully rounded; track label 8 % (dark 12 %); fill the source color, amber `#F5A524` (light
      `#B86E00`) from 80 %, the system red from 95 %, when the percent takes the same red. The pace mark, while
      QUOTAS 7 gives one, is a 1 × 8 pt tick at the pace fraction, label 35 %, centered on the bar's height.
    - Spacing: the first line 6 pt below the secondary line, lines 4 pt apart; the row eases to its new height (0.25 s).
    - Motion: a bar eases to its new length (0.4 s, ease-out); a reset empties it over 0.6 s; texts crossfade in 0.2 s.
      Reduce Motion: lengths change at once.
-   - Tooltip of a line: `quota.updated` with the snapshot's time (time only today, else date and time) and, while
-     known, `quota.pace`.
+   - Tooltip of a line: the long reset when the row shows the short one or none (above), then `quota.updated` with
+     the window's time (QUOTAS 2; time only today, else date and time) and, while known, `quota.pace`. While an estimate
+     exists, a hairline, then in secondary text: `quota.estimate.used`; `quota.estimate.cap` with the published range
+     (or `quota.estimate.atLeast`); `quota.estimate.account` while a cap exists; `quota.estimate.coverage` (integer
+     percent) while known; the confidence line (`quota.estimate.confidence.*`) with `quota.estimate.windows` after
+     ` · `; `quota.estimate.plan` with the plan (and ` · ` tier) when known, `quota.estimate.planInferred` when inferred
+     (QUOTAS 10.2); `quota.estimate.live` while the percent
+     is extrapolated; and last, in tertiary, `quota.estimate.note`. Non-USD currencies add the USD amount as section
+     9 *Tooltips* says.
    - Accessibility: the row's label adds, after the cost, one `a11y.quota.window` per window
-     (`a11y.quota.windowNoReset` without a reset time), joined by `list.separator`.
+     (`a11y.quota.windowNoReset` without a reset time), each followed by `a11y.quota.amount` (or
+     `a11y.quota.amountNoCap`) and, while the percent is extrapolated, `a11y.quota.estimated`, joined by
+     `list.separator`.
    - Increase Contrast / Windows high contrast: fill and pace mark in the text color, track in the disabled-text color.
    - **Claude Code invitation**: while `quotaClaudeCli` is off and the invitation was not dismissed, the listed Claude
      Code row shows one line in place of quota lines: the link button `dashboard.quota.enableCli` (11 pt, accent color)
@@ -2362,6 +2421,7 @@ rows, section 10); the file name is `agent-speed-history-<code>-<first date>-<la
 | `devin` | `devin` |
 | `qoder` | `qoder` |
 | `qoderCli` | `qoder-cli` |
+| `codebuddyCode` | `codebuddy-code` |
 
 Empty state (the range has neither token usage nor agent traffic, section 10): centered muted gauge glyph,
 `history.empty` and `history.empty.hint`. First launch after upgrading:
@@ -2833,8 +2893,10 @@ with Mica). Sections:
     and as a user location shows `source.folderMissing`; caption `settings.sources.antigravityHint`); WorkBuddy and
     WorkBuddy AI main session files (a data folder without `projects` shows `source.sessions` with 0; captions
     `settings.sources.workbuddyHint` and `settings.sources.workbuddyAiHint`, which also say that cloud conversations are
-    not counted). Pi, OpenClaw, Hermes Agent, Factory Droid, Devin, Qoder IDE and Qoder CLI sit in source order after
-    Grok Build. Devin's
+    not counted); CodeBuddy Code its main session files like WorkBuddy (METRICS 4.20; a config folder without `projects`
+    is not found; caption `settings.sources.codebuddyCodeHint`, which also says that the CodeBuddy IDE and plugins are
+    not read and that the CLI deletes sessions after 30 days by default). Pi, OpenClaw, Hermes Agent, Factory Droid,
+    Devin, Qoder IDE, Qoder CLI and CodeBuddy Code sit in source order after Grok Build. Devin's
     automatic entry names the CLI folder that holds `sessions.db` (`~/.local/share/devin/cli`); with `$CHISEL_SESSION_DB`
     it names that database's folder and is found while that file exists, whatever its name.
   - Add Folder… accepts what METRICS 2 names for the source: omp one `sessions` folder; Pi one folder
@@ -2843,7 +2905,8 @@ with Mica). Sections:
     the `.factory` folder or its `sessions` folder; Devin the CLI folder that holds `sessions.db` or its `devin` data
     folder (`mac.settings.sources.chooseDevin` on macOS); Qoder IDE the IDE's data folder, its `SharedClientCache`
     folder or the folder that holds `local.db` (`mac.settings.sources.chooseQoder`); Qoder CLI a config folder (`.qoder`)
-    or its `projects` folder (`mac.settings.sources.chooseQoderCli`);
+    or its `projects` folder (`mac.settings.sources.chooseQoderCli`); CodeBuddy Code a config folder (`.codebuddy`) or
+    its `projects` folder (`mac.settings.sources.chooseCodebuddyCode`);
     Antigravity one store folder or its `conversations` folder;
     WorkBuddy the data folder or its `projects` folder.
   - **Storage**: one settings value `sourceLocations`, the JSON document
@@ -3020,7 +3083,8 @@ accent color for selection, no extra borders. The pane scrolls when taller than 
    - `orbs.showName` popup — `orbs.showName.auto` with the current automatic result, a separator, `orbs.showName.on`,
      `orbs.showName.off` (2b Name plate); changing it fades the desktop plate in or out live.
    - Switches: `menu.alwaysOnTop`; `menu.clickThrough` with the platform hint (the orb is then controlled from the menu
-     bar / taskbar orb submenu); `settings.orb.fadeIdle`; `settings.orb.allSpaces` (macOS). Footer: the platform's
+     bar / taskbar orb submenu); `settings.orb.fadeIdle`; `settings.orb.hideIdle` with the caption
+     `settings.orb.hideIdleHint`; `settings.orb.allSpaces` (macOS). Footer: the platform's
      Reset Position for this orb (it returns to the default corner, or to the creation placement rule when another orb
      is there).
    - **`orbs.advanced`** disclosure (collapsed; its summary lists `orbs.name`, `titles.theme`, `settings.redline`):
@@ -3800,8 +3864,12 @@ Top to bottom:
    is never shown again in full, never in the preview and never logged. Saving a key while reporting waits for one
    (`report.status.apiKey`) registers at once.
 5. **What's sent** (`report.sections`) — the caption `report.sections.hint`, then one switch per optional section:
-   `report.section.sources`, `report.section.models`, `report.section.cost` and `report.section.traffic` (the
-   agents' own traffic), all on by default. The computer's overall network traffic is never reported (REPORTING 1.3);
+   `report.section.sources`, `report.section.models`, `report.section.cost`, `report.section.traffic` (the
+   agents' own traffic) and `report.section.quota` (REPORTING-EXTENSIONS 11; user's choice 2026-11-11: its own switch,
+   on by default like the others), all on by default. Under the quota switch, the caption
+   `report.section.quota.hint` (11 pt secondary) says what it shares, always visible; the switch is off and disabled
+   with `report.section.notAccepted` while the service's known document does not advertise `quotaEstimate`.
+   The computer's overall network traffic is never reported (REPORTING 1.3);
    a switch stored for it by an earlier build is ignored. A section the service does not list is shown off and
    disabled with `report.section.notAccepted`; the traffic switch is disabled with `report.section.trafficOff` while
    traffic measuring is off (the report then says `status: "off"`). Under the models switch, the 11 pt secondary
@@ -3862,7 +3930,7 @@ yet confirmed, or by `report.service.review` (after a change, or when an accepte
 - Title `report.consent.title` (the service name), body `report.consent.body` (with the service's interval).
 - The service card (as in the pane); the **username field**, filled with the pane's name (by default the computer
   name, below) and editable here, with its caption `report.username.public` and the random button; the API key field when needed;
-  and the section switches with their defaults and captions (5 above, the models switch's caption included). The
+  and the section switches with their defaults and captions (5 above, the models and quota captions included). The
   preview shows the name exactly as it will be sent.
 - **Nothing is sent before `report.start`**: no key is created and no request — not even registration — is made while
   the sheet is open; only the discovery document has been fetched (REPORTING 3). Cancelling leaves no trace on the

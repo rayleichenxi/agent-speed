@@ -61,7 +61,7 @@ internal interface IOrbSurface
     /// models).
     /// </summary>
     void SetCharacterReadings(Presentation.Orb.Lines.OrbLinesSample? performance, Presentation.Cost.LiveMoney? money, bool generating,
-        Presentation.Orb.OrbLatency? latency, IReadOnlyList<Presentation.Orb.OrbModelRow> models);
+        Presentation.Orb.OrbLatency? latency, IReadOnlyList<Presentation.Orb.OrbModelRow> models, Presentation.Cost.CostToday? costToday);
 
     /// <summary>One traffic sample of the <c>character</c> network card (null while not measured).</summary>
     void SetCharacterNetwork(Presentation.Orb.Lines.OrbLinesSample? network);
@@ -108,7 +108,13 @@ internal interface IOrbWindow
 
     bool IsVisible { get; }
 
-    /// <summary>The window's opacity (the unavailable dim and the idle fade); name plates follow it.</summary>
+    /// <summary>Hide when idle took the orb off the screen (DESIGN 2); it keeps its place and its feed.</summary>
+    bool IsAway { get; }
+
+    /// <summary>Raised when the orb leaves the screen or comes back (<see cref="IsAway"/>).</summary>
+    event EventHandler? AwayChanged;
+
+    /// <summary>The window's opacity (the unavailable dim, the idle fade or hide); name plates follow it.</summary>
     double Opacity { get; }
 
     /// <summary>Raised when <see cref="Opacity"/> changes (every frame of a fade).</summary>

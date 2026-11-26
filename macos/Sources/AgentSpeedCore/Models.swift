@@ -32,6 +32,8 @@ public enum SourceKind: String, CaseIterable, Codable, Sendable, Identifiable {
     case qoder
     /// Qoder CLI (`qodercli`): Claude Code's transcript format in its own folder.
     case qoderCli
+    /// CodeBuddy Code (`codebuddy`, Tencent): the WorkBuddy format in the standalone CLI's own folder.
+    case codebuddyCode
 
     public var id: String { rawValue }
 }
@@ -136,6 +138,15 @@ public struct AgentStatus: Identifiable, Equatable, Sendable {
     public var signals: WorkSignals
     /// `local`, or the remote host the agent runs on (REMOTE 2.2).
     public var host: String
+    /// While generating: when its in-flight request started (METRICS 3.3), and whether output came since then (a
+    /// response of it ended at or after that time).
+    public var inFlightSince: Date?
+    public var outputSinceInFlight = false
+    /// The newest end of its responses.
+    public var lastResponseEnd: Date?
+    /// The result time of its newest tool result when that result, read live, failed right after its previous result
+    /// failed too (CHARACTERS 5, Behavior, `trouble`); nil otherwise.
+    public var repeatFailureAt: Date?
 
     public init(
         id: String,
@@ -465,7 +476,8 @@ public struct MonitorConfiguration: Equatable, Sendable {
         droidRoot: URL? = nil,
         devinRoot: URL? = nil,
         qoderRoot: URL? = nil,
-        qoderCliRoot: URL? = nil
+        qoderCliRoot: URL? = nil,
+        codebuddyCodeRoot: URL? = nil
     ) {
         self.enabledSources = enabledSources
         self.locations = locations
@@ -474,6 +486,7 @@ public struct MonitorConfiguration: Equatable, Sendable {
             (.omp, ompRoot), (.antigravity, antigravityRoot), (.workbuddy, workbuddyRoot), (.workbuddyAi, workbuddyAiRoot),
             (.zcode, zcodeRoot), (.kimi, kimiRoot), (.grokBuild, grokBuildRoot), (.pi, piRoot), (.openclaw, openclawRoot),
             (.hermes, hermesRoot), (.droid, droidRoot), (.devin, devinRoot), (.qoder, qoderRoot), (.qoderCli, qoderCliRoot),
+            (.codebuddyCode, codebuddyCodeRoot),
         ]
         for case let (folder, url?) in single { self.locations[folder] = [.path(url.path)] }
     }

@@ -182,7 +182,7 @@ public sealed partial class CharacterDraw : IOrbStyleDraw
             _ => 1,
         };
         var level = frame.Unavailable ? 0 : (int)scene.Title;
-        _stage.Step(dt, level);
+        _stage.Step(dt, level, BehaviorInputsFor(ctx, frame.Time, Content.Live, _stage.Current));
         if (_stage.Incoming is null && _stage.Outgoing is null)
         {
             _outgoingPack = null;
@@ -317,7 +317,7 @@ public sealed partial class CharacterDraw : IOrbStyleDraw
     private bool IsBusy => _lightning.IsActive || (_stage is { } stage
         && (stage.Outgoing is not null || stage.Incoming is not null || stage.Current.FadingPose is not null || _hud.PeakAge is not null
             || _particles.IsLively || _wings.IsFading || _hud.HasPulses || _models.IsMoving(_frameTime) || _quota.IsMoving(_frameTime)
-            || Readings?.Latency.IsFading(_frameTime) == true));
+            || Readings?.Latency.IsFading(_frameTime) == true || Readings?.CostRateMoving(_frameTime) == true));
 
     /// <summary>The style model the orb drives (update, snap, pulse, peak, demand).</summary>
     private sealed class CharacterModel(CharacterDraw draw) : IOrbStyleModel
@@ -419,8 +419,8 @@ public sealed partial class CharacterDraw : IOrbStyleDraw
         var fadeIn = performer.FadingPose is null ? 1 : performer.FadeProgress;
         DrawPose(list, ctx, performer, performer.ActivePose, performer.World, performer.Opacities, alpha * fadeIn, g);
 
-        // Keep the pose the band asks for resident too, so a swap finds its atlas ready.
-        if (performer.Band is { } band && performer.PoseIndex(band) is var wanted && wanted != performer.ActivePose)
+        // Keep the pose the band or the mood asks for resident too, so a swap finds its atlas ready.
+        if (performer.Band is not null && performer.WantedPose is var wanted && wanted != performer.ActivePose)
         {
             list.AddCharacterAtlas(performer.Pack.Poses[wanted], AtlasStep(ctx, performer, wanted, g));
         }

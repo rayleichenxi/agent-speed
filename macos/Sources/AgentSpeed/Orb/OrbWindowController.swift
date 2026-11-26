@@ -67,6 +67,8 @@ final class OrbWindowController {
     private var dragRegion: [CGRect] = []
     private var cursorPushed = false
     private var appliedDiameter: CGFloat
+    /// No saved placement should be changed until the manager has placed this window.
+    private var hasPosition = false
     private var wantsShown = false
     /// Off the screen after 60 s idle (DESIGN 2, hide when idle); never written to `visible`.
     private(set) var isHiddenWhileIdle = false
@@ -228,7 +230,7 @@ final class OrbWindowController {
         nameplate.setLevel(panel.level, behavior: panel.collectionBehavior)
         fader.followerFactor = CGFloat(config.opacity)
         fader.reorderIfShown()
-        resize(to: CGFloat(config.footprintDiameter))
+        updateDisplaySize(for: screen ?? NSScreen.main ?? NSScreen.screens.first, adjustPosition: hasPosition)
         updateTracking()
         refreshBody()
         refreshNameplate()
@@ -293,11 +295,15 @@ final class OrbWindowController {
 
     /// Puts the disc at `center` at once (launch, arrangement changes while hidden).
     func jump(to center: CGPoint) {
+        updateDisplaySize(for: Self.screen(containing: center), adjustPosition: false)
         animator.jump(center: center, diameter: appliedDiameter)
+        hasPosition = true
     }
 
     /// Moves the disc to `center` (arrangement changes, pushes, a11y corner); `persist` stores it as placed.
     func move(to center: CGPoint, motion preferred: OrbWindowMotion = .layout, persist: Bool) {
+        updateDisplaySize(for: Self.screen(containing: center), adjustPosition: false)
+        hasPosition = true
         if center != animator.targetState.center {
             animator.animate(center: center, motion: motion(preferred))
         }
@@ -312,6 +318,8 @@ final class OrbWindowController {
 
     /// A created or split orb springs in from 0.6 × (or 0.85 ×) scale and 0 opacity, optionally from `origin`.
     func animateEntrance(from origin: CGPoint?, to target: CGPoint, scale: CGFloat = 0.6, delay: TimeInterval = 0) {
+        updateDisplaySize(for: Self.screen(containing: target), adjustPosition: false)
+        hasPosition = true
         let reduceMotion = self.reduceMotion
         nameplate.delayNextAppearance(reduceMotion ? 0 : 0.28)
         isEntering = true
@@ -341,13 +349,19 @@ final class OrbWindowController {
         animator.animate(presence: 1, motion: .entrance)
     }
 
-    private func resize(to diameter: CGFloat) {
+    /// Changes only the rendered footprint; the user's saved size remains the unscaled baseline.
+    func updateDisplaySize(for screen: NSScreen?, adjustPosition: Bool = false) {
+        let diameter = OrbDisplaySizing.footprint(size: config.size, style: config.style, frame: screen?.frame)
+        resize(to: CGFloat(diameter), adjustPosition: adjustPosition)
+    }
+
+    private func resize(to diameter: CGFloat, adjustPosition: Bool) {
         guard diameter != appliedDiameter else { return }
         let oldRadius = appliedDiameter / 2
         appliedDiameter = diameter
         let animation: OrbWindowMotion? = fader.isShown && !reduceMotion ? .layout : nil
         animator.animate(diameter: diameter, motion: animation)
-        guard drag == nil else { return }
+        guard adjustPosition, drag == nil else { return }
         let current = animator.targetState.center
         guard let screen = Self.screen(containing: current) else { return }
         let center = OrbSnap.resized(current, from: oldRadius, to: diameter / 2, in: screen.visibleFrame)
@@ -627,6 +641,7 @@ final class OrbWindowController {
     private func release(velocity: CGVector) {
         let current = animator.state.center
         guard let screen = Self.screen(containing: current) else { return }
+        updateDisplaySize(for: screen)
         let others = manager?.otherDiscs(excluding: id, on: screen) ?? []
         var target = OrbMagnet.releaseTarget(raw: current, radius: radius, others: others, visible: screen.visibleFrame)
         let boards = manager?.boardShapes(on: screen) ?? []

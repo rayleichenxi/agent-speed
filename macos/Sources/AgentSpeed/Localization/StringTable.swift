@@ -469,6 +469,7 @@ enum StringTable {
         "mac.settings.effects.displaySync.hint": Entry("懸浮窗和看板配合螢幕更新顯示每一格畫面。部分 Mac 關閉後，內建螢幕的亮度可能調不動。", "悬浮窗和看板配合屏幕刷新显示每一帧画面。部分 Mac 关闭后，内建屏幕的亮度可能调不动。", "Floating orbs and boards show each frame in step with the display's refresh. On some Macs, turning this off can keep the built-in display's brightness from changing.", "フローティングオーブとボードは、画面のリフレッシュに合わせて各フレームを表示します。一部の Mac では、オフにすると内蔵ディスプレイの明るさを変えられなくなることがあります。"),
         "mac.settings.effects.previewHint": Entry("用 20 秒依序展示每個速度階段。", "用 20 秒依次展示每个速度阶段。", "A 20-second sweep through every speed tier.", "20 秒間ですべての速度段階を順に表示します。"),
         "mac.settings.language.systemValue": Entry("跟隨系統（%@）", "跟随系统（%@）", "System (%@)", "システムに合わせる（%@）"),
+        "mac.settings.orb.adaptiveSize": Entry("此為基準大小，會依所在螢幕的解析度與系統縮放自動縮小。", "此为基准大小，会根据所在屏幕的分辨率与系统缩放自动缩小。", "This is the base size. It automatically shrinks on smaller desktops based on screen resolution and display scaling.", "これは基準サイズです。画面の解像度と表示スケールに応じて、小さなデスクトップでは自動的に縮小します。"),
         "mac.settings.orb.clickThroughHint": Entry("開啟後懸浮窗不會攔截滑鼠，請從選單列控制。", "开启后悬浮窗不会拦截鼠标，请从菜单栏控制。", "The orb ignores the mouse. Control it from the menu bar.", "オーブはマウス操作を受け付けません。メニューバーから操作してください。"),
         "mac.settings.orb.presets": Entry("常用大小", "常用大小", "Presets", "プリセット"),
         "mac.settings.orb.resetPosition": Entry("重設位置", "重置位置", "Reset Position", "位置をリセット"),

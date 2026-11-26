@@ -41,6 +41,7 @@ struct OrbLookSection: View {
                     .labelsHidden()
                     .frame(width: Self.sliderWidth)
                     .accessibilityValue(Text(l10n("mac.settings.orb.sizeValue", Int(orb.size.rounded()))))
+                    .accessibilityHint(Text(l10n("mac.settings.orb.adaptiveSize")))
                     .accessibilityAdjustableAction { direction in
                         orbs.setSize(SliderStep.adjust(orb.size, direction, step: OrbSizes.step, in: range), of: id)
                     }
@@ -52,6 +53,10 @@ struct OrbLookSection: View {
             } label: {
                 RowTitle(l10n("settings.orb.size"))
             }
+
+            Text(l10n("mac.settings.orb.adaptiveSize"))
+                .font(.footnote)
+                .foregroundStyle(.secondary)
 
             LabeledContent {
                 HStack(spacing: Spacing.m) {

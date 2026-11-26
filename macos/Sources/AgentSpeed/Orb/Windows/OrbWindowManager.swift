@@ -132,10 +132,10 @@ final class OrbWindowManager {
     /// arrangement resolver's choice, else the default corner (or the creation rule when another orb is there).
     private func launchCenter(for orb: OrbConfig, placed: [OrbDisc]) -> CGPoint {
         let displays = NSScreen.screens.compactMap { screen in
-            screen.orbDisplayUUID.map { OrbDisplayInfo(key: $0, visible: screen.visibleFrame) }
+            screen.orbDisplayUUID.map { OrbDisplayInfo(key: $0, visible: screen.visibleFrame, frame: screen.frame) }
         }
         let primary = Self.primaryScreen.flatMap { screen in
-            screen.orbDisplayUUID.map { OrbDisplayInfo(key: $0, visible: screen.visibleFrame) }
+            screen.orbDisplayUUID.map { OrbDisplayInfo(key: $0, visible: screen.visibleFrame, frame: screen.frame) }
         }
         let main = OrbsController.mainDisplay ?? displays.first?.key ?? ""
         return OrbLaunchPlacement.center(of: orb, document: model.orbs.document, arrangement: arrangement, displays: displays,
@@ -191,6 +191,7 @@ final class OrbWindowManager {
         let anchor = anchorId.flatMap { windows[$0] }
         let screen = anchor?.screen ?? Self.primaryScreen
         guard let screen else { return }
+        window.updateDisplaySize(for: screen)
         let others = otherDiscs(excluding: id, on: screen)
         var target = OrbPlacement.placeNew(radius: window.radius, near: anchor?.disc, others: others, visible: screen.visibleFrame)
         let boards = boardShapes(on: screen)
@@ -213,6 +214,7 @@ final class OrbWindowManager {
         defer { children.forEach { pendingPlacement.remove($0) } }
         guard let first = windows[original], let screen = first.screen ?? Self.primaryScreen else { return }
         let visible = screen.visibleFrame
+        children.forEach { windows[$0]?.updateDisplaySize(for: screen) }
         let excluded = Set(children + [original])
         let otherIds = windows.keys.filter { !excluded.contains($0) && windows[$0]?.holdsPlace == true && windows[$0]?.screen == screen }
         let others = otherIds.compactMap { windows[$0]?.disc }
@@ -265,6 +267,7 @@ final class OrbWindowManager {
 
     private func resetPosition(_ id: String) {
         guard let window = windows[id], let screen = Self.primaryScreen else { return }
+        window.updateDisplaySize(for: screen)
         let visible = screen.visibleFrame
         let others = otherDiscs(excluding: id, on: screen)
         var target = OrbSnap.defaultCenter(radius: window.radius, in: visible)
@@ -302,9 +305,11 @@ final class OrbWindowManager {
             var center: CGPoint
             var visible: CGRect
             if let entry = entries[orb.id] ?? nil, let screen = Self.screen(with: entry.display) ?? Self.primaryScreen {
+                window.updateDisplaySize(for: screen)
                 visible = screen.visibleFrame
                 center = entry.record.center(radius: window.radius, visible: visible)
             } else if let screen = window.screen ?? Self.primaryScreen {
+                window.updateDisplaySize(for: screen)
                 visible = screen.visibleFrame
                 center = OrbSnap.clamped(window.center, radius: window.radius, in: visible)
             } else {

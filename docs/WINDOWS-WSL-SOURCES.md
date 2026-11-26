@@ -7,3 +7,7 @@
 程序只读会话文件，不启动或更改 WSL 服务。Windows 文件通知不可用时，既有的定期发现和轮询仍会读取变更；新会话可能需要约 10 秒才能发现。WSL 不可访问时不会读取该来源，恢复后会重新发现。原始日志可能含有敏感信息；实时上报默认关闭。
 
 请避免把同一批文件通过不同挂载路径或复制目录重复添加；应用会去重相同位置，但不能保证识别所有指向相同文件的别名。
+
+Antigravity CLI 可添加 WSL 用户的 .gemini/antigravity-cli 目录或其中的 conversations 目录。例如，Ubuntu-22.04 的 root 用户可以添加 \\wsl.localhost\Ubuntu-22.04\root\.gemini\antigravity-cli\conversations。
+
+启用网络和 Antigravity 额度后，打开面板即可查询。Windows 本地语言服务器未返回额度时，应用按配置的目录顺序选择第一个符合格式的 WSL 位置，用对应的 Linux 用户运行家目录中的 .local/bin/agy。支持 /root 和 /home/<用户名>，使用 agy 已有的登录状态。

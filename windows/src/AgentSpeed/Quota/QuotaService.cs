@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 using System.Windows.Threading;
 using AgentSpeed.App;
 using AgentSpeed.Core;
+using AgentSpeed.Core.Locations;
 using AgentSpeed.Core.Network;
 using AgentSpeed.Core.Quota;
 using AgentSpeed.Core.Quota.Cookies;
@@ -22,7 +23,7 @@ namespace AgentSpeed.Quota;
 /// sources the hosts read (<paramref name="HostShown"/>, REMOTE 11.1).
 /// </summary>
 internal sealed record QuotaInputs(QuotaSettings Quota, IReadOnlySet<SourceKind> Shown, IReadOnlySet<QuotaRoute> Routes, bool Network,
-    IReadOnlySet<SourceKind> HostShown)
+    IReadOnlySet<SourceKind> HostShown, WslAgyLocation? WslAgy)
 {
     public static QuotaInputs Default { get; } = Of(AppSettings.Default);
 
@@ -35,14 +36,15 @@ internal sealed record QuotaInputs(QuotaSettings Quota, IReadOnlySet<SourceKind>
             hosts.Add(SourceKind.ClaudeCode);
         }
 
-        return new(settings.Quota, QuotaSettings.Sources.Where(settings.ShowsQuota).ToHashSet(), settings.QuotaRoutes, settings.NetworkEnabled, hosts);
+        return new(settings.Quota, QuotaSettings.Sources.Where(settings.ShowsQuota).ToHashSet(), settings.QuotaRoutes, settings.NetworkEnabled, hosts,
+            WslAgyLocation.FromLocations(settings.Locations[LocationFolder.Antigravity]));
     }
 
     public bool Equals(QuotaInputs? other) =>
         other is not null && Quota == other.Quota && Network == other.Network && Shown.SetEquals(other.Shown) && Routes.SetEquals(other.Routes)
-        && HostShown.SetEquals(other.HostShown);
+        && HostShown.SetEquals(other.HostShown) && WslAgy == other.WslAgy;
 
-    public override int GetHashCode() => HashCode.Combine(Quota, Network, Shown.Count, Routes.Count);
+    public override int GetHashCode() => HashCode.Combine(Quota, Network, Shown.Count, Routes.Count, WslAgy);
 }
 
 /// <summary>
@@ -123,7 +125,7 @@ internal sealed class QuotaService : IDisposable
             ZcodeKey = _zcodeKeys.Read,
             Browser = sandboxed ? null : new BrowserCookieReader(),
             Antigravity = _antigravity,
-            AntigravityReport = OperatingSystem.IsWindows() && !sandboxed ? new AgyUsageReport(Home) : null,
+            AntigravityReport = OperatingSystem.IsWindows() && !sandboxed ? new AgyUsageReport(Home, () => _inputs.WslAgy) : null,
         })
         {
             Log = message => AppLog.Info("Quota: " + message),
@@ -171,6 +173,11 @@ internal sealed class QuotaService : IDisposable
         }
 
         _inputs = next;
+        if (next.WslAgy != before.WslAgy)
+        {
+            _vendor.Forget(QuotaRoute.Antigravity);
+            _readings = _vendor.Readings;
+        }
         _vendorNow = true;
         _readLocalNow = true;
         Poke();

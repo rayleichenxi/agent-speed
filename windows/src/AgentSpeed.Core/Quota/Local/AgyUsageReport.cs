@@ -44,29 +44,34 @@ public sealed class AgyUsageReport : IAntigravityReport
     private readonly Func<string, string?> _variables;
     private readonly Func<IReadOnlyDictionary<string, string>> _environment;
     private readonly AgyLimits _limits;
+    private readonly Func<WslAgyLocation?> _wslLocation;
     private int _running;
     private (AgyIdentity Binary, (int Major, int Minor, int Patch) Version)? _version;
 
     /// <param name="home">The user's home folder (<c>%USERPROFILE%</c>).</param>
-    public AgyUsageReport(string home)
-        : this(home, Environment.GetEnvironmentVariable, AppEnvironment, new AgyLimits())
+    public AgyUsageReport(string home, Func<WslAgyLocation?>? wslLocation = null)
+        : this(home, Environment.GetEnvironmentVariable, AppEnvironment, new AgyLimits(), wslLocation)
     {
     }
 
     /// <param name="variables">The app's <c>PATH</c>, where agy is looked for.</param>
     /// <param name="environment">The app's environment, which agy inherits with its additions.</param>
-    internal AgyUsageReport(string home, Func<string, string?> variables, Func<IReadOnlyDictionary<string, string>> environment, AgyLimits limits)
+    internal AgyUsageReport(string home, Func<string, string?> variables, Func<IReadOnlyDictionary<string, string>> environment,
+        AgyLimits limits, Func<WslAgyLocation?>? wslLocation = null)
     {
         _home = home;
         _variables = variables;
         _environment = environment;
         _limits = limits;
+        _wslLocation = wslLocation ?? (() => null);
     }
 
     /// <summary>How many times <c>--version</c> ran (tests).</summary>
     internal int VersionRuns { get; private set; }
 
-    public bool CanRun() => AgyBinary.Find(_home, _variables("PATH")) is not null;
+    private static string WslExecutable => Path.Combine(Environment.SystemDirectory, "wsl.exe");
+
+    public bool CanRun() => _wslLocation() is null ? AgyBinary.Find(_home, _variables("PATH")) is not null : File.Exists(WslExecutable);
 
     public async Task<AntigravityReport> RunAsync(Func<long> now, CancellationToken cancellationToken = default)
     {
@@ -88,30 +93,53 @@ public sealed class AgyUsageReport : IAntigravityReport
 
     private async Task<AntigravityReport> ReportAsync(Func<long> now, CancellationToken cancellationToken)
     {
-        if (AgyBinary.Find(_home, _variables("PATH")) is not { } found || CreatePrivateFolder() is not { } folder)
+        var wsl = _wslLocation();
+        var native = wsl is null ? AgyBinary.Find(_home, _variables("PATH")) : null;
+        if ((native is null && (wsl is null || !File.Exists(WslExecutable))) || CreatePrivateFolder() is not { } folder)
         {
             return new AntigravityReport(null, now());
         }
 
-        var (binary, identity) = found;
-
         try
         {
             var environment = ChildEnvironment(folder);
-            var version = await VersionAsync(binary, identity, environment, folder, now, cancellationToken).ConfigureAwait(false);
-            if (version is not { } known || known.CompareTo(AntigravityCliReport.Minimum) < 0)
+            if (wsl is not null)
             {
-                return new AntigravityReport(null, now());
+                return await WslReportAsync(wsl, environment, folder, now, cancellationToken).ConfigureAwait(false);
             }
 
-            var run = await JobProcess.RunAsync(binary, Arguments, environment, folder, _limits.ReportTimeoutMs, _limits.ReportCapBytes, now, cancellationToken)
-                .ConfigureAwait(false);
-            return new AntigravityReport(run.End == JobProcessEnd.Exited ? AntigravityCliReport.Windows(run.Output) : null, run.EndedMs);
+            var (binary, identity) = native!.Value;
+            var version = await VersionAsync(binary, identity, environment, folder, now, cancellationToken).ConfigureAwait(false);
+            return await ReadReportAsync(binary, Arguments, version, environment, folder, now, cancellationToken).ConfigureAwait(false);
         }
         finally
         {
             await RemoveAsync(folder).ConfigureAwait(false);
         }
+    }
+
+    private async Task<AntigravityReport> WslReportAsync(WslAgyLocation wsl, Dictionary<string, string> environment, string folder,
+        Func<long> now, CancellationToken cancellationToken)
+    {
+        environment.Remove("WSLENV");
+        var result = await JobProcess.RunAsync(WslExecutable, wsl.Arguments(folder, "10s", ["--version"]), environment, folder,
+            12_000, _limits.VersionCapBytes, now, cancellationToken).ConfigureAwait(false);
+        var version = result.End == JobProcessEnd.Exited ? AntigravityCliReport.Version(Encoding.UTF8.GetString(result.Output)) : null;
+        return await ReadReportAsync(WslExecutable, wsl.Arguments(folder, "95s", Arguments), version, environment, folder, now, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private async Task<AntigravityReport> ReadReportAsync(string executable, IReadOnlyList<string> arguments, (int Major, int Minor, int Patch)? version,
+        IReadOnlyDictionary<string, string> environment, string folder, Func<long> now, CancellationToken cancellationToken)
+    {
+        if (version is not { } known || known.CompareTo(AntigravityCliReport.Minimum) < 0)
+        {
+            return new AntigravityReport(null, now());
+        }
+
+        var run = await JobProcess.RunAsync(executable, arguments, environment, folder, _limits.ReportTimeoutMs, _limits.ReportCapBytes, now, cancellationToken)
+            .ConfigureAwait(false);
+        return new AntigravityReport(run.End == JobProcessEnd.Exited ? AntigravityCliReport.Windows(run.Output) : null, run.EndedMs);
     }
 
     /// <summary>The cached version while the binary's identity holds; a version that does not read is asked again next time.</summary>
